@@ -13,6 +13,9 @@ in
     ./configuration.nix
     ./writable-mode.nix
     ./components/quickshell-service.nix
+    ./components/quickshell-config.nix
+    ./components/hyprland-config.nix
+    ./components/terminal-config.nix
     ./components/touchegg.nix
   ];
 
@@ -92,8 +95,10 @@ in
 
     # Enable configuration management based on mode
     programs.dots-hyprland.configuration = mkIf (cfg.mode == "declarative") {
-      enable = true;
+      enable = false;  # Temporarily disabled for rich config testing
       source = cfg.source;
+      # Disable copying specific configs if we're managing them with rich config
+      copyMiscConfig = !(cfg ? quickshell || cfg ? terminal);
     };
     
     # Enable writable mode
