@@ -66,8 +66,8 @@ in
     };
   };
   
-  config = mkIf config.programs.dots-hyprland.enable {
-    # Generate foot configuration
+  config = mkIf (config.programs.dots-hyprland.enable && config.programs.dots-hyprland.overrides.footConfig == null) {
+    # Only generate if no manual override is set
     xdg.configFile."foot/foot.ini".text = ''
       [main]
       term=xterm-256color

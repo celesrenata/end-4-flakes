@@ -17,6 +17,7 @@ in
     ./components/hyprland-config.nix
     ./components/terminal-config.nix
     ./components/touchegg.nix
+    ./components/config-override.nix
   ];
 
   options.programs.dots-hyprland = {

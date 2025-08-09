@@ -208,8 +208,8 @@ in
     };
   };
   
-  config = mkIf config.programs.dots-hyprland.enable {
-    # Generate the Config.qml file with NixOS-managed values
+  config = mkIf (config.programs.dots-hyprland.enable && config.programs.dots-hyprland.overrides.quickshellConfig == null) {
+    # Only generate if no manual override is set
     xdg.configFile."quickshell/ii/modules/common/Config.qml".text = ''
       pragma Singleton
       pragma ComponentBehavior: Bound
