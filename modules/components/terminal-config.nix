@@ -66,8 +66,10 @@ in
     };
   };
   
-  config = mkIf (config.programs.dots-hyprland.enable && config.programs.dots-hyprland.overrides.footConfig == null) {
-    # Only generate if no manual override is set
+  config = mkIf (config.programs.dots-hyprland.enable && 
+                 config.programs.dots-hyprland.overrides.footConfig == null &&
+                 !(config.programs.dots-hyprland.configuration.enable or false)) {
+    # Only generate if no manual override is set AND configuration copying is disabled
     xdg.configFile."foot/foot.ini".text = ''
       [main]
       term=xterm-256color
