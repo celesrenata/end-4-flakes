@@ -49,6 +49,16 @@ in
       '';
     };
 
+    toucheggConf = mkOption {
+      type = types.nullOr types.lines;
+      default = null;
+      description = ''
+        Complete touchegg.conf content. When set, completely overrides:
+        - Any copied touchegg.conf from source
+        - Generates the entire file from this content
+      '';
+    };
+
     # Directory-level overrides
     hyprDirectory = mkOption {
       type = types.nullOr types.path;
@@ -94,6 +104,11 @@ in
       # Terminal complete override
       (mkIf (cfg.overrides.footConfig != null) {
         "foot/foot.ini".text = cfg.overrides.footConfig;
+      })
+
+      # Touchegg complete override
+      (mkIf (cfg.overrides.toucheggConf != null) {
+        "touchegg/touchegg.conf".text = cfg.overrides.toucheggConf;
       })
 
       # Directory overrides
