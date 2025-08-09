@@ -1,0 +1,29 @@
+module qs.services
+
+Ai 1.0 Ai.qml
+AppSearch 1.0 AppSearch.qml
+Audio 1.0 Audio.qml
+Battery 1.0 Battery.qml
+Bluetooth 1.0 Bluetooth.qml
+Booru 1.0 Booru.qml
+BooruResponseData 1.0 BooruResponseData.qml
+Brightness 1.0 Brightness.qml
+Cliphist 1.0 Cliphist.qml
+DateTime 1.0 DateTime.qml
+Emojis 1.0 Emojis.qml
+FirstRunExperience 1.0 FirstRunExperience.qml
+HyprlandData 1.0 HyprlandData.qml
+HyprlandKeybinds 1.0 HyprlandKeybinds.qml
+HyprlandXkb 1.0 HyprlandXkb.qml
+Hyprsunset 1.0 Hyprsunset.qml
+KeyringStorage 1.0 KeyringStorage.qml
+LatexRenderer 1.0 LatexRenderer.qml
+MaterialThemeLoader 1.0 MaterialThemeLoader.qml
+MprisController 1.0 MprisController.qml
+Network 1.0 Network.qml
+Notifications 1.0 Notifications.qml
+ResourceUsage 1.0 ResourceUsage.qml
+SystemInfo 1.0 SystemInfo.qml
+Todo 1.0 Todo.qml
+Weather 1.0 Weather.qml
+Ydotool 1.0 Ydotool.qml

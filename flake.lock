@@ -1,22 +1,5 @@
 {
   "nodes": {
-    "dots-hyprland": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1754709786,
-        "narHash": "sha256-NDEupEt2F2yMCI2cWNy1tE8FsuLwW4NGvgJierzMPwQ=",
-        "owner": "celesrenata",
-        "repo": "dots-hyprland",
-        "rev": "65b10e45fdc082f6f1b7a6135393f870510e2f51",
-        "type": "github"
-      },
-      "original": {
-        "owner": "celesrenata",
-        "ref": "installer-replication",
-        "repo": "dots-hyprland",
-        "type": "github"
-      }
-    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -88,7 +71,6 @@
     },
     "root": {
       "inputs": {
-        "dots-hyprland": "dots-hyprland",
         "home-manager": "home-manager",
         "nixpkgs": "nixpkgs",
         "quickshell": "quickshell"

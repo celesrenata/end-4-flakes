@@ -1,0 +1,160 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Hyprland
+
+Rectangle {
+    id: overview
+    
+    property bool visible: false
+    property var workspaces: []
+    property var windows: []
+    
+    color: "@BACKGROUND_COLOR@"
+    radius: 12
+    
+    // Window previews with drag-and-drop
+    GridView {
+        id: windowGrid
+        anchors.fill: parent
+        anchors.margins: 20
+        
+        cellWidth: 300
+        cellHeight: 200
+        
+        model: overview.windows
+        
+        delegate: Rectangle {
+            width: windowGrid.cellWidth - 10
+            height: windowGrid.cellHeight - 10
+            
+            color: "@SURFACE_COLOR@"
+            radius: 8
+            border.color: "@OUTLINE_COLOR@"
+            border.width: 1
+            
+            // Window preview
+            Image {
+                id: windowPreview
+                anchors.fill: parent
+                anchors.margins: 4
+                source: modelData.preview || ""
+                fillMode: Image.PreserveAspectFit
+                
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                    height: 30
+                    color: "@SURFACE_VARIANT_COLOR@"
+                    radius: 4
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData.title || "Unknown"
+                        color: "@ON_SURFACE_COLOR@"
+                        font.pixelSize: 12
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+            
+            // Drag and drop functionality
+            MouseArea {
+                anchors.fill: parent
+                drag.target: parent
+                
+                onClicked: {
+                    // Focus window
+                    HyprlandIpc.dispatch("focuswindow", "address:" + modelData.address)
+                    overview.visible = false
+                }
+                
+                onReleased: {
+                    // Handle workspace drop
+                    var workspace = getWorkspaceAt(parent.x, parent.y)
+                    if (workspace) {
+                        HyprlandIpc.dispatch("movetoworkspace", workspace + ",address:" + modelData.address)
+                    }
+                }
+            }
+        }
+    }
+    
+    // Workspace indicators
+    Row {
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.margins: 20
+        spacing: 10
+        
+        Repeater {
+            model: overview.workspaces
+            
+            Rectangle {
+                width: 40
+                height: 8
+                radius: 4
+                color: modelData.active ? "@PRIMARY_COLOR@" : "@OUTLINE_COLOR@"
+                
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        HyprlandIpc.dispatch("workspace", modelData.id)
+                        overview.visible = false
+                    }
+                }
+            }
+        }
+    }
+    
+    // Search functionality
+    Rectangle {
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.margins: 20
+        
+        width: 400
+        height: 40
+        radius: 20
+        color: "@SURFACE_COLOR@"
+        border.color: "@OUTLINE_COLOR@"
+        
+        TextInput {
+            id: searchInput
+            anchors.fill: parent
+            anchors.margins: 15
+            
+            color: "@ON_SURFACE_COLOR@"
+            font.pixelSize: 14
+            placeholderText: "Search applications, calculate, or run commands..."
+            
+            onTextChanged: {
+                // Implement search logic
+                performSearch(text)
+            }
+            
+            Keys.onReturnPressed: {
+                // Execute search result
+                executeSearchResult()
+            }
+        }
+    }
+    
+    function performSearch(query) {
+        // Implementation for search functionality
+        // - Application search
+        // - Calculator
+        // - Command execution
+        // - Directory navigation
+    }
+    
+    function executeSearchResult() {
+        // Execute the selected search result
+    }
+    
+    function getWorkspaceAt(x, y) {
+        // Determine workspace based on drop position
+        return null
+    }
+}

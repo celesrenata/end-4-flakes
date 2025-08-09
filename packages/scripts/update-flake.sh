@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # dots-hyprland Flake Update Utility
-# Manages flake input updates and GitHub synchronization
+# Manages flake input updates for self-contained installer replication
 
 set -e
 
@@ -35,16 +35,13 @@ header() {
 
 show_help() {
     cat << EOF
-dots-hyprland Flake Update Utility
+dots-hyprland Flake Update Utility (Self-Contained)
 
 USAGE:
     update-flake [OPTIONS] [COMMAND]
 
 COMMANDS:
     update          Update all flake inputs (default)
-    update-source   Update only dots-hyprland source input
-    pin <commit>    Pin dots-hyprland to specific commit
-    branch <name>   Switch to tracking a specific branch
     status          Show current flake input status
     verify          Verify flake builds after update
     help            Show this help message
@@ -55,11 +52,11 @@ OPTIONS:
 
 EXAMPLES:
     update-flake                    # Update all inputs
-    update-flake update-source      # Update only dots-hyprland source
-    update-flake pin abc123def      # Pin to specific commit
-    update-flake branch main        # Track main branch
     update-flake status             # Show current status
     update-flake update --auto-verify  # Update and verify builds
+
+NOTE: This flake is now self-contained and doesn't depend on external
+      dots-hyprland repository. All configs are included locally.
 
 EOF
 }
@@ -72,42 +69,20 @@ get_current_branch() {
     git branch --show-current
 }
 
-get_flake_source_info() {
-    if [[ -f flake.lock ]]; then
-        local rev=$(jq -r '.nodes."dots-hyprland".locked.rev // "unknown"' flake.lock)
-        local ref=$(jq -r '.nodes."dots-hyprland".original.ref // .nodes."dots-hyprland".original.rev // "unknown"' flake.lock)
-        echo "$rev|$ref"
-    else
-        echo "unknown|unknown"
-    fi
-}
-
 show_status() {
     header "Flake Status"
     
     local current_commit=$(get_current_commit)
     local current_branch=$(get_current_branch)
-    local flake_info=$(get_flake_source_info)
-    local flake_rev=$(echo "$flake_info" | cut -d'|' -f1)
-    local flake_ref=$(echo "$flake_info" | cut -d'|' -f2)
     
     echo "📁 Project Directory: $(pwd)"
     echo "🌿 Current Branch: $current_branch"
     echo "📝 Current Commit: ${current_commit:0:12}..."
-    echo "🔒 Flake Locked To: ${flake_rev:0:12}..."
-    echo "🎯 Flake Tracking: $flake_ref"
+    echo "🎯 Mode: Self-contained (no external dependencies)"
     echo ""
     
-    if [[ "$flake_rev" == "$current_commit" ]]; then
-        log "✅ Flake is synchronized with current commit"
-    elif [[ "$flake_ref" == "$current_branch" ]]; then
-        warn "🔄 Flake tracks branch but may need update"
-        info "Run 'update-flake update' to sync with latest commits"
-    else
-        warn "⚠️  Flake is out of sync"
-        info "Flake: $flake_ref (${flake_rev:0:12}...)"
-        info "Local: $current_branch (${current_commit:0:12}...)"
-    fi
+    log "✅ Flake is self-contained with local configs"
+    info "All dots-hyprland configurations are included in ./configs/"
 }
 
 update_all_inputs() {
@@ -116,19 +91,9 @@ update_all_inputs() {
     log "Running nix flake update..."
     if nix flake update; then
         log "✅ All inputs updated successfully"
+        info "Updated: nixpkgs, home-manager, quickshell"
     else
         error "Failed to update flake inputs"
-    fi
-}
-
-update_source_only() {
-    header "Updating dots-hyprland Source Input"
-    
-    log "Running nix flake lock --update-input dots-hyprland..."
-    if nix flake lock --update-input dots-hyprland; then
-        log "✅ dots-hyprland source updated successfully"
-    else
-        error "Failed to update dots-hyprland source input"
     fi
 }
 
@@ -170,7 +135,7 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
-        update|update-source|status|verify|help)
+        update|status|verify|help)
             COMMAND="$1"
             shift
             ;;
@@ -199,17 +164,6 @@ case "$COMMAND" in
             show_status
         else
             update_all_inputs
-            if $AUTO_VERIFY; then
-                verify_builds
-            fi
-        fi
-        ;;
-    update-source)
-        if $DRY_RUN; then
-            info "DRY RUN: Would update dots-hyprland source input"
-            show_status
-        else
-            update_source_only
             if $AUTO_VERIFY; then
                 verify_builds
             fi

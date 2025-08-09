@@ -1,0 +1,18 @@
+# dots-hyprland NixOS Configuration
+# Generated from template - do not edit directly
+
+# Quickshell configuration
+$qsConfig = ii
+exec = hyprctl dispatch submap global # DO NOT REMOVE THIS OR YOU WON'T BE ABLE TO USE ANY KEYBIND
+submap = global # This is required for catchall to work
+
+# Source configuration files
+source=~/.config/hypr/env.conf
+source=~/.config/hypr/execs.conf
+source=~/.config/hypr/general.conf
+source=~/.config/hypr/rules.conf
+source=~/.config/hypr/colors.conf
+source=~/.config/hypr/keybinds.conf
+
+# Custom user overrides (if they exist)
+source=~/.config/hypr/custom.conf

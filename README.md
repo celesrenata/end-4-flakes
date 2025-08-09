@@ -1,17 +1,18 @@
-# dots-hyprland for NixOS
+# dots-hyprland for NixOS (Self-Contained)
 
-A NixOS adaptation of [end-4's dots-hyprland](https://github.com/end-4/dots-hyprland) desktop environment, bringing the beautiful "illogical-impulse" style to NixOS with full declarative configuration.
+A complete, self-contained NixOS adaptation of [end-4's dots-hyprland](https://github.com/end-4/dots-hyprland) desktop environment, bringing the beautiful "illogical-impulse" style to NixOS with full declarative configuration.
 
-## 🎯 Project Status: Phase 3 Complete ✅
+## 🎯 Project Status: Self-Contained & Complete ✅
 
-**Current Achievement: Core Desktop Environment Functional**
+**Current Achievement: Fully Self-Contained Desktop Environment**
 
-- ✅ **Quickshell Integration** - Official flake support resolved
+- ✅ **Self-Contained**: All configurations included locally (no external dependencies)
+- ✅ **Quickshell Integration** - Official flake support with local configs
 - ✅ **Hyprland Configuration** - Complete window manager setup with Material You theming
 - ✅ **Essential Applications** - foot terminal, fuzzel launcher, nautilus file manager
 - ✅ **Home Manager Integration** - Fully declarative configuration
 - ✅ **Package Management** - All dependencies properly integrated
-- ✅ **Development Environment** - Ready for Phase 4 advanced features
+- ✅ **Development Environment** - Ready for advanced features
 
 ## 🚀 Quick Start
 
@@ -23,16 +24,16 @@ A NixOS adaptation of [end-4's dots-hyprland](https://github.com/end-4/dots-hypr
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd dots-hyprland-nixos
+git clone git@github.com:celesrenata/end-4-flakes.git
+cd end-4-flakes
 
 # Build and activate Home Manager configuration
-nix build .#homeConfigurations.example.activationPackage
+nix build .#homeConfigurations.declarative.activationPackage
 ./result/activate
 
 # Or use with your existing Home Manager setup
 # Add to your flake inputs:
-# dots-hyprland.url = "github:your-org/dots-hyprland-nixos";
+# dots-hyprland.url = "github:celesrenata/end-4-flakes";
 ```
 
 ### Development
@@ -42,7 +43,7 @@ nix build .#homeConfigurations.example.activationPackage
 nix develop
 
 # Available development tools:
-# - update-flake: Manage flake inputs and GitHub synchronization
+# - update-flake: Manage flake inputs
 # - compare-modes: Compare declarative vs writable configuration modes
 # - test-python-env: Test Python virtual environment setup
 # - test-quickshell: Test quickshell configuration
@@ -50,7 +51,6 @@ nix develop
 # Flake management examples:
 update-flake status           # Show current flake status
 update-flake update           # Update all flake inputs
-update-flake update-source    # Update only dots-hyprland source
 update-flake verify           # Test that configurations build
 update-flake help             # Show all available options
 ```
@@ -162,25 +162,34 @@ The utility automatically detects synchronization status and provides clear feed
 
 ## 🏗️ Architecture
 
-### Module Structure
+### Self-Contained Structure
 ```
-modules/
-├── home-manager.nix          # Main Home Manager integration
-├── nixos.nix                 # NixOS system integration
-└── components/
-    ├── packages.nix          # Package management
-    ├── hyprland.nix          # Hyprland configuration
-    └── applications.nix      # Application configurations
+├── flake.nix                 # Main flake definition (clean & minimal)
+├── flake.lock                # Locked dependencies
+├── configs/                  # All dots-hyprland configurations
+│   ├── hypr/                 # Hyprland configuration
+│   ├── quickshell/           # Quickshell widgets and config
+│   ├── applications/         # Application configurations
+│   ├── scripts/              # Utility scripts
+│   └── matugen/              # Material You theming
+├── modules/                  # NixOS/Home Manager modules
+│   ├── home-manager.nix      # Main Home Manager integration
+│   ├── python-environment.nix # Python venv setup
+│   ├── configuration.nix     # Declarative config management
+│   ├── writable-mode.nix     # Writable mode setup
+│   └── components/           # Component modules
+└── packages/                 # Utility packages and scripts
+    ├── default.nix           # Package definitions
+    ├── dots-hyprland-packages.nix # Package mappings
+    └── scripts/              # Development utilities
 ```
 
-### Flake Structure
-```
-├── flake.nix                 # Main flake with inputs/outputs
-├── modules/                  # NixOS/Home Manager modules
-├── packages/                 # Custom package derivations
-├── configs/                  # Configuration templates
-└── assets/                   # Static assets (icons, themes)
-```
+### Key Benefits
+- **🔒 Self-Contained**: No external repository dependencies
+- **📦 Version Controlled**: All configs tracked in single repository
+- **🔧 Maintainable**: Clean separation of concerns
+- **🚀 Fast**: No network dependencies during build
+- **🎯 Focused**: Only essential files included
 
 ## 🎯 Gameplan Progress
 

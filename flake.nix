@@ -1,5 +1,5 @@
 {
-  description = "NixOS adaptation of end-4's dots-hyprland using installer replication";
+  description = "NixOS adaptation of end-4's dots-hyprland - self-contained installer replication";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -8,13 +8,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     quickshell.url = "github:outfoxxed/quickshell";
-    dots-hyprland = {
-      url = "github:celesrenata/dots-hyprland/installer-replication";
-      flake = false;
-    };
   };
 
-  outputs = { self, nixpkgs, home-manager, quickshell, dots-hyprland, ... }:
+  outputs = { self, nixpkgs, home-manager, quickshell, ... }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs {
@@ -65,7 +61,7 @@
               
               programs.dots-hyprland = {
                 enable = true;
-                source = dots-hyprland;
+                source = ./configs;  # Use local configs
                 packageSet = "essential";
                 mode = "declarative";
               };
@@ -84,7 +80,7 @@
               
               programs.dots-hyprland = {
                 enable = true;
-                source = dots-hyprland;
+                source = ./configs;  # Use local configs
                 packageSet = "essential";
                 mode = "writable";
                 writable = {
