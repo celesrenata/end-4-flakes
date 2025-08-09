@@ -1,0 +1,33 @@
+# Nix build results
+result
+result-*
+
+# Nix development
+.direnv/
+.envrc
+
+# Cache directories
+.cache/
+*.tmp
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.bak
+*.orig
+
+# External repositories (for reference only)
+dots-hyprland/
+dots-hyprland-wiki/
