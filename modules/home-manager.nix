@@ -36,10 +36,11 @@ in
     };
     
     mode = mkOption {
-      type = types.enum [ "declarative" "writable" ];
-      default = "declarative";
+      type = types.enum [ "declarative" "writable" "hybrid" ];
+      default = "hybrid";
       description = ''
         Configuration mode:
+        - hybrid: Hyprland declarative + Quickshell copied (recommended)
         - declarative: Files managed by Home Manager (read-only)
         - writable: Files staged to .configstaging, user copies and modifies
       '';
@@ -95,11 +96,13 @@ in
     };
 
     # Enable configuration management based on mode
-    programs.dots-hyprland.configuration = mkIf (cfg.mode == "declarative") {
-      enable = false;  # Temporarily disabled for rich config testing
+    programs.dots-hyprland.configuration = mkIf (cfg.mode == "declarative" || cfg.mode == "hybrid") {
+      enable = mkDefault (cfg.mode == "hybrid");  # Enable copying for hybrid mode
       source = cfg.source;
-      # Disable copying specific configs if we're managing them with rich config
-      copyMiscConfig = !(cfg ? quickshell || cfg ? terminal);
+      # In hybrid mode, copy Quickshell but not Hyprland (use overrides instead)
+      copyMiscConfig = mkDefault (cfg.mode == "hybrid");
+      copyFishConfig = mkDefault true;
+      copyHyprlandConfig = mkDefault (cfg.mode == "declarative");  # Only copy in pure declarative mode
     };
     
     # Enable writable mode
