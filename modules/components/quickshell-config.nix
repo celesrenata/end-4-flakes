@@ -208,8 +208,10 @@ in
     };
   };
   
-  config = mkIf (config.programs.dots-hyprland.enable && config.programs.dots-hyprland.overrides.quickshellConfig == null) {
-    # Only generate if no manual override is set
+  config = mkIf (config.programs.dots-hyprland.enable && 
+                 config.programs.dots-hyprland.overrides.quickshellConfig == null &&
+                 !(config.programs.dots-hyprland.configuration.enable or false)) {
+    # Only generate if no manual override is set AND configuration copying is disabled
     xdg.configFile."quickshell/ii/modules/common/Config.qml".text = ''
       pragma Singleton
       pragma ComponentBehavior: Bound
