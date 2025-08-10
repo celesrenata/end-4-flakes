@@ -195,6 +195,11 @@ EOF
         $DRY_RUN_CMD echo "  → Removed conflicting symlinked fish config"
       fi
       
+      if [[ -L "$HOME/.config/matugen" ]]; then
+        $DRY_RUN_CMD rm "$HOME/.config/matugen"
+        $DRY_RUN_CMD echo "  → Removed conflicting symlinked matugen config"
+      fi
+      
       # Also handle if they exist as regular directories
       if [[ -d "$HOME/.local/share/konsole" && ! -L "$HOME/.local/share/konsole" ]]; then
         $DRY_RUN_CMD mv "$HOME/.local/share/konsole" "$HOME/.local/share/konsole.backup-$(date +%Y%m%d-%H%M%S)"
@@ -204,6 +209,11 @@ EOF
       if [[ -d "$HOME/.config/fish" && ! -L "$HOME/.config/fish" ]]; then
         $DRY_RUN_CMD mv "$HOME/.config/fish" "$HOME/.config/fish.backup-$(date +%Y%m%d-%H%M%S)"
         $DRY_RUN_CMD echo "  → Backed up existing fish config directory"
+      fi
+      
+      if [[ -d "$HOME/.config/matugen" && ! -L "$HOME/.config/matugen" ]]; then
+        $DRY_RUN_CMD mv "$HOME/.config/matugen" "$HOME/.config/matugen.backup-$(date +%Y%m%d-%H%M%S)"
+        $DRY_RUN_CMD echo "  → Backed up existing matugen config directory"
       fi
     '';
 

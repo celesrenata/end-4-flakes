@@ -58,7 +58,7 @@ let
         mkdir -p "$BACKUP_DIR"
         
         # Backup specific directories that will be overwritten
-        for dir in quickshell hypr fish foot kitty fuzzel wlogout; do
+        for dir in quickshell hypr fish foot kitty fuzzel wlogout matugen; do
             if [[ -d "$CONFIG_DIR/$dir" ]]; then
                 info "  Backing up $dir"
                 cp -r "$CONFIG_DIR/$dir" "$BACKUP_DIR/" 2>/dev/null || true
