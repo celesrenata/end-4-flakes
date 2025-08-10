@@ -29,6 +29,7 @@ let
     
     # Set up proper library path for Python packages (64-bit only)
     export LD_LIBRARY_PATH="${lib.makeLibraryPath (with pkgs; [
+      stdenv.cc.cc.lib  # provides libstdc++.so.6
       gcc-unwrapped.lib
       glibc
       zlib

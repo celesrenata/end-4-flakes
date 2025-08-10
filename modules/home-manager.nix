@@ -81,6 +81,12 @@ in
   };
 
   config = mkIf cfg.enable {
+    # Enable Python environment for color generation
+    programs.dots-hyprland.python = {
+      enable = true;
+      autoSetup = true;
+    };
+    
     # Install packages based on selected set
     home.packages = 
       let
@@ -89,12 +95,6 @@ in
       if cfg.packageSet == "minimal" then packageSets.minimalPackages
       else if cfg.packageSet == "essential" then packageSets.essentialPackages
       else packageSets.allPackages;
-
-    # Enable Python virtual environment (CRITICAL for both modes)
-    programs.dots-hyprland.python = {
-      enable = true;
-      autoSetup = true;
-    };
 
     # Enable configuration management based on mode
     programs.dots-hyprland.configuration = mkIf (cfg.mode == "declarative" || cfg.mode == "hybrid") {
@@ -131,6 +131,8 @@ in
     # Set critical environment variables (required for both modes)
     home.sessionVariables = {
       ILLOGICAL_IMPULSE_VIRTUAL_ENV = "$HOME/.local/state/quickshell/.venv";
+      # Ensure GNOME schemas are available for gsettings
+      XDG_DATA_DIRS = "$XDG_DATA_DIRS:${pkgs.gsettings-desktop-schemas}/share";
     };
     
     # Ensure ~/.local/bin is in PATH for our working qs script

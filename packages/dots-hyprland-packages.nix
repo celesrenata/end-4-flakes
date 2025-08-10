@@ -26,6 +26,7 @@ let
   widgetPackages = with pkgs; [
     fuzzel
     glib # for gsettings
+    gsettings-desktop-schemas # GNOME schemas for non-GNOME environments
     hypridle
     hyprutils
     hyprlock
@@ -71,6 +72,18 @@ let
     gobject-introspection
     sassc
     opencv4 # python-opencv
+    
+    # Additional system libraries needed for Python packages
+    stdenv.cc.cc.lib # provides libstdc++.so.6
+    glibc
+    zlib
+    libffi
+    openssl
+    bzip2
+    xz
+    ncurses
+    readline
+    sqlite
   ];
 
   # Additional packages that might be needed
