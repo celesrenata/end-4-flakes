@@ -24,20 +24,10 @@
     {
       overlays.default = final: prev: {
         # Enhanced quickshell with Qt5Compat support for dots-hyprland
-        quickshell = quickshell.packages.${system}.default.overrideAttrs (oldAttrs: {
-          # Add Qt5Compat as a runtime dependency
-          buildInputs = (oldAttrs.buildInputs or []) ++ [ final.qt6.qt5compat ];
-          
-          # Use Qt's wrapper to ensure QML modules are found
-          nativeBuildInputs = (oldAttrs.nativeBuildInputs or []) ++ [ final.qt6.wrapQtAppsHook ];
-          
-          # Set up QML import paths properly using QML2_IMPORT_PATH (the correct variable)
-          preFixup = (oldAttrs.preFixup or "") + ''
-            qtWrapperArgs+=(
-              --prefix QML2_IMPORT_PATH : "${final.qt6.qt5compat}/lib/qt-6/qml"
-            )
-          '';
-        });
+        quickshell = final.writeShellScriptBin "qs" ''
+          export QML2_IMPORT_PATH="${final.qt6.qt5compat}/lib/qt-6/qml:$QML2_IMPORT_PATH"
+          exec ${quickshell.packages.${system}.default}/bin/qs "$@"
+        '';
       };
 
       packages.${system} = utilityPackages // {
