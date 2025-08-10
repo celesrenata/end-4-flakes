@@ -1,7 +1,7 @@
 # Startup executables for dots-hyprland
 
 # Core desktop components
-exec-once = @QUICKSHELL_BIN@ -c $qsConfig &
+exec-once = quickshell -c $qsConfig &
 exec-once = @HYPRIDLE_BIN@
 
 # Authentication and security
