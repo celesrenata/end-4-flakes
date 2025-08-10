@@ -28,6 +28,11 @@
           # Add Qt5Compat, QtPositioning, and quickshell config directories to QML import path
           export QML2_IMPORT_PATH="${final.kdePackages.qt5compat}/lib/qt-6/qml:${final.kdePackages.qtpositioning}/lib/qt-6/qml:${final.kdePackages.qtlocation}/lib/qt-6/qml:$HOME/.config/quickshell/ii:$HOME/.config/quickshell:$QML2_IMPORT_PATH"
           
+          # Set critical environment variables for dots-hyprland functionality
+          export ILLOGICAL_IMPULSE_VIRTUAL_ENV="$HOME/.local/state/quickshell/.venv"
+          export XDG_DATA_DIRS="$XDG_DATA_DIRS:${final.gsettings-desktop-schemas}/share"
+          export LD_LIBRARY_PATH="${final.stdenv.cc.cc.lib}/lib:${final.glibc}/lib:${final.zlib}/lib:${final.libffi}/lib:${final.openssl}/lib:${final.bzip2.out}/lib:${final.xz.out}/lib:${final.ncurses}/lib:${final.readline}/lib:${final.sqlite.out}/lib"
+          
           # Execute the original quickshell
           exec ${quickshell.packages.${system}.default}/bin/qs "$@"
         '';
