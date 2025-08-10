@@ -39,6 +39,7 @@ let
     # Qt modules needed for quickshell widgets
     kdePackages.qt5compat  # For Qt5Compat.GraphicalEffects
     kdePackages.qtdeclarative  # For QML
+    kdePackages.kdialog
     kdePackages.qtwayland  # For Wayland support
     kdePackages.qtpositioning  # For Weather service location features
     kdePackages.qtlocation  # Additional location services for QtPositioning
