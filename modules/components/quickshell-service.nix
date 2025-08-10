@@ -7,21 +7,8 @@ let
   cfg = config.programs.dots-hyprland.quickshell;
   mainCfg = config.programs.dots-hyprland;
   
-  # Our working quickshell build with QtPositioning support
-  workingQuickshell = 
-    let
-      quickshellSrc = pkgs.fetchFromGitHub {
-        owner = "quickshell-mirror";
-        repo = "quickshell";
-        rev = "a5431dd02dc23d9ef1680e67777fed00fe5f7cda";
-        hash = "sha256-vqkSDvh7hWhPvNjMjEDV4KbSCv2jyl2Arh73ZXe274k=";
-      };
-      quickshellBase = pkgs.callPackage (quickshellSrc + "/default.nix") {
-        debug = true;
-        gitRev = "a5431dd02dc23d9ef1680e67777fed00fe5f7cda";
-      };
-    in
-      quickshellBase.withModules (with pkgs.qt6; [ qtpositioning qtmultimedia ]);
+  # Use the wrapped quickshell from our overlay (includes Qt5Compat support)
+  workingQuickshell = pkgs.quickshell;
   
   # Service startup script that handles initial setup
   quickshellStartup = pkgs.writeShellScript "quickshell-startup" ''
@@ -133,7 +120,7 @@ EOF
     log "🚀 App launcher: $LAUNCHER_WRAPPER"
     
     # Start quickshell
-    exec ${workingQuickshell}/bin/quickshell -p "$CONFIG_DIR/quickshell/ii/shell.qml"
+    exec ${workingQuickshell}/bin/qs -p "$CONFIG_DIR/quickshell/ii/shell.qml"
   '';
   
 in

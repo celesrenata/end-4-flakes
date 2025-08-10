@@ -44,9 +44,8 @@ in
       # MISC configs (everything except fish and hypr)
       (mkIf cfg.copyMiscConfig (
         let
-          # Get all directories in .config except fish and hypr
+          # Get all directories in .config except fish, hypr, and quickshell (quickshell handled specially)
           configDirs = [
-            "quickshell"
             "kitty" 
             "foot"
             "fuzzel"
@@ -58,7 +57,7 @@ in
           configFiles = listToAttrs (map (dir: {
             name = dir;
             value = {
-              source = "${cfg.source}/.config/${dir}";
+              source = "${cfg.source}/${dir}";
               recursive = true;
             };
           }) configDirs);

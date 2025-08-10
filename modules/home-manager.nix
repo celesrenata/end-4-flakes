@@ -6,6 +6,7 @@ with lib;
 
 let
   cfg = config.programs.dots-hyprland;
+  packages = import ../packages { inherit pkgs; };
 in
 {
   imports = [
@@ -127,10 +128,101 @@ in
     
     # Enable custom keybindings
 
-    # Set critical environment variable (required for both modes)
+    # Set critical environment variables (required for both modes)
     home.sessionVariables = {
       ILLOGICAL_IMPULSE_VIRTUAL_ENV = "$HOME/.local/state/quickshell/.venv";
     };
+    
+    # Ensure ~/.local/bin is in PATH for our working qs script
+    home.sessionPath = [ "$HOME/.local/bin" ];
+
+    # Generate qmldir files for all modes (runs after all config is in place)
+    home.activation.generateQmldirFiles = lib.hm.dag.entryAfter ["linkGeneration"] ''
+      if [[ -d "$HOME/.config/quickshell/ii" ]]; then
+        $DRY_RUN_CMD echo "🔧 Generating qmldir files with singleton detection..."
+        $DRY_RUN_CMD ${packages.generate-qmldir}/bin/generate-qmldir "$HOME/.config/quickshell/ii"
+        $DRY_RUN_CMD echo "✅ qmldir files generated successfully for ${cfg.mode} mode"
+      else
+        $DRY_RUN_CMD echo "⚠️  Warning: quickshell/ii directory not found, skipping qmldir generation"
+      fi
+    '';
+
+    # Create working qs script with Qt5Compat support
+    home.activation.createWorkingQsScript = lib.hm.dag.entryAfter ["linkGeneration"] ''
+      $DRY_RUN_CMD echo "🔧 Creating working qs script with Qt5Compat support..."
+      $DRY_RUN_CMD mkdir -p "$HOME/.local/bin"
+      $DRY_RUN_CMD cat > "$HOME/.local/bin/qs" << 'EOF'
+#!/usr/bin/env bash
+export QML2_IMPORT_PATH="${pkgs.kdePackages.qt5compat}/lib/qt-6/qml:$HOME/.config/quickshell/ii:$HOME/.config/quickshell:$QML2_IMPORT_PATH"
+exec quickshell "$@"
+EOF
+      $DRY_RUN_CMD chmod +x "$HOME/.local/bin/qs"
+      $DRY_RUN_CMD echo "✅ Working qs script created successfully"
+      
+      # Also install the quickshell reset script
+      $DRY_RUN_CMD echo "🔧 Installing quickshell reset script..."
+      $DRY_RUN_CMD cp "${packages.quickshell-reset}/bin/quickshell-reset.sh" "$HOME/.local/bin/"
+      $DRY_RUN_CMD chmod +x "$HOME/.local/bin/quickshell-reset.sh"
+      $DRY_RUN_CMD echo "✅ Quickshell reset script installed successfully"
+    '';
+
+    # Custom activation script to copy quickshell configs (needed for relative imports)
+    home.activation.copyQuickshellConfigs = lib.hm.dag.entryBefore ["linkGeneration"] ''
+      $DRY_RUN_CMD echo "🔧 Setting up quickshell configuration for ${cfg.mode} mode..."
+      
+      # Remove any existing symlinked configs to avoid conflicts with system home-manager
+      if [[ -L "$HOME/.config/quickshell" ]]; then
+        $DRY_RUN_CMD rm "$HOME/.config/quickshell"
+        $DRY_RUN_CMD echo "  → Removed conflicting symlinked quickshell config"
+      fi
+      
+      # Handle conflicting .local/share symlinks that may interfere with home-manager
+      if [[ -L "$HOME/.local/share/icons" ]]; then
+        $DRY_RUN_CMD rm "$HOME/.local/share/icons"
+        $DRY_RUN_CMD echo "  → Removed conflicting symlinked icons directory"
+      fi
+      
+      if [[ -L "$HOME/.local/share/konsole" ]]; then
+        $DRY_RUN_CMD rm "$HOME/.local/share/konsole"
+        $DRY_RUN_CMD echo "  → Removed conflicting symlinked konsole directory"
+      fi
+      
+      # Handle conflicting .config directories
+      if [[ -L "$HOME/.config/fish" ]]; then
+        $DRY_RUN_CMD rm "$HOME/.config/fish"
+        $DRY_RUN_CMD echo "  → Removed conflicting symlinked fish config"
+      fi
+      
+      # Also handle if they exist as regular directories
+      if [[ -d "$HOME/.local/share/konsole" && ! -L "$HOME/.local/share/konsole" ]]; then
+        $DRY_RUN_CMD mv "$HOME/.local/share/konsole" "$HOME/.local/share/konsole.backup-$(date +%Y%m%d-%H%M%S)"
+        $DRY_RUN_CMD echo "  → Backed up existing konsole directory"
+      fi
+      
+      if [[ -d "$HOME/.config/fish" && ! -L "$HOME/.config/fish" ]]; then
+        $DRY_RUN_CMD mv "$HOME/.config/fish" "$HOME/.config/fish.backup-$(date +%Y%m%d-%H%M%S)"
+        $DRY_RUN_CMD echo "  → Backed up existing fish config directory"
+      fi
+    '';
+
+    # Copy quickshell config after link generation
+    home.activation.setupQuickshellConfig = lib.hm.dag.entryAfter ["linkGeneration"] ''
+      ${optionalString (cfg.mode == "hybrid") ''
+        # Copy quickshell config to enable relative imports
+        if [[ ! -d "$HOME/.config/quickshell" ]] || [[ -L "$HOME/.config/quickshell" ]]; then
+          $DRY_RUN_CMD mkdir -p "$HOME/.config"
+          $DRY_RUN_CMD cp -r "${cfg.source}/quickshell" "$HOME/.config/"
+          $DRY_RUN_CMD chmod -R u+w "$HOME/.config/quickshell"
+          $DRY_RUN_CMD echo "✅ Quickshell configuration copied successfully"
+        else
+          $DRY_RUN_CMD echo "✅ Quickshell configuration already exists"
+        fi
+        
+        # Ensure our working qs script takes precedence over any system-managed quickshell
+        $DRY_RUN_CMD mkdir -p "$HOME/.local/bin"
+        $DRY_RUN_CMD echo "  → Ensuring ~/.local/bin is in PATH for hybrid mode"
+      ''}
+    '';
 
     # Ensure XDG directories exist (installer requirement)
     xdg.enable = true;

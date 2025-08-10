@@ -24,15 +24,13 @@
     {
       overlays.default = final: prev: {
         # Enhanced quickshell with Qt5Compat support for dots-hyprland
-        quickshell = final.symlinkJoin {
-          name = "quickshell-with-qt5compat";
-          paths = [ quickshell.packages.${system}.default ];
-          buildInputs = [ final.makeWrapper ];
-          postBuild = ''
-            wrapProgram $out/bin/qs \
-              --prefix QML2_IMPORT_PATH : "${final.qt6.qt5compat}/lib/qt-6/qml"
-          '';
-        };
+        quickshell = final.writeShellScriptBin "qs" ''
+          # Add Qt5Compat and quickshell config directories to QML import path
+          export QML2_IMPORT_PATH="${final.kdePackages.qt5compat}/lib/qt-6/qml:$HOME/.config/quickshell/ii:$HOME/.config/quickshell:$QML2_IMPORT_PATH"
+          
+          # Execute the original quickshell
+          exec ${quickshell.packages.${system}.default}/bin/qs "$@"
+        '';
       };
 
       packages.${system} = utilityPackages // {
@@ -72,7 +70,7 @@
                 enable = true;
                 source = ./configs;  # Use local configs
                 packageSet = "essential";
-                mode = "declarative";
+                mode = "hybrid";
                 
                 # 🎨 Quickshell Configuration
                 quickshell = {

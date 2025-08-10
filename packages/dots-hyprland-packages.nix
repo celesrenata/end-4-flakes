@@ -3,6 +3,9 @@
 { lib, pkgs }:
 
 let
+  # Import utility packages
+  utilityPackages = import ./default.nix { inherit pkgs; };
+
   # illogical-impulse-basic PKGBUILD
   basicPackages = with pkgs; [
     axel
@@ -36,6 +39,7 @@ let
     kdePackages.qt5compat  # For Qt5Compat.GraphicalEffects
     kdePackages.qtdeclarative  # For QML
     kdePackages.qtwayland  # For Wayland support
+    kdePackages.qtpositioning  # For Weather service location features
   ];
 
   # illogical-impulse-hyprland PKGBUILD
@@ -106,11 +110,13 @@ in
     themePackages;
   
   # Combined package sets for different use cases
-  essentialPackages = basicPackages ++ widgetPackages ++ hyprlandPackages;
+  essentialPackages = basicPackages ++ widgetPackages ++ hyprlandPackages ++ 
+                     (builtins.attrValues utilityPackages);
   
   allPackages = basicPackages ++ widgetPackages ++ hyprlandPackages ++ 
-                pythonSystemPackages ++ audioPackages ++ fontPackages ++ themePackages;
+                pythonSystemPackages ++ audioPackages ++ fontPackages ++ themePackages ++
+                (builtins.attrValues utilityPackages);
   
   # Minimal set for testing
-  minimalPackages = basicPackages ++ widgetPackages;
+  minimalPackages = basicPackages ++ widgetPackages ++ (builtins.attrValues utilityPackages);
 }
