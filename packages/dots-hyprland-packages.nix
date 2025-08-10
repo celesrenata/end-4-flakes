@@ -40,6 +40,7 @@ let
     kdePackages.qtdeclarative  # For QML
     kdePackages.qtwayland  # For Wayland support
     kdePackages.qtpositioning  # For Weather service location features
+    kdePackages.qtlocation  # Additional location services for QtPositioning
   ];
 
   # illogical-impulse-hyprland PKGBUILD
