@@ -135,7 +135,7 @@ in
       XDG_DATA_DIRS = "$XDG_DATA_DIRS:${pkgs.gsettings-desktop-schemas}/share";
     };
     
-    # Ensure ~/.local/bin is in PATH for our working qs script
+    # Ensure ~/.local/bin is in PATH for user scripts
     home.sessionPath = [ "$HOME/.local/bin" ];
 
     # Generate qmldir files for all modes (runs after all config is in place)
@@ -149,17 +149,9 @@ in
       fi
     '';
 
-    # Create working qs script with Qt5Compat support
+    # Use quickshell directly with proper environment
     home.activation.createWorkingQsScript = lib.hm.dag.entryAfter ["linkGeneration"] ''
-      $DRY_RUN_CMD echo "🔧 Creating working qs script with Qt5Compat support..."
-      $DRY_RUN_CMD mkdir -p "$HOME/.local/bin"
-      $DRY_RUN_CMD cat > "$HOME/.local/bin/qs" << 'EOF'
-#!/usr/bin/env bash
-export QML2_IMPORT_PATH="${pkgs.kdePackages.qt5compat}/lib/qt-6/qml:$HOME/.config/quickshell/ii:$HOME/.config/quickshell:$QML2_IMPORT_PATH"
-exec quickshell "$@"
-EOF
-      $DRY_RUN_CMD chmod +x "$HOME/.local/bin/qs"
-      $DRY_RUN_CMD echo "✅ Working qs script created successfully"
+      $DRY_RUN_CMD echo "✅ Using quickshell directly (no wrapper script needed)"
       
       # Also install the quickshell reset script
       $DRY_RUN_CMD echo "🔧 Installing quickshell reset script..."
@@ -230,7 +222,7 @@ EOF
           $DRY_RUN_CMD echo "✅ Quickshell configuration already exists"
         fi
         
-        # Ensure our working qs script takes precedence over any system-managed quickshell
+        # Ensure quickshell uses the proper environment variables
         $DRY_RUN_CMD mkdir -p "$HOME/.local/bin"
         $DRY_RUN_CMD echo "  → Ensuring ~/.local/bin is in PATH for hybrid mode"
       ''}

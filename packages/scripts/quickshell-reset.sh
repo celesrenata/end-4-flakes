@@ -51,18 +51,8 @@ log "Clearing QML cache..."
 rm -rf "$HOME/.cache/quickshell" 2>/dev/null || true
 rm -rf "$HOME/.cache/qml" 2>/dev/null || true
 
-# Ensure our working qs script exists
-if [[ ! -f "$HOME/.local/bin/qs" ]]; then
-    warn "Working qs script not found, creating it..."
-    mkdir -p "$HOME/.local/bin"
-    cat > "$HOME/.local/bin/qs" << 'EOF'
-#!/usr/bin/env bash
-export QML2_IMPORT_PATH="/nix/store/777j0jxpj9v2j3ykk70d02lph2qmr1xg-qt5compat-6.9.1/lib/qt-6/qml:$HOME/.config/quickshell/ii:$HOME/.config/quickshell:$QML2_IMPORT_PATH"
-exec quickshell "$@"
-EOF
-    chmod +x "$HOME/.local/bin/qs"
-    log "Working qs script created"
-fi
+# Using quickshell directly (no wrapper script needed)
+log "Using quickshell directly"
 
 log "Quickshell reset complete!"
 log "You can now start quickshell with: qs"
