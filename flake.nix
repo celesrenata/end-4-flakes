@@ -31,12 +31,10 @@
           # Use Qt's wrapper to ensure QML modules are found
           nativeBuildInputs = (oldAttrs.nativeBuildInputs or []) ++ [ final.qt6.wrapQtAppsHook ];
           
-          # Set up QML import paths properly using the correct Qt6 variable
+          # Set up QML import paths properly using QML2_IMPORT_PATH (the correct variable)
           preFixup = (oldAttrs.preFixup or "") + ''
             qtWrapperArgs+=(
-              --prefix QML2_IMPORT_PATH : "${final.qt6.qt5compat}/${final.qt6.qtbase.qtQmlPrefix}"
-              --prefix NIXPKGS_QT6_QML_IMPORT_PATH : "${final.qt6.qt5compat}/${final.qt6.qtbase.qtQmlPrefix}"
-              --prefix QT_PLUGIN_PATH : "${final.qt6.qt5compat}/lib/qt-6/plugins"
+              --prefix QML2_IMPORT_PATH : "${final.qt6.qt5compat}/lib/qt-6/qml"
             )
           '';
         });
