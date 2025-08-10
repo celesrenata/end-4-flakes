@@ -31,7 +31,7 @@ let
     hyprlock
     hyprpicker
     networkmanagerapplet # nm-connection-editor
-    # quickshell-git -> provided by quickshell flake input
+    quickshell  # Provided by quickshell flake input via overlay
     translate-shell
     wlogout
     
