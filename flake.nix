@@ -35,6 +35,9 @@
           export ILLOGICAL_IMPULSE_VIRTUAL_ENV="$HOME/.local/state/quickshell/.venv"
           export XDG_DATA_DIRS="$XDG_DATA_DIRS:${final.gsettings-desktop-schemas}/share"
           
+          # Ensure child processes (execDetached) have access to system libraries for Python virtual environment
+          export LD_LIBRARY_PATH="${final.stdenv.cc.cc.lib}/lib:${final.glibc}/lib:${final.zlib}/lib:${final.libffi}/lib:${final.openssl}/lib:${final.bzip2.out}/lib:${final.xz.out}/lib:${final.ncurses}/lib:${final.readline}/lib:${final.sqlite.out}/lib:$LD_LIBRARY_PATH"
+          
           # Execute the original quickshell
           exec ${quickshell.packages.${system}.default}/bin/qs "$@"
         '';
