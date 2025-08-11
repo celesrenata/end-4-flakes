@@ -133,6 +133,8 @@ in
       ILLOGICAL_IMPULSE_VIRTUAL_ENV = "$HOME/.local/state/quickshell/.venv";
       # Ensure GNOME schemas are available for gsettings
       XDG_DATA_DIRS = "$XDG_DATA_DIRS:${pkgs.gsettings-desktop-schemas}/share";
+      # Provide system libraries for Python packages in virtual environment
+      LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.glibc}/lib:${pkgs.zlib}/lib:${pkgs.libffi}/lib:${pkgs.openssl}/lib:${pkgs.bzip2.out}/lib:${pkgs.xz.out}/lib:${pkgs.ncurses}/lib:${pkgs.readline}/lib:${pkgs.sqlite.out}/lib:$LD_LIBRARY_PATH";
     };
     
     # Ensure ~/.local/bin is in PATH for user scripts
