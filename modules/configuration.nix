@@ -35,6 +35,33 @@ in
       default = true;
       description = "Copy Hyprland configuration";
     };
+    
+    # Individual application enable options
+    applications = {
+      foot = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Enable foot terminal configuration";
+        };
+      };
+      
+      kitty = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Enable kitty terminal configuration";
+        };
+      };
+      
+      fuzzel = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Enable fuzzel launcher configuration";
+        };
+      };
+    };
   };
 
   config = mkIf cfg.enable {
@@ -45,14 +72,11 @@ in
       (mkIf cfg.copyMiscConfig (
         let
           # Get all directories in .config except fish, hypr, and quickshell (quickshell handled specially)
-          configDirs = [
-            "kitty" 
-            "foot"
-            "fuzzel"
-            "wlogout"
-            "matugen"
-            # Add more as discovered in the source
-          ];
+          # Now with individual enable options
+          configDirs = lib.optionals cfg.applications.kitty.enable [ "kitty" ] ++
+                      lib.optionals cfg.applications.foot.enable [ "foot" ] ++
+                      lib.optionals cfg.applications.fuzzel.enable [ "fuzzel" ] ++
+                      [ "wlogout" "matugen" ];  # Always enabled applications
           
           configFiles = listToAttrs (map (dir: {
             name = dir;
