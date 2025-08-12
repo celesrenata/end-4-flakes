@@ -215,7 +215,7 @@ in
         # Copy quickshell config to enable relative imports
         if [[ ! -d "$HOME/.config/quickshell" ]] || [[ -L "$HOME/.config/quickshell" ]]; then
           $DRY_RUN_CMD mkdir -p "$HOME/.config"
-          $DRY_RUN_CMD cp -r "${cfg.source}/quickshell" "$HOME/.config/"
+          $DRY_RUN_CMD cp -r "${cfg.source}/.config/quickshell" "$HOME/.config/"
           $DRY_RUN_CMD chmod -R u+w "$HOME/.config/quickshell"
           $DRY_RUN_CMD echo "✅ Quickshell configuration copied successfully"
         else
