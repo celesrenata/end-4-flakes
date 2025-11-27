@@ -26,6 +26,11 @@
     in
     {
       overlays.default = final: prev: {
+        # Override quickshell from upstream to add Qt6 Wayland dependency
+        quickshell-base = quickshell.packages.${system}.default.overrideAttrs (oldAttrs: {
+          buildInputs = (oldAttrs.buildInputs or []) ++ [ final.qt6.qtwayland ];
+        });
+        
         # Enhanced quickshell with Qt5Compat support for dots-hyprland
         quickshell = final.writeShellScriptBin "quickshell" ''
           # Add Qt5Compat, QtPositioning, and quickshell config directories to QML import path
@@ -39,7 +44,7 @@
           export LD_LIBRARY_PATH="${final.stdenv.cc.cc.lib}/lib:${final.glibc}/lib:${final.zlib}/lib:${final.libffi}/lib:${final.openssl}/lib:${final.bzip2.out}/lib:${final.xz.out}/lib:${final.ncurses}/lib:${final.readline}/lib:${final.sqlite.out}/lib:$LD_LIBRARY_PATH"
           
           # Execute the original quickshell
-          exec ${quickshell.packages.${system}.default}/bin/qs "$@"
+          exec ${final.quickshell-base}/bin/qs "$@"
         '';
       };
 
