@@ -1,3 +1,5 @@
+import qs.modules.common
+import qs
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
@@ -15,34 +17,19 @@ Singleton {
     property bool osdVolumeOpen: false
     property bool oskOpen: false
     property bool overviewOpen: false
-    property bool sessionOpen: false
-    property bool workspaceShowNumbers: false
-    property bool superReleaseMightTrigger: true
     property bool screenLocked: false
     property bool screenLockContainsCharacters: false
+    property bool sessionOpen: false
+    property bool superDown: false
+    property bool superReleaseMightTrigger: true
+    property bool workspaceShowNumbers: false
 
     property real screenZoom: 1
     onScreenZoomChanged: {
         Quickshell.execDetached(["hyprctl", "keyword", "cursor:zoom_factor", root.screenZoom.toString()]);
     }
     Behavior on screenZoom {
-        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-        // animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-    }
-
-    // When user is not reluctant while pressing super, they probably don't need to see workspace numbers
-    onSuperReleaseMightTriggerChanged: { 
-        workspaceShowNumbersTimer.stop()
-    }
-
-    Timer {
-        id: workspaceShowNumbersTimer
-        interval: 500 // Config.options.bar.workspaces.showNumberDelay
-        // interval: 0
-        repeat: false
-        onTriggered: {
-            workspaceShowNumbers = true
-        }
+        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
     }
 
     GlobalShortcut {
@@ -50,11 +37,10 @@ Singleton {
         description: "Hold to show workspace numbers, release to show icons"
 
         onPressed: {
-            workspaceShowNumbersTimer.start()
+            root.superDown = true
         }
         onReleased: {
-            workspaceShowNumbersTimer.stop()
-            workspaceShowNumbers = false
+            root.superDown = false
         }
     }
 
@@ -69,4 +55,18 @@ Singleton {
             screenZoom = Math.max(screenZoom - 0.4, 1)
         } 
 	}
+
+    IpcHandler {
+        target: "theme"
+
+        function dark() {
+            const wallpaper = Config.options.background.wallpaperPath || `${Quickshell.env("HOME")}/Pictures/Wallpapers/konachan_random_image.png`
+            Quickshell.execDetached(["bash", `${Quickshell.env("HOME")}/.config/quickshell/scripts/colors/switchwall-wrapper.sh`, wallpaper, "--mode", "dark"])
+        }
+
+        function light() {
+            const wallpaper = Config.options.background.wallpaperPath || `${Quickshell.env("HOME")}/Pictures/Wallpapers/konachan_random_image.png`
+            Quickshell.execDetached(["bash", `${Quickshell.env("HOME")}/.config/quickshell/scripts/colors/switchwall-wrapper.sh`, wallpaper, "--mode", "light"])
+        }
+    }
 }

@@ -2,6 +2,7 @@
 import argparse
 import math
 import json
+import os
 from PIL import Image
 from materialyoucolor.quantize import QuantizeCelebi
 from materialyoucolor.score.score import Score
@@ -85,6 +86,11 @@ if args.path is not None:
             args.scheme = 'neutral'
 elif args.color is not None:
     argb = hex_to_argb(args.color)
+    hct = Hct.from_int(argb)
+elif args.cache is not None and os.path.exists(args.cache):
+    with open(args.cache, 'r') as file:
+        cached_color = file.read().strip()
+    argb = hex_to_argb(cached_color)
     hct = Hct.from_int(argb)
 
 if args.scheme == 'scheme-fruit-salad':

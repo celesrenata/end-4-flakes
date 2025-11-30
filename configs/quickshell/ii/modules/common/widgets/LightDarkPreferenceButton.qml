@@ -17,7 +17,7 @@ GroupButton {
     colBackground: Appearance.colors.colLayer2
     toggled: Appearance.m3colors.darkmode === dark
     onClicked: {
-        Quickshell.execDetached(["bash", "-c", `${Directories.wallpaperSwitchScriptPath} --mode ${dark ? "dark" : "light"} --noswitch`])
+        Quickshell.execDetached(["bash", `${Directories.scriptPath}/colors/switchwall-wrapper.sh`, "--mode", dark ? "dark" : "light", "--noswitch"])
     }
     contentItem: Item {
         anchors.centerIn: parent

@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 
@@ -13,6 +14,20 @@ Item {
     property bool borderless: Config.options.bar.borderless
     implicitWidth: rowLayout.implicitWidth + rowLayout.spacing * 2
     implicitHeight: rowLayout.implicitHeight
+
+    Process {
+        id: themeSwitchProcess
+        running: false
+        stdout: SplitParser {
+            onRead: data => console.log("switchwall:", data)
+        }
+        stderr: SplitParser {
+            onRead: data => console.log("switchwall err:", data)
+        }
+        onExited: (code, status) => {
+            console.log("switchwall exited:", code)
+        }
+    }
 
     RowLayout {
         id: rowLayout
@@ -25,7 +40,7 @@ Item {
             visible: Config.options.bar.utilButtons.showScreenSnip
             sourceComponent: CircleUtilButton {
                 Layout.alignment: Qt.AlignVCenter
-                onClicked: Quickshell.execDetached(["qs", "-p", Quickshell.shellPath("screenshot.qml")])
+                onClicked: Quickshell.execDetached(["quickshell", "-p", Quickshell.shellPath("screenshot.qml")])
                 MaterialSymbol {
                     horizontalAlignment: Qt.AlignHCenter
                     fill: 1
@@ -90,11 +105,11 @@ Item {
             sourceComponent: CircleUtilButton {
                 Layout.alignment: Qt.AlignVCenter
                 onClicked: event => {
-                    if (Appearance.m3colors.darkmode) {
-                        Hyprland.dispatch(`exec ${Directories.wallpaperSwitchScriptPath} --mode light --noswitch`);
-                    } else {
-                        Hyprland.dispatch(`exec ${Directories.wallpaperSwitchScriptPath} --mode dark --noswitch`);
-                    }
+                    const mode = Appearance.m3colors.darkmode ? "light" : "dark"
+                    const wallpaper = Config.options.background.wallpaperPath || `${Quickshell.env("HOME")}/Pictures/Wallpapers/konachan_random_image.png`
+                    themeSwitchProcess.command = ["bash", `${Directories.scriptPath}/colors/switchwall-wrapper.sh`, wallpaper, "--mode", mode]
+                    themeSwitchProcess.running = false
+                    themeSwitchProcess.running = true
                 }
                 MaterialSymbol {
                     horizontalAlignment: Qt.AlignHCenter
@@ -129,9 +144,9 @@ Item {
                     horizontalAlignment: Qt.AlignHCenter
                     fill: 0
                     text: switch(PowerProfiles.profile) {
-                        case PowerProfile.PowerSaver: return "battery_saver"
-                        case PowerProfile.Balanced: return "dynamic_form"
-                        case PowerProfile.Performance: return "speed"
+                        case PowerProfile.PowerSaver: return "energy_savings_leaf"
+                        case PowerProfile.Balanced: return "settings_slow_motion"
+                        case PowerProfile.Performance: return "local_fire_department"
                     }
                     iconSize: Appearance.font.pixelSize.large
                     color: Appearance.colors.colOnLayer2
