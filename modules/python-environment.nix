@@ -21,10 +21,12 @@ let
     # Create directory structure
     mkdir -p "$(dirname "$VENV_PATH")"
     
-    # Remove existing venv if it exists
-    if [[ -d "$VENV_PATH" ]]; then
-      echo "🗑️  Removing existing virtual environment..."
-      rm -rf "$VENV_PATH"
+    # Only create venv if it doesn't exist
+    if [[ ! -d "$VENV_PATH" ]]; then
+      echo "🏗️  Creating Python 3.12 virtual environment..."
+      ${pkgs.python312}/bin/python -m venv "$VENV_PATH" --prompt .venv
+    else
+      echo "✅ Virtual environment already exists at $VENV_PATH"
     fi
     
     # Set up proper library path for Python packages (64-bit only)
@@ -47,10 +49,6 @@ let
     export PYTHONDONTWRITEBYTECODE=1
     
     echo "📚 Library path: $LD_LIBRARY_PATH"
-    
-    # Create virtual environment with Python 3.12 (installer requirement)
-    echo "🏗️  Creating Python 3.12 virtual environment..."
-    ${pkgs.python312}/bin/python -m venv "$VENV_PATH" --prompt .venv
     
     # Activate and install exact requirements from installer
     echo "📦 Installing Python packages with proper library linking..."
