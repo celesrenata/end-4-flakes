@@ -18,6 +18,7 @@ in
     ./components/hyprland-config.nix
     ./components/terminal-config.nix
     ./components/touchegg.nix
+    ./components/system-services.nix
     ./components/config-override.nix
   ];
 
