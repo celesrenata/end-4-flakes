@@ -50,8 +50,12 @@ let
     kdePackages.bluez-qt  # Bluetooth QML module
     kdePackages.bluedevil  # KDE bluetooth manager
     kdePackages.plasma-nm  # KDE network manager
+    kdePackages.networkmanager-qt  # NetworkManager QML bindings
+    kdePackages.modemmanager-qt  # ModemManager QML bindings
     kdePackages.kconfig  # KDE config module
     kdePackages.kirigami  # KDE UI framework
+    kdePackages.kcoreaddons  # KDE core addons
+    kdePackages.ki18n  # KDE internationalization
     
     # Wrapper scripts for KDE tools with proper QML paths
     (pkgs.writeShellScriptBin "kcmshell6-bluetooth" ''
@@ -59,7 +63,7 @@ let
       exec ${pkgs.kdePackages.kcmutils}/bin/kcmshell6 kcm_bluetooth
     '')
     (pkgs.writeShellScriptBin "kcmshell6-network" ''
-      export QML2_IMPORT_PATH="${pkgs.kdePackages.plasma-nm}/lib/qt-6/qml:${pkgs.kdePackages.kconfig}/lib/qt-6/qml:${pkgs.kdePackages.kirigami}/lib/qt-6/qml"
+      export QML2_IMPORT_PATH="${pkgs.kdePackages.plasma-nm}/lib/qt-6/qml:${pkgs.kdePackages.kconfig}/lib/qt-6/qml:${pkgs.kdePackages.kirigami}/lib/qt-6/qml:${pkgs.kdePackages.networkmanager-qt}/lib/qt-6/qml:${pkgs.kdePackages.modemmanager-qt}/lib/qt-6/qml:${pkgs.kdePackages.kcoreaddons}/lib/qt-6/qml:${pkgs.kdePackages.ki18n}/lib/qt-6/qml"
       exec ${pkgs.kdePackages.kcmutils}/bin/kcmshell6 kcm_networkmanagement
     '')
   ];
