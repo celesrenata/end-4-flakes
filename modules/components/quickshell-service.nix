@@ -210,8 +210,8 @@ in
           "XDG_DATA_DIRS=${config.home.profileDirectory}/share:${config.home.homeDirectory}/.nix-profile/share:/etc/profiles/per-user/${config.home.username}/share:/nix/var/nix/profiles/default/share:/run/current-system/sw/share"
           # Application launcher wrapper path
           "DOTS_HYPRLAND_APP_LAUNCHER=%h/.cache/dots-hyprland/app-launcher"
-          # QML module paths for Qt plugins
-          "QML2_IMPORT_PATH=${pkgs.kdePackages.qt5compat}/lib/qt-6/qml:${pkgs.kdePackages.qtpositioning}/lib/qt-6/qml:${pkgs.kdePackages.qtlocation}/lib/qt-6/qml"
+          # QML module paths for Qt plugins and KDE components
+          "QML2_IMPORT_PATH=${pkgs.kdePackages.qt5compat}/lib/qt-6/qml:${pkgs.kdePackages.qtpositioning}/lib/qt-6/qml:${pkgs.kdePackages.qtlocation}/lib/qt-6/qml:${pkgs.kdePackages.bluez-qt}/lib/qt-6/qml:${pkgs.kdePackages.bluedevil}/lib/qt-6/qml:${pkgs.kdePackages.plasma-nm}/lib/qt-6/qml:${pkgs.kdePackages.kconfig}/lib/qt-6/qml:${pkgs.kdePackages.kirigami}/lib/qt-6/qml"
         ];
         
         # Working directory

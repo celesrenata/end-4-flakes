@@ -43,6 +43,15 @@ let
     kdePackages.qtwayland  # For Wayland support
     kdePackages.qtpositioning  # For Weather service location features
     kdePackages.qtlocation  # Additional location services for QtPositioning
+    
+    # KDE components for bluetooth and network management
+    kdePackages.kcmutils  # Provides kcmshell6
+    kdePackages.kde-cli-tools  # KDE CLI tools
+    kdePackages.bluez-qt  # Bluetooth QML module
+    kdePackages.bluedevil  # KDE bluetooth manager
+    kdePackages.plasma-nm  # KDE network manager
+    kdePackages.kconfig  # KDE config module
+    kdePackages.kirigami  # KDE UI framework
   ];
 
   # illogical-impulse-hyprland PKGBUILD
