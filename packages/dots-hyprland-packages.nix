@@ -52,6 +52,16 @@ let
     kdePackages.plasma-nm  # KDE network manager
     kdePackages.kconfig  # KDE config module
     kdePackages.kirigami  # KDE UI framework
+    
+    # Wrapper scripts for KDE tools with proper QML paths
+    (pkgs.writeShellScriptBin "kcmshell6-bluetooth" ''
+      export QML2_IMPORT_PATH="${pkgs.kdePackages.bluez-qt}/lib/qt-6/qml:${pkgs.kdePackages.bluedevil}/lib/qt-6/qml:${pkgs.kdePackages.plasma-nm}/lib/qt-6/qml:${pkgs.kdePackages.kconfig}/lib/qt-6/qml:${pkgs.kdePackages.kirigami}/lib/qt-6/qml"
+      exec ${pkgs.kdePackages.kcmutils}/bin/kcmshell6 kcm_bluetooth
+    '')
+    (pkgs.writeShellScriptBin "kcmshell6-network" ''
+      export QML2_IMPORT_PATH="${pkgs.kdePackages.plasma-nm}/lib/qt-6/qml:${pkgs.kdePackages.kconfig}/lib/qt-6/qml:${pkgs.kdePackages.kirigami}/lib/qt-6/qml"
+      exec ${pkgs.kdePackages.kcmutils}/bin/kcmshell6 kcm_networkmanagement
+    '')
   ];
 
   # illogical-impulse-hyprland PKGBUILD
