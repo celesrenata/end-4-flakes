@@ -71,6 +71,9 @@
       homeManagerModules.default = import ./modules/home-manager.nix;
       homeManagerModules.dots-hyprland = self.homeManagerModules.default;
 
+      nixosModules.default = import ./modules/components/system-services.nix;
+      nixosModules.dots-hyprland = self.nixosModules.default;
+
       homeConfigurations = {
         declarative = home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
