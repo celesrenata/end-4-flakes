@@ -25,10 +25,8 @@
     in
     {
       overlays.default = final: prev: {
-        # Override quickshell from upstream to add Qt6 Wayland dependency
-        quickshell-base = quickshell.packages.${final.system}.default.overrideAttrs (oldAttrs: {
-          buildInputs = (oldAttrs.buildInputs or []) ++ (with final.kdePackages; [ qtwayland ]);
-        });
+        # Use quickshell from nixpkgs (supports all architectures)
+        quickshell-base = prev.quickshell;
         
         # Enhanced quickshell with Qt5Compat support for dots-hyprland
         quickshell = final.writeShellScriptBin "quickshell" ''
