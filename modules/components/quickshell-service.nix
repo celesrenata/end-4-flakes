@@ -7,8 +7,8 @@ let
   cfg = config.programs.dots-hyprland.quickshell;
   mainCfg = config.programs.dots-hyprland;
   
-  # Use the wrapped quickshell from our overlay (includes Qt5Compat support)
-  workingQuickshell = pkgs.quickshell;
+  # Use quickshell from nixpkgs (available in 25.11+)
+  workingQuickshell = pkgs.quickshell or (throw "quickshell not found in nixpkgs - ensure you're using nixpkgs 25.11 or later");
   
   # Service startup script that handles initial setup
   quickshellStartup = pkgs.writeShellScript "quickshell-startup" ''
