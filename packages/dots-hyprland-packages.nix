@@ -32,7 +32,7 @@ let
     hyprlock
     hyprpicker
     networkmanagerapplet # nm-connection-editor
-    pkgs.quickshell
+    # pkgs.quickshell - Add to home.packages from nixpkgs-unstable instead
     translate-shell
     wlogout
     
