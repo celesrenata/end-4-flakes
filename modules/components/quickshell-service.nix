@@ -149,8 +149,8 @@ in
   };
   
   config = mkIf cfg.enable {
-    # Install the working quickshell build and service management scripts
-    home.packages = [ workingQuickshell ] ++ (with pkgs; [
+    # Install service management scripts (quickshell itself must be in home.packages)
+    home.packages = (with pkgs; [
       (writeShellScriptBin "quickshell-restart" ''
         systemctl --user restart quickshell.service
         echo "✅ Quickshell service restarted"
