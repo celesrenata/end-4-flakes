@@ -55,8 +55,9 @@ let
     source "$VENV_PATH/bin/activate"
     
     # Add build tools to PATH for building Python packages
-    export PATH="${pkgs.cmake}/bin:${pkgs.pkg-config}/bin:${pkgs.gcc}/bin:$PATH"
+    export PATH="${pkgs.cmake}/bin:${pkgs.pkg-config}/bin:${pkgs.gcc}/bin:${pkgs.gnumake}/bin:$PATH"
     export CMAKE_GENERATOR="Unix Makefiles"
+    export CMAKE_MAKE_PROGRAM="${pkgs.gnumake}/bin/make"
     export CC="${pkgs.gcc}/bin/gcc"
     export CXX="${pkgs.gcc}/bin/g++"
     
