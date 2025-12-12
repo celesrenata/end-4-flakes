@@ -58,6 +58,9 @@ let
     export PATH="${pkgs.cmake}/bin:${pkgs.pkg-config}/bin:$PATH"
     export CMAKE_GENERATOR="Unix Makefiles"
     
+    # Set wayland protocol path for pywayland
+    export PKG_CONFIG_PATH="${pkgs.wayland}/lib/pkgconfig:${pkgs.wayland-protocols}/share/pkgconfig"
+    
     # Upgrade pip first
     pip install --upgrade pip
     
