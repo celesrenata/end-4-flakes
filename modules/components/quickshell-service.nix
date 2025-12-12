@@ -120,7 +120,7 @@ EOF
     log "🚀 App launcher: $LAUNCHER_WRAPPER"
     
     # Start quickshell
-    exec ${workingQuickshell}/bin/qs -p "$CONFIG_DIR/quickshell/ii/shell.qml"
+    exec ${workingQuickshell}/bin/quickshell -p "$CONFIG_DIR/quickshell/ii/shell.qml"
   '';
   
 in
