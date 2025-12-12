@@ -61,6 +61,10 @@ let
     # Set wayland protocol path for pywayland
     export PKG_CONFIG_PATH="${pkgs.wayland}/lib/pkgconfig:${pkgs.wayland-protocols}/share/pkgconfig"
     
+    # Create symlink for wayland.xml that pywayland expects
+    sudo mkdir -p /usr/share/wayland
+    sudo ln -sf ${pkgs.wayland}/share/wayland/wayland.xml /usr/share/wayland/wayland.xml || true
+    
     # Upgrade pip first
     pip install --upgrade pip
     
