@@ -32,7 +32,7 @@ let
     hyprlock
     hyprpicker
     networkmanagerapplet # nm-connection-editor
-    quickshell
+    pkgs.quickshell
     translate-shell
     wlogout
     
