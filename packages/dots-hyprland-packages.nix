@@ -32,7 +32,7 @@ let
     hyprlock
     hyprpicker
     networkmanagerapplet # nm-connection-editor
-    # quickshell - User must add to home.packages from nixpkgs 25.11+
+    quickshell
     translate-shell
     wlogout
     
