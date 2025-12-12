@@ -54,6 +54,10 @@ let
     echo "📦 Installing Python packages with proper library linking..."
     source "$VENV_PATH/bin/activate"
     
+    # Add cmake to PATH for building material-color-utilities
+    export PATH="${pkgs.cmake}/bin:$PATH"
+    export CMAKE_GENERATOR="Unix Makefiles"
+    
     # Upgrade pip first
     pip install --upgrade pip
     
