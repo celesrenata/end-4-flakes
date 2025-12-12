@@ -7,10 +7,8 @@ let
   cfg = config.programs.dots-hyprland.quickshell;
   mainCfg = config.programs.dots-hyprland;
   
-  # Use quickshell from pkgs (must be available in nixpkgs)
-  workingQuickshell = pkgs.quickshell;
-  
   # Service startup script that handles initial setup
+  # Note: quickshell must be in home.packages
   quickshellStartup = pkgs.writeShellScript "quickshell-startup" ''
     #!/usr/bin/env bash
     set -e
@@ -124,8 +122,8 @@ EOF
     export XDG_DATA_DIRS="$XDG_DATA_DIRS:${pkgs.gsettings-desktop-schemas}/share"
     export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.glibc}/lib:${pkgs.zlib}/lib:${pkgs.libffi}/lib:${pkgs.openssl}/lib:${pkgs.bzip2.out}/lib:${pkgs.xz.out}/lib:${pkgs.ncurses}/lib:${pkgs.readline}/lib:${pkgs.sqlite.out}/lib:$LD_LIBRARY_PATH"
     
-    # Start quickshell
-    exec ${workingQuickshell}/bin/quickshell -p "$CONFIG_DIR/quickshell/ii/shell.qml"
+    # Start quickshell (from PATH - must be in home.packages)
+    exec quickshell -p "$CONFIG_DIR/quickshell/ii/shell.qml"
   '';
   
 in
