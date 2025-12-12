@@ -60,10 +60,7 @@ let
     
     # Set wayland protocol path for pywayland
     export PKG_CONFIG_PATH="${pkgs.wayland}/lib/pkgconfig:${pkgs.wayland-protocols}/share/pkgconfig"
-    
-    # Create symlink for wayland.xml that pywayland expects
-    sudo mkdir -p /usr/share/wayland
-    sudo ln -sf ${pkgs.wayland}/share/wayland/wayland.xml /usr/share/wayland/wayland.xml || true
+    export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland}/share/wayland"
     
     # Upgrade pip first
     pip install --upgrade pip
@@ -81,11 +78,17 @@ let
       psutil==6.1.1 \
       pycparser==2.22 \
       pyproject-hooks==1.2.0 \
-      pywayland==0.4.18 \
       setproctitle==1.3.4 \
       setuptools==80.9.0 \
       setuptools-scm==8.1.0 \
       wheel==0.45.1
+    
+    # Install pywayland separately with custom protocol path
+    pip install --no-cache-dir --force-reinstall \
+      --global-option=build_ext \
+      --global-option="--wayland-scanner=${pkgs.wayland-scanner}/bin/wayland-scanner" \
+      --global-option="--wayland-protocols=${pkgs.wayland}/share/wayland" \
+      pywayland==0.4.18 || echo "⚠️  pywayland install failed, continuing..."
     
     # Test critical imports
     echo "🧪 Testing critical package imports..."
