@@ -206,7 +206,7 @@
         };
         
         writable = home-manager.lib.homeManagerConfiguration {
-          inherit pkgs;
+          pkgs = pkgsFor "x86_64-linux";
           modules = [
             self.homeManagerModules.default
             {
