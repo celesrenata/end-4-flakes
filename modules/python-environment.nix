@@ -54,9 +54,11 @@ let
     echo "📦 Installing Python packages with proper library linking..."
     source "$VENV_PATH/bin/activate"
     
-    # Add cmake and pkg-config to PATH for building Python packages
-    export PATH="${pkgs.cmake}/bin:${pkgs.pkg-config}/bin:$PATH"
+    # Add build tools to PATH for building Python packages
+    export PATH="${pkgs.cmake}/bin:${pkgs.pkg-config}/bin:${pkgs.gcc}/bin:$PATH"
     export CMAKE_GENERATOR="Unix Makefiles"
+    export CC="${pkgs.gcc}/bin/gcc"
+    export CXX="${pkgs.gcc}/bin/g++"
     
     # Set wayland protocol path for pywayland
     export PKG_CONFIG_PATH="${pkgs.wayland}/lib/pkgconfig:${pkgs.wayland-protocols}/share/pkgconfig"
