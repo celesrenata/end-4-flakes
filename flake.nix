@@ -24,19 +24,12 @@
       };
     in
     {
-      overlays.default = final: prev: 
-        let
-          # Get quickshell from nixpkgs for the current system
-          pkgsForQuickshell = import nixpkgs { 
-            system = final.system;
-            config.allowUnfree = true;
-          };
-        in {
-          # Use quickshell from nixpkgs (supports all architectures)
-          quickshell-base = pkgsForQuickshell.quickshell;
+      overlays.default = final: prev: {
+        # Use quickshell from the same nixpkgs (supports all architectures)
+        quickshell-base = prev.quickshell or (builtins.throw "quickshell not available in nixpkgs");
         
-          # Enhanced quickshell with Qt5Compat support for dots-hyprland
-          quickshell = final.writeShellScriptBin "quickshell" ''
+        # Enhanced quickshell with Qt5Compat support for dots-hyprland
+        quickshell = final.writeShellScriptBin "quickshell" ''
           # Add Qt5Compat, QtPositioning, and quickshell config directories to QML import path
           export QML2_IMPORT_PATH="${final.kdePackages.qt5compat}/lib/qt-6/qml:${final.kdePackages.qtpositioning}/lib/qt-6/qml:${final.kdePackages.qtlocation}/lib/qt-6/qml:$HOME/.config/quickshell/ii:$HOME/.config/quickshell:$QML2_IMPORT_PATH"
           
