@@ -25,22 +25,8 @@
     in
     {
       overlays.default = final: prev: {
-        # Enhanced quickshell wrapper with Qt5Compat support for dots-hyprland
-        # Wraps the quickshell from nixpkgs (which must already be in prev)
-        quickshell = if prev ? quickshell then 
-          final.symlinkJoin {
-            name = "quickshell-wrapped";
-            paths = [ prev.quickshell ];
-            buildInputs = [ final.makeWrapper ];
-            postBuild = ''
-              wrapProgram $out/bin/quickshell \
-                --prefix QML2_IMPORT_PATH : "${final.kdePackages.qt5compat}/lib/qt-6/qml:${final.kdePackages.qtpositioning}/lib/qt-6/qml:${final.kdePackages.qtlocation}/lib/qt-6/qml:$HOME/.config/quickshell/ii:$HOME/.config/quickshell" \
-                --set ILLOGICAL_IMPULSE_VIRTUAL_ENV "$HOME/.local/state/quickshell/.venv" \
-                --prefix XDG_DATA_DIRS : "${final.gsettings-desktop-schemas}/share" \
-                --prefix LD_LIBRARY_PATH : "${final.stdenv.cc.cc.lib}/lib:${final.glibc}/lib:${final.zlib}/lib:${final.libffi}/lib:${final.openssl}/lib:${final.bzip2.out}/lib:${final.xz.out}/lib:${final.ncurses}/lib:${final.readline}/lib:${final.sqlite.out}/lib"
-            '';
-          }
-        else prev.quickshell;
+        # No quickshell override needed - nixpkgs 25.11+ provides it
+        # Environment setup is handled by the quickshell-startup script
       };
 
       packages = forAllSystems (system: 
