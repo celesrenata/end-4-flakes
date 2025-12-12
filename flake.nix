@@ -48,7 +48,7 @@
           export LD_LIBRARY_PATH="${final.stdenv.cc.cc.lib}/lib:${final.glibc}/lib:${final.zlib}/lib:${final.libffi}/lib:${final.openssl}/lib:${final.bzip2.out}/lib:${final.xz.out}/lib:${final.ncurses}/lib:${final.readline}/lib:${final.sqlite.out}/lib:$LD_LIBRARY_PATH"
           
           # Execute the original quickshell
-          exec ${final.quickshell-base}/bin/qs "$@"
+          exec ${final.quickshell-base}/bin/quickshell "$@"
         '';
       };
 
