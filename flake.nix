@@ -51,7 +51,6 @@
           exec ${final.quickshell-base}/bin/qs "$@"
         '';
       };
-      };
 
       packages = forAllSystems (system: 
         let 
