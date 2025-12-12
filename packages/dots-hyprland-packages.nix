@@ -69,10 +69,11 @@ let
   ];
 
   # illogical-impulse-hyprland PKGBUILD
+  # Note: hyprland itself should be installed system-wide via programs.hyprland.enable
   hyprlandPackages = with pkgs; [
     hypridle
     hyprcursor
-    hyprland
+    # hyprland  # Removed - use system hyprland instead
     hyprland-qtutils
     # hyprland-qt-support -> might be in hyprland-qtutils
     hyprlang
