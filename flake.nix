@@ -15,19 +15,18 @@
 
   outputs = { self, nixpkgs, home-manager, quickshell, ... }:
     let
-      system = "x86_64-linux";
-      pkgs = import nixpkgs {
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+      forAllSystems = nixpkgs.lib.genAttrs systems;
+      
+      pkgsFor = system: import nixpkgs {
         inherit system;
         overlays = [ self.overlays.default ];
       };
-      
-      # Import our utility packages
-      utilityPackages = import ./packages { inherit pkgs; };
     in
     {
       overlays.default = final: prev: {
         # Override quickshell from upstream to add Qt6 Wayland dependency
-        quickshell-base = quickshell.packages.${system}.default.overrideAttrs (oldAttrs: {
+        quickshell-base = quickshell.packages.${final.system}.default.overrideAttrs (oldAttrs: {
           buildInputs = (oldAttrs.buildInputs or []) ++ [ final.qt6.qtwayland ];
         });
         
@@ -48,25 +47,37 @@
         '';
       };
 
-      packages.${system} = utilityPackages // {
-        default = utilityPackages.update-flake;
-      };
+      packages = forAllSystems (system: 
+        let 
+          pkgs = pkgsFor system;
+          utilityPackages = import ./packages { inherit pkgs; };
+        in utilityPackages // {
+          default = utilityPackages.update-flake;
+        }
+      );
 
-      devShells.${system}.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          nixpkgs-fmt
-          nil
-          git
-          jq
-        ] ++ (with utilityPackages; [
-          update-flake
-          test-python-env
-          test-quickshell
-          compare-modes
-        ]);
-        
-        shellHook = builtins.readFile ./packages/scripts/dev-shell-hook.sh;
-      };
+      devShells = forAllSystems (system:
+        let 
+          pkgs = pkgsFor system;
+          utilityPackages = import ./packages { inherit pkgs; };
+        in {
+          default = pkgs.mkShell {
+            buildInputs = with pkgs; [
+              nixpkgs-fmt
+              nil
+              git
+              jq
+            ] ++ (with utilityPackages; [
+              update-flake
+              test-python-env
+              test-quickshell
+              compare-modes
+            ]);
+            
+            shellHook = builtins.readFile ./packages/scripts/dev-shell-hook.sh;
+          };
+        }
+      );
 
       homeManagerModules.default = import ./modules/home-manager.nix;
       homeManagerModules.dots-hyprland = self.homeManagerModules.default;
@@ -76,7 +87,7 @@
 
       homeConfigurations = {
         declarative = home-manager.lib.homeManagerConfiguration {
-          inherit pkgs;
+          pkgs = pkgsFor "x86_64-linux";
           modules = [
             self.homeManagerModules.default
             {
