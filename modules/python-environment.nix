@@ -228,7 +228,7 @@ in
       lib.hm.dag.entryAfter ["writeBoundary"] ''
         VENV_PATH="${cfg.venvPath}"
         MARKER_FILE="$VENV_PATH/.nix-built"
-        EXPECTED_HASH="${builtins.hashString "sha256" setupVenvScript}"
+        EXPECTED_HASH="${builtins.hashString "sha256" (builtins.readFile setupVenvScript)}"
         
         # Only rebuild if venv doesn't exist or script changed
         if [[ ! -f "$MARKER_FILE" ]] || [[ "$(cat "$MARKER_FILE" 2>/dev/null)" != "$EXPECTED_HASH" ]]; then
