@@ -25,10 +25,7 @@
     in
     {
       overlays.default = final: prev: {
-        # Use quickshell from the same nixpkgs (supports all architectures)
-        quickshell-base = prev.quickshell or (builtins.throw "quickshell not available in nixpkgs");
-        
-        # Enhanced quickshell with Qt5Compat support for dots-hyprland
+        # Enhanced quickshell wrapper with Qt5Compat support for dots-hyprland
         quickshell = final.writeShellScriptBin "quickshell" ''
           # Add Qt5Compat, QtPositioning, and quickshell config directories to QML import path
           export QML2_IMPORT_PATH="${final.kdePackages.qt5compat}/lib/qt-6/qml:${final.kdePackages.qtpositioning}/lib/qt-6/qml:${final.kdePackages.qtlocation}/lib/qt-6/qml:$HOME/.config/quickshell/ii:$HOME/.config/quickshell:$QML2_IMPORT_PATH"
@@ -40,8 +37,8 @@
           # Ensure child processes (execDetached) have access to system libraries for Python virtual environment
           export LD_LIBRARY_PATH="${final.stdenv.cc.cc.lib}/lib:${final.glibc}/lib:${final.zlib}/lib:${final.libffi}/lib:${final.openssl}/lib:${final.bzip2.out}/lib:${final.xz.out}/lib:${final.ncurses}/lib:${final.readline}/lib:${final.sqlite.out}/lib:$LD_LIBRARY_PATH"
           
-          # Execute the original quickshell
-          exec ${final.quickshell-base}/bin/quickshell "$@"
+          # Execute quickshell from nixpkgs
+          exec ${prev.quickshell}/bin/quickshell "$@"
         '';
       };
 
