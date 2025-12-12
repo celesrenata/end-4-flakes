@@ -161,17 +161,6 @@ else:
     
     echo "🎉 Python environment test complete!"
   '';
-  
-  # Build Python venv as a derivation (happens during build, not activation)
-  venvDerivation = pkgs.runCommand "dots-hyprland-venv" {
-    buildInputs = [ pkgs.python312 ];
-    nativeBuildInputs = with pkgs; [ cmake pkg-config gcc gnumake wayland wayland-protocols ];
-  } ''
-    export HOME=$TMPDIR
-    mkdir -p $out
-    ${setupVenvScript}
-    mv $HOME/.local/state/quickshell/.venv $out/venv
-  '';
 in
 {
   options.programs.dots-hyprland.python = {
@@ -233,14 +222,22 @@ in
       '')
     ];
 
-    # Symlink to pre-built venv (built during nixos-rebuild, not activation)
+    # Set up virtual environment on Home Manager activation
+    # Only rebuilds if packages change
     home.activation.setupDotsHyprlandVenv = mkIf cfg.autoSetup (
       lib.hm.dag.entryAfter ["writeBoundary"] ''
-        echo "🔗 Linking pre-built Python venv..."
-        $DRY_RUN_CMD mkdir -p $(dirname ${cfg.venvPath})
-        $DRY_RUN_CMD rm -rf ${cfg.venvPath}
-        $DRY_RUN_CMD cp -r ${venvDerivation}/venv ${cfg.venvPath}
-        echo "✅ Python venv linked successfully"
+        VENV_PATH="${cfg.venvPath}"
+        MARKER_FILE="$VENV_PATH/.nix-built"
+        EXPECTED_HASH="${builtins.hashString "sha256" setupVenvScript}"
+        
+        # Only rebuild if venv doesn't exist or script changed
+        if [[ ! -f "$MARKER_FILE" ]] || [[ "$(cat "$MARKER_FILE" 2>/dev/null)" != "$EXPECTED_HASH" ]]; then
+          echo "🐍 Building Python venv (this takes ~10 minutes on first run)..."
+          $DRY_RUN_CMD ${setupVenvScript}
+          $DRY_RUN_CMD echo "$EXPECTED_HASH" > "$MARKER_FILE"
+        else
+          echo "✅ Python venv already up to date"
+        fi
       ''
     );
 
