@@ -8,17 +8,6 @@ let
   cfg = config.programs.dots-hyprland.python;
   mainCfg = config.programs.dots-hyprland;
   
-  # Build Python venv as a derivation (happens during build, not activation)
-  venvDerivation = pkgs.runCommand "dots-hyprland-venv" {
-    buildInputs = [ pkgs.python312 ];
-    nativeBuildInputs = with pkgs; [ cmake pkg-config gcc gnumake wayland wayland-protocols ];
-  } ''
-    export HOME=$TMPDIR
-    mkdir -p $out
-    ${setupVenvScript}
-    mv $HOME/.local/state/quickshell/.venv $out/venv
-  '';
-  
   # Virtual environment setup script that replicates installer behavior
   setupVenvScript = pkgs.writeShellScript "setup-dots-hyprland-venv" ''
     #!/usr/bin/env bash
@@ -171,6 +160,17 @@ else:
     deactivate
     
     echo "🎉 Python environment test complete!"
+  '';
+  
+  # Build Python venv as a derivation (happens during build, not activation)
+  venvDerivation = pkgs.runCommand "dots-hyprland-venv" {
+    buildInputs = [ pkgs.python312 ];
+    nativeBuildInputs = with pkgs; [ cmake pkg-config gcc gnumake wayland wayland-protocols ];
+  } ''
+    export HOME=$TMPDIR
+    mkdir -p $out
+    ${setupVenvScript}
+    mv $HOME/.local/state/quickshell/.venv $out/venv
   '';
 in
 {
