@@ -7,8 +7,15 @@ let
   cfg = config.programs.dots-hyprland.quickshell;
   mainCfg = config.programs.dots-hyprland;
   
-  # Use quickshell from nixpkgs (available in 25.11+)
-  workingQuickshell = pkgs.quickshell or (throw "quickshell not found in nixpkgs - ensure you're using nixpkgs 25.11 or later");
+  # Use quickshell from home.packages (user must add it)
+  workingQuickshell = let
+    quickshellPkg = pkgs.lib.findFirst 
+      (pkg: pkg.pname or "" == "quickshell") 
+      null 
+      config.home.packages;
+  in
+    if quickshellPkg != null then quickshellPkg
+    else pkgs.quickshell or (throw "quickshell not found - add pkgs.quickshell to home.packages");
   
   # Service startup script that handles initial setup
   quickshellStartup = pkgs.writeShellScript "quickshell-startup" ''
