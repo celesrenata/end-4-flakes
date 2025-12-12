@@ -222,10 +222,22 @@ in
       '')
     ];
 
-    # Set up virtual environment on Home Manager activation
+    # Symlink to pre-built venv (built during nixos-rebuild, not activation)
     home.activation.setupDotsHyprlandVenv = mkIf cfg.autoSetup (
       lib.hm.dag.entryAfter ["writeBoundary"] ''
-        $DRY_RUN_CMD ${setupVenvScript}
+        echo "🔗 Linking pre-built Python venv..."
+        $DRY_RUN_CMD mkdir -p $(dirname ${cfg.venvPath})
+        $DRY_RUN_CMD rm -rf ${cfg.venvPath}
+        $DRY_RUN_CMD cp -r ${pkgs.runCommand "dots-hyprland-venv" {
+          buildInputs = [ pkgs.python312 ];
+          nativeBuildInputs = with pkgs; [ cmake pkg-config gcc gnumake wayland wayland-protocols ];
+        } ''
+          export HOME=$TMPDIR
+          mkdir -p $out
+          ${setupVenvScript}
+          mv $HOME/.local/state/quickshell/.venv $out/venv
+        ''}/venv ${cfg.venvPath}
+        echo "✅ Python venv linked successfully"
       ''
     );
 
