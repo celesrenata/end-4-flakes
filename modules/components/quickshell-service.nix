@@ -118,9 +118,8 @@ EOF
     log "🚀 App launcher: $LAUNCHER_WRAPPER"
     
     # Set up Qt environment for dots-hyprland
-    export QML2_IMPORT_PATH="${pkgs.kdePackages.qt5compat}/lib/qt-6/qml:${pkgs.kdePackages.qtpositioning}/lib/qt-6/qml:${pkgs.kdePackages.qtlocation}/lib/qt-6/qml:$HOME/.config/quickshell/ii:$HOME/.config/quickshell:$QML2_IMPORT_PATH"
+    # Let quickshell use its own Qt libraries
     export XDG_DATA_DIRS="$XDG_DATA_DIRS:${pkgs.gsettings-desktop-schemas}/share"
-    export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.glibc}/lib:${pkgs.zlib}/lib:${pkgs.libffi}/lib:${pkgs.openssl}/lib:${pkgs.bzip2.out}/lib:${pkgs.xz.out}/lib:${pkgs.ncurses}/lib:${pkgs.readline}/lib:${pkgs.sqlite.out}/lib:$LD_LIBRARY_PATH"
     
     # Start quickshell (from PATH - must be in home.packages)
     exec quickshell -p "$CONFIG_DIR/quickshell/ii/shell.qml"
@@ -213,8 +212,6 @@ in
           "XDG_DATA_DIRS=${config.home.profileDirectory}/share:${config.home.homeDirectory}/.nix-profile/share:/etc/profiles/per-user/${config.home.username}/share:/nix/var/nix/profiles/default/share:/run/current-system/sw/share"
           # Application launcher wrapper path
           "DOTS_HYPRLAND_APP_LAUNCHER=%h/.cache/dots-hyprland/app-launcher"
-          # QML module paths for Qt plugins and KDE components
-          "QML2_IMPORT_PATH=${pkgs.kdePackages.qt5compat}/lib/qt-6/qml:${pkgs.kdePackages.qtpositioning}/lib/qt-6/qml:${pkgs.kdePackages.qtlocation}/lib/qt-6/qml:${pkgs.kdePackages.bluez-qt}/lib/qt-6/qml:${pkgs.kdePackages.bluedevil}/lib/qt-6/qml:${pkgs.kdePackages.plasma-nm}/lib/qt-6/qml:${pkgs.kdePackages.kconfig}/lib/qt-6/qml:${pkgs.kdePackages.kirigami}/lib/qt-6/qml"
         ];
         
         # Working directory
