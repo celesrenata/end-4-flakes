@@ -415,7 +415,7 @@ main() {
     # Only prompt for wallpaper if not using --color and not using --noswitch and no imgpath set
     if [[ -z "$imgpath" && -z "$color_flag" && -z "$noswitch_flag" ]]; then
         # Try to pick a random wallpaper from Wallpapers directory
-        WALLPAPER_DIR="$(xdg-user-dir PICTURES)/Wallpapers"
+        WALLPAPER_DIR="$(xdg-user-dir PICTURES)/Backgrounds"
         if [[ -d "$WALLPAPER_DIR" ]] && [[ -z "$choose_flag" ]]; then
             imgpath=$(find "$WALLPAPER_DIR" -type f \( -name "*.jpg" -o -name "*.png" \) 2>/dev/null | shuf -n 1)
         fi
