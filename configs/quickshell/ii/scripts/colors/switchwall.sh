@@ -3,6 +3,8 @@
 # Log execution
 LOG="/tmp/switchwall.log"
 echo "[$(date)] switchwall.sh started" >> "$LOG"
+# Set default venv path if not already set
+ILLOGICAL_IMPULSE_VIRTUAL_ENV="${ILLOGICAL_IMPULSE_VIRTUAL_ENV:-$HOME/.local/state/quickshell/.venv}"
 echo "ILLOGICAL_IMPULSE_VIRTUAL_ENV=$ILLOGICAL_IMPULSE_VIRTUAL_ENV" >> "$LOG"
 
 # Ensure LD_LIBRARY_PATH is set for Python venv
