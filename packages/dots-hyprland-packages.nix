@@ -32,7 +32,7 @@ let
     hyprlock
     hyprpicker
     networkmanagerapplet # nm-connection-editor
-    # pkgs.quickshell - Add to home.packages from nixpkgs-unstable instead
+    pkgs.quickshell
     translate-shell
     wlogout
     
@@ -125,7 +125,7 @@ let
     # Note: might need to add custom font derivation
     noto-fonts
     noto-fonts-cjk-sans
-    noto-fonts-emoji
+    noto-fonts-color-emoji
     font-awesome
     material-design-icons
     nerd-fonts.jetbrains-mono

@@ -2,18 +2,14 @@
   description = "NixOS adaptation of end-4's dots-hyprland - self-contained installer replication";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nvmd/nixpkgs";
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    quickshell = {
-      url = "github:outfoxxed/quickshell";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, home-manager, quickshell, ... }:
+  outputs = { self, nixpkgs, home-manager, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -25,8 +21,13 @@
     in
     {
       overlays.default = final: prev: {
-        # No quickshell override needed - nixpkgs 25.11+ provides it
-        # Environment setup is handled by the quickshell-startup script
+        quickshell = prev.quickshell.overrideAttrs (old: {
+          buildInputs = (old.buildInputs or []) ++ [ final.qt6.qt5compat final.qt6.qtpositioning ];
+          qtWrapperArgs = (old.qtWrapperArgs or []) ++ [
+            "--prefix" "NIXPKGS_QT6_QML_IMPORT_PATH" ":" "${final.qt6.qt5compat}/lib/qt-6/qml"
+            "--prefix" "NIXPKGS_QT6_QML_IMPORT_PATH" ":" "${final.qt6.qtpositioning}/lib/qt-6/qml"
+          ];
+        });
       };
 
       packages = forAllSystems (system: 

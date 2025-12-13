@@ -81,7 +81,7 @@ in
           configFiles = listToAttrs (map (dir: {
             name = dir;
             value = {
-              source = "${cfg.source}/${dir}";
+              source = "${cfg.source}/.config/${dir}";
               recursive = true;
             };
           }) configDirs);
