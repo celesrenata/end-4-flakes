@@ -221,9 +221,12 @@ in
         else
           $DRY_RUN_CMD echo "✅ Quickshell configuration already exists"
           # Always update critical scripts that need environment fixes
-          cp "${cfg.source}/configs/quickshell/ii/scripts/colors/switchwall.sh" "$HOME/.config/quickshell/ii/scripts/colors/switchwall.sh"
-          chmod +x "$HOME/.config/quickshell/ii/scripts/colors/switchwall.sh"
-          $DRY_RUN_CMD echo "  → Updated switchwall.sh script"
+          # Use the flake's own configs directory, not the GitHub source
+          if [ -f "${./../configs}/quickshell/ii/scripts/colors/switchwall.sh" ]; then
+            cp "${./../configs}/quickshell/ii/scripts/colors/switchwall.sh" "$HOME/.config/quickshell/ii/scripts/colors/switchwall.sh"
+            chmod +x "$HOME/.config/quickshell/ii/scripts/colors/switchwall.sh"
+            $DRY_RUN_CMD echo "  → Updated switchwall.sh script"
+          fi
         fi
         
         # Ensure quickshell uses the proper environment variables
