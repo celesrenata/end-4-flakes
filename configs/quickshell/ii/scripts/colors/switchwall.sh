@@ -170,6 +170,11 @@ set_wallpaper_path() {
     if [ -f "$SHELL_CONFIG_FILE" ]; then
         jq --arg path "$path" '.background.wallpaperPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
     fi
+    # Apply wallpaper with hyprpaper
+    if [ -f "$path" ]; then
+        hyprctl hyprpaper preload "$path" 2>/dev/null
+        hyprctl hyprpaper wallpaper ",$path" 2>/dev/null
+    fi
 }
 
 set_thumbnail_path() {
