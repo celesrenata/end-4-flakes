@@ -140,10 +140,7 @@ in
         recursive = true;
       };
       
-      ".local/share/konsole" = mkIf cfg.copyMiscConfig {
-        source = "${cfg.source}/.local/share/konsole";
-        recursive = true;
-      };
+      # konsole removed - managed by kde-material-you-colors
     };
     
     # Ensure XDG directories exist (installer creates these)
