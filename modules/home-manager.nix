@@ -202,11 +202,6 @@ in
         $DRY_RUN_CMD mv "$HOME/.config/fish" "$HOME/.config/fish.backup-$(date +%Y%m%d-%H%M%S)"
         $DRY_RUN_CMD echo "  → Backed up existing fish config directory"
       fi
-      
-      if [[ -d "$HOME/.config/matugen" && ! -L "$HOME/.config/matugen" ]]; then
-        $DRY_RUN_CMD mv "$HOME/.config/matugen" "$HOME/.config/matugen.backup-$(date +%Y%m%d-%H%M%S)"
-        $DRY_RUN_CMD echo "  → Backed up existing matugen config directory"
-      fi
     '';
 
     # Copy quickshell config after link generation
