@@ -32,6 +32,13 @@
         # Patch kde-material-you-colors for non-Plasma systems
         kde-material-you-colors = prev.python312Packages.kde-material-you-colors.overrideAttrs (old: {
           nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ prev.makeWrapper ];
+          
+          # Patch konsole_utils.py to use exist_ok=True
+          postPatch = (old.postPatch or "") + ''
+            substituteInPlace kde_material_you_colors/utils/konsole_utils.py \
+              --replace-fail 'os.makedirs(settings.KONSOLE_DIR)' 'os.makedirs(settings.KONSOLE_DIR, exist_ok=True)'
+          '';
+          
           postInstall = (old.postInstall or "") + ''
             # Create stub plasma-apply-colorscheme
             cat > $out/bin/plasma-apply-colorscheme << 'EOF'
