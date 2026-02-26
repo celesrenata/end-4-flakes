@@ -30,7 +30,8 @@
         });
         
         # Patch kde-material-you-colors for non-Plasma systems
-        kde-material-you-colors = prev.python312Packages.kde-material-you-colors.overrideAttrs (old: {
+        kde-material-you-colors = (prev.python312Packages.kde-material-you-colors.overrideAttrs (old: {
+          pname = "kde-material-you-colors-patched";
           nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ prev.makeWrapper ];
           
           # Patch konsole_utils.py to use exist_ok=True
@@ -51,7 +52,7 @@ EOF
             wrapProgram $out/bin/kde-material-you-colors \
               --prefix PATH : $out/bin
           '';
-        });
+        }));
       };
 
       packages = forAllSystems (system: 
