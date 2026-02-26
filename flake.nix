@@ -34,13 +34,11 @@
           pname = "kde-material-you-colors-patched";
           nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ prev.makeWrapper ];
           
-          # Patch konsole_utils.py to use exist_ok=True
-          postPatch = (old.postPatch or "") + ''
-            substituteInPlace kde_material_you_colors/utils/konsole_utils.py \
-              --replace-fail 'os.makedirs(settings.KONSOLE_DIR)' 'os.makedirs(settings.KONSOLE_DIR, exist_ok=True)'
-          '';
-          
           postInstall = (old.postInstall or "") + ''
+            # Patch konsole_utils.py to use exist_ok=True
+            substituteInPlace $out/lib/python*/site-packages/kde_material_you_colors/utils/konsole_utils.py \
+              --replace-fail 'os.makedirs(settings.KONSOLE_DIR)' 'os.makedirs(settings.KONSOLE_DIR, exist_ok=True)'
+            
             # Create stub plasma-apply-colorscheme
             cat > $out/bin/plasma-apply-colorscheme << 'EOF'
 #!/bin/sh
