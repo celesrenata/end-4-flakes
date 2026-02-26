@@ -84,14 +84,8 @@ let
       setproctitle==1.3.4 \
       setuptools==80.9.0 \
       setuptools-scm==8.1.0 \
-      wheel==0.45.1
-    
-    # Install pywayland separately with custom protocol path
-    pip install --no-cache-dir --force-reinstall \
-      --global-option=build_ext \
-      --global-option="--wayland-scanner=${pkgs.wayland-scanner}/bin/wayland-scanner" \
-      --global-option="--wayland-protocols=${pkgs.wayland}/share/wayland" \
-      pywayland==0.4.18 || echo "⚠️  pywayland install failed, continuing..."
+      wheel==0.45.1 \
+      pywayland==0.4.18
     
     # Test critical imports
     echo "🧪 Testing critical package imports..."
