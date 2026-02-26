@@ -76,7 +76,7 @@ in
           configDirs = lib.optionals cfg.applications.kitty.enable [ "kitty" ] ++
                       lib.optionals cfg.applications.foot.enable [ "foot" ] ++
                       lib.optionals cfg.applications.fuzzel.enable [ "fuzzel" ] ++
-                      [ "wlogout" "matugen" ];  # Always enabled applications
+                      [ "wlogout" ];  # Always enabled applications
           
           configFiles = listToAttrs (map (dir: {
             name = dir;
