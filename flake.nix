@@ -39,6 +39,10 @@
             substituteInPlace $out/lib/python*/site-packages/kde_material_you_colors/utils/konsole_utils.py \
               --replace-fail 'os.makedirs(settings.KONSOLE_DIR)' 'os.makedirs(settings.KONSOLE_DIR, exist_ok=True)'
             
+            # Patch kwin_utils.py to skip KWin reload (crashes on non-KDE systems)
+            substituteInPlace $out/lib/python*/site-packages/kde_material_you_colors/utils/kwin_utils.py \
+              --replace-fail 'def reload():' $'def reload():\n    return  # Skip on non-KDE'
+            
             # Create stub plasma-apply-colorscheme
             cat > $out/bin/plasma-apply-colorscheme << 'EOF'
 #!/bin/sh
