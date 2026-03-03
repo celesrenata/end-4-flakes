@@ -66,6 +66,10 @@ let
       export QML2_IMPORT_PATH="${pkgs.kdePackages.plasma-nm}/lib/qt-6/qml:${pkgs.kdePackages.kconfig}/lib/qt-6/qml:${pkgs.kdePackages.kirigami}/lib/qt-6/qml:${pkgs.kdePackages.networkmanager-qt}/lib/qt-6/qml:${pkgs.kdePackages.modemmanager-qt}/lib/qt-6/qml:${pkgs.kdePackages.kcoreaddons}/lib/qt-6/qml:${pkgs.kdePackages.ki18n}/lib/qt-6/qml"
       exec ${pkgs.kdePackages.kcmutils}/bin/kcmshell6 kcm_networkmanagement
     '')
+    (pkgs.writeShellScriptBin "plasmawindowed-network" ''
+      export QML2_IMPORT_PATH="${pkgs.kdePackages.plasma-nm}/lib/qt-6/qml:${pkgs.kdePackages.kconfig}/lib/qt-6/qml:${pkgs.kdePackages.kirigami}/lib/qt-6/qml:${pkgs.kdePackages.networkmanager-qt}/lib/qt-6/qml:${pkgs.kdePackages.modemmanager-qt}/lib/qt-6/qml:${pkgs.kdePackages.kcoreaddons}/lib/qt-6/qml:${pkgs.kdePackages.ki18n}/lib/qt-6/qml"
+      exec ${pkgs.kdePackages.kde-cli-tools}/bin/plasmawindowed org.kde.plasma.networkmanagement
+    '')
   ];
 
   # illogical-impulse-hyprland PKGBUILD

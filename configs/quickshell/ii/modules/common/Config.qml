@@ -103,9 +103,9 @@ Singleton {
             }
 
             property JsonObject apps: JsonObject {
-                property string bluetooth: "kcmshell6 kcm_bluetooth"
-                property string network: "plasmawindowed org.kde.plasma.networkmanagement"
-                property string networkEthernet: "kcmshell6 kcm_networkmanagement"
+                property string bluetooth: "kcmshell6-bluetooth"
+                property string network: "plasmawindowed-network"
+                property string networkEthernet: "kcmshell6-network"
                 property string taskManager: "plasma-systemmonitor --page-name Processes"
                 property string terminal: "kitty -1" // This is only for shell actions
             }
