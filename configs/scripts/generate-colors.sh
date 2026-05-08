@@ -117,10 +117,10 @@ EOF
     echo "✅ Quickshell colors generated"
 fi
 
-# Update wallpaper if using swww
-if command -v swww >/dev/null 2>&1; then
-    echo "Updating wallpaper with swww..."
-    swww img "$WALLPAPER" --transition-type fade --transition-duration 1
+# Update wallpaper if using awww
+if command -v awww >/dev/null 2>&1; then
+    echo "Updating wallpaper with awww..."
+    awww img "$WALLPAPER" --transition-type fade --transition-duration 1
 fi
 
 echo "🎨 Color generation complete!"
