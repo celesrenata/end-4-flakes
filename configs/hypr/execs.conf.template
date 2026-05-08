@@ -1,0 +1,29 @@
+# Startup executables for dots-hyprland
+
+# Core desktop components
+exec-once = quickshell -c $qsConfig &
+exec-once = @HYPRIDLE_BIN@
+
+# Authentication and security
+exec-once = @GNOME_KEYRING_BIN@ --start --components=secrets
+exec-once = @POLKIT_AGENT_BIN@
+
+# System services
+exec-once = dbus-update-activation-environment --all
+exec-once = sleep 1 && dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
+
+# Input method
+@INPUT_METHOD_EXEC@
+
+# Audio system
+@AUDIO_EXEC@
+
+# Clipboard management
+exec-once = @WL_PASTE_BIN@ --type text --watch @CLIPHIST_BIN@ store
+exec-once = @WL_PASTE_BIN@ --type image --watch @CLIPHIST_BIN@ store
+
+# Cursor theme
+exec-once = hyprctl setcursor @CURSOR_THEME@ @CURSOR_SIZE@
+
+# User custom execs
+@CUSTOM_EXECS@

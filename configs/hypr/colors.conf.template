@@ -1,0 +1,40 @@
+# Material You colors for Hyprland
+# Generated dynamically from wallpaper
+
+# Slurp (selection tool) colors
+exec = export SLURP_ARGS='-d -c @SLURP_BORDER_COLOR@ -b @SLURP_BACKGROUND_COLOR@ -s 00000000'
+
+general {
+    col.active_border = @ACTIVE_BORDER_COLOR@
+    col.inactive_border = @INACTIVE_BORDER_COLOR@
+}
+
+misc {
+    background_color = @BACKGROUND_COLOR@
+}
+
+plugin {
+    hyprbars {
+        # Font configuration
+        bar_text_font = @BAR_FONT@
+        bar_height = @BAR_HEIGHT@
+        bar_padding = 10
+        bar_button_padding = 5
+        bar_precedence_over_border = true
+        bar_part_of_window = true
+
+        bar_color = @BAR_BACKGROUND_COLOR@
+        col.text = @BAR_TEXT_COLOR@
+
+        # Window control buttons (R -> L)
+        hyprbars-button = @BUTTON_COLOR@, 13, 󰖭, hyprctl dispatch killactive
+        hyprbars-button = @BUTTON_COLOR@, 13, 󰖯, hyprctl dispatch fullscreen 1
+        hyprbars-button = @BUTTON_COLOR@, 13, 󰖰, hyprctl dispatch movetoworkspacesilent special
+    }
+}
+
+# Special window border colors
+windowrulev2 = bordercolor @PINNED_BORDER_COLOR@ @PINNED_BORDER_COLOR_INACTIVE@,pinned:1
+
+# Additional color variables for scripts
+@ADDITIONAL_COLORS@

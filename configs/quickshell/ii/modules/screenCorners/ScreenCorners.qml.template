@@ -1,0 +1,162 @@
+import QtQuick
+import Quickshell
+
+ShellRoot {
+    // Top-left corner - Overview
+    PanelWindow {
+        id: topLeftCorner
+        anchors {
+            top: true
+            left: true
+        }
+        width: 1
+        height: 1
+        
+        Rectangle {
+            width: 20
+            height: 20
+            color: "transparent"
+            
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                
+                onEntered: {
+                    // Trigger overview
+                    triggerCornerAction("top-left")
+                }
+            }
+        }
+    }
+    
+    // Top-right corner - Brightness control
+    PanelWindow {
+        id: topRightCorner
+        anchors {
+            top: true
+            right: true
+        }
+        width: 1
+        height: 1
+        
+        Rectangle {
+            width: 20
+            height: 20
+            color: "transparent"
+            
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                
+                onWheel: {
+                    // Brightness control
+                    var delta = wheel.angleDelta.y > 0 ? 5 : -5
+                    adjustBrightness(delta)
+                }
+                
+                onEntered: {
+                    // Show brightness OSD
+                    showBrightnessOSD()
+                }
+            }
+        }
+    }
+    
+    // Bottom-left corner - Sidebar
+    PanelWindow {
+        id: bottomLeftCorner
+        anchors {
+            bottom: true
+            left: true
+        }
+        width: 1
+        height: 1
+        
+        Rectangle {
+            width: 20
+            height: 20
+            color: "transparent"
+            
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                
+                onEntered: {
+                    // Toggle left sidebar
+                    triggerCornerAction("bottom-left")
+                }
+            }
+        }
+    }
+    
+    // Bottom-right corner - Session menu
+    PanelWindow {
+        id: bottomRightCorner
+        anchors {
+            bottom: true
+            right: true
+        }
+        width: 1
+        height: 1
+        
+        Rectangle {
+            width: 20
+            height: 20
+            color: "transparent"
+            
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                
+                onEntered: {
+                    // Show session menu
+                    triggerCornerAction("bottom-right")
+                }
+            }
+        }
+    }
+    
+    function triggerCornerAction(corner) {
+        switch(corner) {
+            case "top-left":
+                // Show overview
+                Process.start("quickshell", ["-c", "overview"])
+                break
+            case "top-right":
+                // Show brightness OSD
+                showBrightnessOSD()
+                break
+            case "bottom-left":
+                // Toggle sidebar
+                Process.start("quickshell", ["-c", "toggle-sidebar"])
+                break
+            case "bottom-right":
+                // Show session menu
+                Process.start("quickshell", ["-c", "session-menu"])
+                break
+        }
+    }
+    
+    function adjustBrightness(delta) {
+        // Brightness adjustment implementation
+        var currentBrightness = getCurrentBrightness()
+        var newBrightness = Math.max(0, Math.min(100, currentBrightness + delta))
+        setBrightness(newBrightness)
+        showBrightnessOSD()
+    }
+    
+    function getCurrentBrightness() {
+        // Get current brightness (placeholder)
+        return 50
+    }
+    
+    function setBrightness(value) {
+        // Set brightness (placeholder)
+        Process.start("brightnessctl", ["set", value + "%"])
+    }
+    
+    function showBrightnessOSD() {
+        // Show brightness OSD (placeholder)
+        Process.start("quickshell", ["-c", "brightness-osd"])
+    }
+}

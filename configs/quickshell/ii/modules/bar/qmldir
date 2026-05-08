@@ -1,0 +1,14 @@
+module qs.modules.bar
+
+ActiveWindow 1.0 ActiveWindow.qml
+BarGroup 1.0 BarGroup.qml
+Bar 1.0 Bar.qml
+BatteryIndicator 1.0 BatteryIndicator.qml
+BrightnessIndicator 1.0 BrightnessIndicator.qml
+ClockWidget 1.0 ClockWidget.qml
+HyprlandWorkspaces 1.0 HyprlandWorkspaces.qml
+MediaIndicator 1.0 MediaIndicator.qml
+NetworkIndicator 1.0 NetworkIndicator.qml
+NotificationIndicator 1.0 NotificationIndicator.qml
+SystemTray 1.0 SystemTray.qml
+VolumeIndicator 1.0 VolumeIndicator.qml

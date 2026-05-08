@@ -1,0 +1,241 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+Rectangle {
+    id: sidebarLeft
+    
+    property bool visible: false
+    
+    width: 350
+    height: Screen.height
+    color: "@SURFACE_COLOR@"
+    
+    // Slide animation
+    x: visible ? 0 : -width
+    Behavior on x {
+        NumberAnimation {
+            duration: 300
+            easing.type: Easing.OutCubic
+        }
+    }
+    
+    ScrollView {
+        anchors.fill: parent
+        anchors.margins: 10
+        
+        ColumnLayout {
+            width: parent.width
+            spacing: 15
+            
+            // AI Chat Section
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 300
+                color: "@SURFACE_VARIANT_COLOR@"
+                radius: 12
+                
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 15
+                    
+                    Text {
+                        text: "AI Assistant"
+                        color: "@ON_SURFACE_COLOR@"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+                    
+                    ScrollView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        
+                        TextArea {
+                            id: aiChatArea
+                            placeholderText: "Ask me anything..."
+                            color: "@ON_SURFACE_COLOR@"
+                            wrapMode: TextArea.Wrap
+                            readOnly: true
+                        }
+                    }
+                    
+                    TextField {
+                        id: aiInput
+                        Layout.fillWidth: true
+                        placeholderText: "Type your message..."
+                        color: "@ON_SURFACE_COLOR@"
+                        
+                        onAccepted: {
+                            sendAiMessage(text)
+                            text = ""
+                        }
+                    }
+                }
+            }
+            
+            // Calendar Widget
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 200
+                color: "@SURFACE_VARIANT_COLOR@"
+                radius: 12
+                
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 15
+                    
+                    Text {
+                        text: "Calendar"
+                        color: "@ON_SURFACE_COLOR@"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+                    
+                    // Simple calendar display
+                    Text {
+                        text: new Date().toLocaleDateString()
+                        color: "@ON_SURFACE_COLOR@"
+                        font.pixelSize: 24
+                        font.bold: true
+                    }
+                    
+                    Text {
+                        text: new Date().toLocaleTimeString()
+                        color: "@ON_SURFACE_VARIANT_COLOR@"
+                        font.pixelSize: 14
+                    }
+                }
+            }
+            
+            // Todo List
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 250
+                color: "@SURFACE_VARIANT_COLOR@"
+                radius: 12
+                
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 15
+                    
+                    Text {
+                        text: "Todo List"
+                        color: "@ON_SURFACE_COLOR@"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+                    
+                    ScrollView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        
+                        ListView {
+                            id: todoList
+                            model: ListModel {
+                                ListElement { text: "Welcome to dots-hyprland!"; completed: false }
+                                ListElement { text: "Customize your desktop"; completed: false }
+                                ListElement { text: "Explore AI features"; completed: false }
+                            }
+                            
+                            delegate: Row {
+                                width: parent.width
+                                spacing: 10
+                                
+                                CheckBox {
+                                    checked: model.completed
+                                    onToggled: model.completed = checked
+                                }
+                                
+                                Text {
+                                    text: model.text
+                                    color: "@ON_SURFACE_COLOR@"
+                                    font.strikeout: model.completed
+                                }
+                            }
+                        }
+                    }
+                    
+                    TextField {
+                        Layout.fillWidth: true
+                        placeholderText: "Add new todo..."
+                        color: "@ON_SURFACE_COLOR@"
+                        
+                        onAccepted: {
+                            if (text.trim() !== "") {
+                                todoList.model.append({text: text, completed: false})
+                                text = ""
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // System Information
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 150
+                color: "@SURFACE_VARIANT_COLOR@"
+                radius: 12
+                
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 15
+                    
+                    Text {
+                        text: "System Info"
+                        color: "@ON_SURFACE_COLOR@"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+                    
+                    Text {
+                        text: "CPU: " + getCpuUsage() + "%"
+                        color: "@ON_SURFACE_COLOR@"
+                        font.pixelSize: 12
+                    }
+                    
+                    Text {
+                        text: "Memory: " + getMemoryUsage() + "%"
+                        color: "@ON_SURFACE_COLOR@"
+                        font.pixelSize: 12
+                    }
+                    
+                    Text {
+                        text: "Uptime: " + getUptime()
+                        color: "@ON_SURFACE_COLOR@"
+                        font.pixelSize: 12
+                    }
+                }
+            }
+        }
+    }
+    
+    function sendAiMessage(message) {
+        // Send message to AI service
+        aiChatArea.append("You: " + message)
+        
+        // Call AI service (implementation depends on provider)
+        callAiService(message)
+    }
+    
+    function callAiService(message) {
+        // Implementation for AI service calls
+        // This would integrate with the AI module
+        aiChatArea.append("AI: I received your message: " + message)
+    }
+    
+    function getCpuUsage() {
+        // Placeholder - would integrate with system monitoring
+        return Math.floor(Math.random() * 100)
+    }
+    
+    function getMemoryUsage() {
+        // Placeholder - would integrate with system monitoring
+        return Math.floor(Math.random() * 100)
+    }
+    
+    function getUptime() {
+        // Placeholder - would integrate with system monitoring
+        return "2h 30m"
+    }
+}

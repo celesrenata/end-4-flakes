@@ -1,0 +1,264 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+Rectangle {
+    id: sessionManager
+    
+    property bool visible: false
+    
+    width: 300
+    height: 200
+    color: "@SURFACE_COLOR@"
+    radius: 12
+    border.color: "@OUTLINE_COLOR@"
+    
+    // Fade in/out animation
+    opacity: visible ? 1.0 : 0.0
+    Behavior on opacity {
+        NumberAnimation {
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
+    }
+    
+    GridLayout {
+        anchors.centerIn: parent
+        columns: 2
+        rowSpacing: 15
+        columnSpacing: 15
+        
+        // Lock
+        Button {
+            Layout.preferredWidth: 80
+            Layout.preferredHeight: 80
+            
+            background: Rectangle {
+                color: "@SURFACE_VARIANT_COLOR@"
+                radius: 8
+                border.color: "@OUTLINE_COLOR@"
+                border.width: parent.hovered ? 2 : 1
+                
+                Behavior on border.width {
+                    NumberAnimation { duration: 150 }
+                }
+            }
+            
+            contentItem: Column {
+                spacing: 5
+                
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "🔒"
+                    font.pixelSize: 24
+                }
+                
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Lock"
+                    color: "@ON_SURFACE_COLOR@"
+                    font.pixelSize: 12
+                }
+            }
+            
+            onClicked: {
+                executeCommand("hyprlock")
+                sessionManager.visible = false
+            }
+        }
+        
+        // Logout
+        Button {
+            Layout.preferredWidth: 80
+            Layout.preferredHeight: 80
+            
+            background: Rectangle {
+                color: "@SURFACE_VARIANT_COLOR@"
+                radius: 8
+                border.color: "@OUTLINE_COLOR@"
+                border.width: parent.hovered ? 2 : 1
+                
+                Behavior on border.width {
+                    NumberAnimation { duration: 150 }
+                }
+            }
+            
+            contentItem: Column {
+                spacing: 5
+                
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "🚪"
+                    font.pixelSize: 24
+                }
+                
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Logout"
+                    color: "@ON_SURFACE_COLOR@"
+                    font.pixelSize: 12
+                }
+            }
+            
+            onClicked: {
+                executeCommand("hyprctl dispatch exit")
+                sessionManager.visible = false
+            }
+        }
+        
+        // Reboot
+        Button {
+            Layout.preferredWidth: 80
+            Layout.preferredHeight: 80
+            
+            background: Rectangle {
+                color: "@SURFACE_VARIANT_COLOR@"
+                radius: 8
+                border.color: "@OUTLINE_COLOR@"
+                border.width: parent.hovered ? 2 : 1
+                
+                Behavior on border.width {
+                    NumberAnimation { duration: 150 }
+                }
+            }
+            
+            contentItem: Column {
+                spacing: 5
+                
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "🔄"
+                    font.pixelSize: 24
+                }
+                
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Reboot"
+                    color: "@ON_SURFACE_COLOR@"
+                    font.pixelSize: 12
+                }
+            }
+            
+            onClicked: {
+                showConfirmDialog("reboot")
+            }
+        }
+        
+        // Shutdown
+        Button {
+            Layout.preferredWidth: 80
+            Layout.preferredHeight: 80
+            
+            background: Rectangle {
+                color: "@ERROR_COLOR@"
+                radius: 8
+                border.color: "@OUTLINE_COLOR@"
+                border.width: parent.hovered ? 2 : 1
+                
+                Behavior on border.width {
+                    NumberAnimation { duration: 150 }
+                }
+            }
+            
+            contentItem: Column {
+                spacing: 5
+                
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "⏻"
+                    font.pixelSize: 24
+                    color: "@ON_ERROR_COLOR@"
+                }
+                
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Shutdown"
+                    color: "@ON_ERROR_COLOR@"
+                    font.pixelSize: 12
+                }
+            }
+            
+            onClicked: {
+                showConfirmDialog("shutdown")
+            }
+        }
+    }
+    
+    // Confirmation dialog
+    Rectangle {
+        id: confirmDialog
+        anchors.centerIn: parent
+        width: 250
+        height: 120
+        color: "@SURFACE_VARIANT_COLOR@"
+        radius: 8
+        border.color: "@OUTLINE_COLOR@"
+        visible: false
+        
+        property string action: ""
+        
+        Column {
+            anchors.centerIn: parent
+            spacing: 15
+            
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Are you sure?"
+                color: "@ON_SURFACE_COLOR@"
+                font.pixelSize: 16
+                font.bold: true
+            }
+            
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 10
+                
+                Button {
+                    text: "Cancel"
+                    onClicked: {
+                        confirmDialog.visible = false
+                    }
+                }
+                
+                Button {
+                    text: "Confirm"
+                    background: Rectangle {
+                        color: "@ERROR_COLOR@"
+                        radius: 4
+                    }
+                    onClicked: {
+                        if (confirmDialog.action === "reboot") {
+                            executeCommand("systemctl reboot")
+                        } else if (confirmDialog.action === "shutdown") {
+                            executeCommand("systemctl poweroff")
+                        }
+                        confirmDialog.visible = false
+                        sessionManager.visible = false
+                    }
+                }
+            }
+        }
+    }
+    
+    function executeCommand(command) {
+        // Execute system command
+        Qt.callLater(function() {
+            Process.start(command.split(" ")[0], command.split(" ").slice(1))
+        })
+    }
+    
+    function showConfirmDialog(action) {
+        confirmDialog.action = action
+        confirmDialog.visible = true
+    }
+    
+    // Close on click outside
+    MouseArea {
+        anchors.fill: parent
+        onClicked: {
+            if (!confirmDialog.visible) {
+                sessionManager.visible = false
+            }
+        }
+    }
+}

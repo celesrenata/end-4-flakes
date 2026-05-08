@@ -1,0 +1,6 @@
+module qs.modules.sidebarRight
+
+BottomWidgetGroup 1.0 BottomWidgetGroup.qml
+CenterWidgetGroup 1.0 CenterWidgetGroup.qml
+SidebarRight 1.0 SidebarRight.qml
+TopWidgetGroup 1.0 TopWidgetGroup.qml

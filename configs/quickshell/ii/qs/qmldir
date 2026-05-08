@@ -1,0 +1,30 @@
+module qs
+
+# Re-export all services as singletons
+singleton Ai 1.0 services/Ai.qml
+singleton AppSearch 1.0 services/AppSearch.qml
+singleton Audio 1.0 services/Audio.qml
+singleton Battery 1.0 services/Battery.qml
+singleton Bluetooth 1.0 services/Bluetooth.qml
+singleton Booru 1.0 services/Booru.qml
+BooruResponseData 1.0 services/BooruResponseData.qml
+singleton Brightness 1.0 services/Brightness.qml
+singleton Cliphist 1.0 services/Cliphist.qml
+singleton DateTime 1.0 services/DateTime.qml
+singleton Emojis 1.0 services/Emojis.qml
+singleton FirstRunExperience 1.0 services/FirstRunExperience.qml
+singleton HyprlandData 1.0 services/HyprlandData.qml
+singleton HyprlandKeybinds 1.0 services/HyprlandKeybinds.qml
+singleton HyprlandXkb 1.0 services/HyprlandXkb.qml
+singleton Hyprsunset 1.0 services/Hyprsunset.qml
+singleton KeyringStorage 1.0 services/KeyringStorage.qml
+singleton LatexRenderer 1.0 services/LatexRenderer.qml
+singleton MaterialThemeLoader 1.0 services/MaterialThemeLoader.qml
+singleton MprisController 1.0 services/MprisController.qml
+singleton Network 1.0 services/Network.qml
+singleton Notifications 1.0 services/Notifications.qml
+singleton ResourceUsage 1.0 services/ResourceUsage.qml
+singleton SystemInfo 1.0 services/SystemInfo.qml
+singleton Todo 1.0 services/Todo.qml
+singleton Weather 1.0 services/Weather.qml
+singleton Ydotool 1.0 services/Ydotool.qml

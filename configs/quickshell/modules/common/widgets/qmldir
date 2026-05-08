@@ -1,0 +1,15 @@
+module qs.modules.common.widgets
+RippleButton 1.0 RippleButton.qml
+ClickableIcon 1.0 ClickableIcon.qml
+HoverableIcon 1.0 HoverableIcon.qml
+IconButton 1.0 IconButton.qml
+IconLabel 1.0 IconLabel.qml
+IconLabelButton 1.0 IconLabelButton.qml
+IconTextButton 1.0 IconTextButton.qml
+PanelButton 1.0 PanelButton.qml
+PanelIconButton 1.0 PanelIconButton.qml
+PanelIconLabel 1.0 PanelIconLabel.qml
+PanelIconLabelButton 1.0 PanelIconLabelButton.qml
+PanelIconTextButton 1.0 PanelIconTextButton.qml
+PanelTextButton 1.0 PanelTextButton.qml
+TextButton 1.0 TextButton.qml

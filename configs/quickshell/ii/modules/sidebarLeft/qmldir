@@ -1,0 +1,10 @@
+module qs.modules.sidebarLeft
+
+AiChat 1.0 AiChat.qml
+Anime 1.0 Anime.qml
+ApiCommandButton 1.0 ApiCommandButton.qml
+Calculator 1.0 Calculator.qml
+Cliphist 1.0 Cliphist.qml
+SidebarLeft 1.0 SidebarLeft.qml
+Todo 1.0 Todo.qml
+Translator 1.0 Translator.qml
