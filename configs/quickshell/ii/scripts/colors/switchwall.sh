@@ -175,9 +175,9 @@ set_wallpaper_path() {
     if [ -f "$SHELL_CONFIG_FILE" ]; then
         jq --arg path "$path" '.background.wallpaperPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
     fi
-    # Apply wallpaper with swww
+    # Apply wallpaper with awww
     if [ -f "$path" ]; then
-        swww img "$path" 2>/dev/null
+        awww img "$path" 2>/dev/null
     fi
 }
 
