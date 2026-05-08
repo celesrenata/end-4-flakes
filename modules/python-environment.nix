@@ -64,7 +64,7 @@ let
     # Set wayland protocol path for pywayland
     export PKG_CONFIG_PATH="${pkgs.wayland.dev}/lib/pkgconfig:${pkgs.wayland-protocols}/share/pkgconfig:${pkgs.wayland-scanner.dev}/lib/pkgconfig"
     export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland-scanner}/share/wayland"
-    export C_INCLUDE_PATH="${pkgs.wayland.dev}/include:${C_INCLUDE_PATH:-}"
+    export C_INCLUDE_PATH="${pkgs.wayland.dev}/include:$C_INCLUDE_PATH"
     export PATH="${pkgs.wayland-scanner}/bin:$PATH"
     
     # Upgrade pip first
