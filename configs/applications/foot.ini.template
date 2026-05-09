@@ -1,4 +1,5 @@
 [main]
+font=SpaceMono Nerd Font:size=11
 term=xterm-256color
 login-shell=yes
 app-id=foot
@@ -27,7 +28,7 @@ uri-characters=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.
 
 [cursor]
 style=beam
-color=@CURSOR_COLOR@
+#color=@CURSOR_COLOR@
 blink=no
 beam-thickness=1.5
 underline-thickness=<font-metrics>
@@ -36,7 +37,7 @@ underline-thickness=<font-metrics>
 hide-when-typing=no
 alternate-scroll-mode=yes
 
-[colors]
+[colors-dark]
 alpha=0.95
 background=@BACKGROUND_COLOR@
 foreground=@FOREGROUND_COLOR@
@@ -83,7 +84,7 @@ scrollback-down-page=Shift+Page_Down
 scrollback-down-half-page=none
 scrollback-down-line=none
 clipboard-copy=Control+Shift+c XF86Copy
-clipboard-paste=Control+Shift+v XF86Paste
+clipboard-paste=Control+v Control+Shift+v XF86Paste
 primary-paste=Shift+Insert
 search-start=Control+Shift+r
 font-increase=Control+plus Control+equal Control+KP_Add
