@@ -194,7 +194,7 @@ Singleton {
                     property bool automatic: true
                     property string from: "19:00" // Format: "HH:mm", 24-hour time
                     property string to: "06:30"   // Format: "HH:mm", 24-hour time
-                    property int colorTemperature: 5000
+                    property int colorTemperature: 4500
                 }
             }
 

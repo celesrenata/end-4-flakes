@@ -357,7 +357,7 @@ in
                       property bool automatic: true
                       property string from: "19:00"
                       property string to: "06:30"
-                      property int colorTemperature: 5000
+                      property int colorTemperature: 4500
                   }
               }
 

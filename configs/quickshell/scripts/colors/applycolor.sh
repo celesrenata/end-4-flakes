@@ -25,7 +25,6 @@ if [ -f "$STATE_DIR/user/generated/terminal/transparency" ]; then
     fi
   fi
 fi
-# sleep 0 # idk i wanted some delay or colors dont get applied properly
 if [ ! -d "$STATE_DIR"/user/generated ]; then
   mkdir -p "$STATE_DIR"/user/generated
 fi
@@ -77,10 +76,6 @@ apply_term() {
   wait
 }
 
-apply_qt() {
-  sh "$CONFIG_DIR/scripts/kvantum/materialQT.sh"          # generate kvantum theme
-  python "$CONFIG_DIR/scripts/kvantum/changeAdwColors.py" # apply config colors
-}
 
 apply_foot() {
   # Check if foot template exists
@@ -250,4 +245,3 @@ else
   apply_wofi
 fi
 
-# apply_qt & # Qt theming is already handled by kde-material-colors

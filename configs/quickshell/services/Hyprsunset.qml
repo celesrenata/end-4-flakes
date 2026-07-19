@@ -16,7 +16,7 @@ Singleton {
     property string from: Config.options?.light?.night?.from ?? "19:00" // Default to 7 PM
     property string to: Config.options?.light?.night?.to ?? "06:30" // Default to 6:30 AM
     property bool automatic: Config.options?.light?.night?.automatic && (Config?.ready ?? true)
-    property int colorTemperature: Config.options?.light?.night?.colorTemperature ?? 5000 // Default color temperature
+    property int colorTemperature: Config.options?.light?.night?.colorTemperature ?? 4500 // Default color temperature
     property bool shouldBeOn
     property bool firstEvaluation: true
     property bool active: false

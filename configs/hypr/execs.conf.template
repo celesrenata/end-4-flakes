@@ -27,3 +27,6 @@ exec-once = hyprctl setcursor @CURSOR_THEME@ @CURSOR_SIZE@
 
 # User custom execs
 @CUSTOM_EXECS@
+
+# Custom user execs file (preserved across rebuilds)
+source=~/.config/hypr/custom/execs.conf

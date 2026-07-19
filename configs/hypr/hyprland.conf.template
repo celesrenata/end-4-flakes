@@ -6,13 +6,21 @@ $qsConfig = ii
 exec = hyprctl dispatch submap global # DO NOT REMOVE THIS OR YOU WON'T BE ABLE TO USE ANY KEYBIND
 submap = global # This is required for catchall to work
 
-# Source configuration files
+# Source environment variables
 source=~/.config/hypr/env.conf
+source=~/.config/hypr/custom/env.conf
+
+# Source default configurations
 source=~/.config/hypr/execs.conf
 source=~/.config/hypr/general.conf
 source=~/.config/hypr/rules.conf
 source=~/.config/hypr/colors.conf
 source=~/.config/hypr/keybinds.conf
 
-# Custom user overrides (if they exist)
-source=~/.config/hypr/custom.conf
+# Custom user overrides - drop .conf files into ~/.config/hypr/custom/
+# to add settings without conflicting with the managed base configuration.
+# These files are created as empty placeholders by Home Manager activation
+# and are preserved across rebuilds.
+source=~/.config/hypr/custom/general.conf
+source=~/.config/hypr/custom/rules.conf
+source=~/.config/hypr/custom/keybinds.conf

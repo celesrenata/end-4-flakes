@@ -1,6 +1,9 @@
 # General Hyprland configuration for dots-hyprland
 
 # MONITOR CONFIG
+# Default: use preferred mode with auto positioning and scale 1.0 (float, not integer)
+# Override with @MONITOR_CONFIG@ for custom multi-monitor setups
+monitor=,preferred,auto,1.0
 @MONITOR_CONFIG@
 
 # Gestures (Hyprland 0.51+ syntax)

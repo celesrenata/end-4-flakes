@@ -64,7 +64,7 @@ in
       type = types.listOf types.str;
       default = [];
       description = "Monitor configuration strings";
-      example = [ "eDP-1,1920x1080@60,0x0,1" ];
+      example = [ "eDP-1,1920x1080@60,0x0,1.0" ];
     };
   };
   

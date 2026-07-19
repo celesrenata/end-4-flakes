@@ -150,5 +150,21 @@ in
       $DRY_RUN_CMD mkdir -p $HOME/.config
       $DRY_RUN_CMD mkdir -p $HOME/.local/share
     '';
+
+    # Create custom Hyprland config placeholders if they don't exist
+    # This mirrors upstream's "custom stuff made optional" pattern where
+    # user customizations live in ~/.config/hypr/custom/ and don't conflict
+    # with the managed base configuration.
+    home.activation.createCustomHyprConfigs = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      CUSTOM_DIR="$HOME/.config/hypr/custom"
+      $DRY_RUN_CMD mkdir -p "$CUSTOM_DIR"
+
+      for conffile in env.conf execs.conf general.conf rules.conf keybinds.conf; do
+        if [[ ! -f "$CUSTOM_DIR/$conffile" ]]; then
+          $DRY_RUN_CMD touch "$CUSTOM_DIR/$conffile"
+          $DRY_RUN_CMD echo "  → Created placeholder: $CUSTOM_DIR/$conffile"
+        fi
+      done
+    '';
   };
 }
