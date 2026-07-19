@@ -18,6 +18,9 @@ bind = Super, mouse_up,  global, quickshell:overviewToggleReleaseInterrupt # [hi
 bind = Super, mouse_down,global, quickshell:overviewToggleReleaseInterrupt # [hidden]
 
 bindit = ,Super_L, global, quickshell:workspaceNumber # [hidden]
+bindit = ,Super_R, global, quickshell:workspaceNumber # [hidden]
+bindrit = ,Super_L, global, quickshell:workspaceNumber # [hidden]
+bindrit = ,Super_R, global, quickshell:workspaceNumber # [hidden]
 bindd = Super, V, Clipboard history >> clipboard, global, quickshell:overviewClipboardToggle # Clipboard history >> clipboard
 bindd = Super, Period, Emoji >> clipboard, global, quickshell:overviewEmojiToggle # Emoji >> clipboard
 bindd = Super, Tab, Toggle overview, global, quickshell:overviewToggle # [hidden] Toggle overview/launcher (alt)
@@ -144,6 +147,17 @@ bind = Super, 7, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 7 # 
 bind = Super, 8, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 8 # [hidden]
 bind = Super, 9, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 9 # [hidden]
 bind = Super, 0, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 10 # [hidden]
+# Raw keycodes for non-QWERTY layouts (codes verified with `wev`)
+bind = Super, code:10, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 1 # [hidden]
+bind = Super, code:11, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 2 # [hidden]
+bind = Super, code:12, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 3 # [hidden]
+bind = Super, code:13, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 4 # [hidden]
+bind = Super, code:14, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 5 # [hidden]
+bind = Super, code:15, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 6 # [hidden]
+bind = Super, code:16, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 7 # [hidden]
+bind = Super, code:17, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 8 # [hidden]
+bind = Super, code:18, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 9 # [hidden]
+bind = Super, code:19, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 10 # [hidden]
 
 #/# bind = Ctrl+Super, ←/→,, # Focus left/right
 bind = Ctrl+Super, Right, workspace, r+1 # [hidden]
@@ -187,6 +201,11 @@ binde = Super, Minus, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call zoom zoomOut 
 binde = Super, Equal, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call zoom zoomIn # Zoom in
 binde = Super, Minus, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh decrease 0.1 # [hidden] Zoom out
 binde = Super, Equal, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh increase 0.1 # [hidden] Zoom in
+# Zoom with keypad
+binde = Super, code:82, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call zoom zoomOut # [hidden] Zoom out
+binde = Super, code:86, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call zoom zoomIn # [hidden] Zoom in
+binde = Super, code:82, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh decrease 0.1 # [hidden] Zoom out
+binde = Super, code:86, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh increase 0.1 # [hidden] Zoom in
 
 ##! Media
 bindl= Super+Shift, N, exec, @PLAYERCTL_BIN@ next || @PLAYERCTL_BIN@ position `bc <<< "100 * $(@PLAYERCTL_BIN@ metadata mpris:length) / 1000000 / 100"` # Next track
