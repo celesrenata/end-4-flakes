@@ -389,11 +389,15 @@ Singleton {
         id: validationProcess
         property string targetProviderId: ""
         property string targetApiKey: ""
-        stdout: SplitParser {
-            onRead: data => {
-                if (data.length === 0) return;
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.length === 0) return;
                 // The curl command uses -w "\n%{http_code}" so last line is status code
-                var lines = data.split("\n");
+                var lines = text.split("\n");
+                // Remove trailing empty lines
+                while (lines.length > 0 && lines[lines.length - 1].length === 0) {
+                    lines.pop();
+                }
                 var statusCode = parseInt(lines[lines.length - 1]) || 0;
                 var body = lines.slice(0, lines.length - 1).join("\n");
 
@@ -427,10 +431,13 @@ Singleton {
     Process {
         id: discoveryProcess
         property string targetProviderId: ""
-        stdout: SplitParser {
-            onRead: data => {
-                if (data.length === 0) return;
-                var lines = data.split("\n");
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.length === 0) return;
+                var lines = text.split("\n");
+                while (lines.length > 0 && lines[lines.length - 1].length === 0) {
+                    lines.pop();
+                }
                 var statusCode = parseInt(lines[lines.length - 1]) || 0;
                 var body = lines.slice(0, lines.length - 1).join("\n");
 
@@ -463,10 +470,13 @@ Singleton {
     Process {
         id: balanceProcess
         property string targetProviderId: ""
-        stdout: SplitParser {
-            onRead: data => {
-                if (data.length === 0) return;
-                var lines = data.split("\n");
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.length === 0) return;
+                var lines = text.split("\n");
+                while (lines.length > 0 && lines[lines.length - 1].length === 0) {
+                    lines.pop();
+                }
                 var statusCode = parseInt(lines[lines.length - 1]) || 0;
                 var body = lines.slice(0, lines.length - 1).join("\n");
 
