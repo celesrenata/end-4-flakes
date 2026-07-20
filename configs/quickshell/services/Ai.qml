@@ -248,83 +248,24 @@ Singleton {
     // - api_format: The API format of the model. Can be "openai" or "gemini". Default is "openai".
     // - extraParams: Extra parameters to be passed to the model. This is a JSON object.
     property var models: {
-        "gemini-2.0-flash": aiModelComponent.createObject(this, {
-            "name": "Gemini 2.0 Flash",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Online | Google's model\nFast, can perform searches for up-to-date information"),
-            "homepage": "https://aistudio.google.com",
-            "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent",
-            "model": "gemini-2.0-flash",
-            "requires_key": true,
-            "key_id": "gemini",
-            "key_get_link": "https://aistudio.google.com/app/apikey",
-            "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
-            "api_format": "gemini",
-        }),
-        "gemini-2.5-flash": aiModelComponent.createObject(this, {
-            "name": "Gemini 2.5 Flash",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Online | Google's model\nNewer model that's slower than its predecessor but should deliver higher quality answers"),
-            "homepage": "https://aistudio.google.com",
-            "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent",
-            "model": "gemini-2.5-flash",
-            "requires_key": true,
-            "key_id": "gemini",
-            "key_get_link": "https://aistudio.google.com/app/apikey",
-            "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
-            "api_format": "gemini",
-        }),
-        "gemini-2.5-flash-pro": aiModelComponent.createObject(this, {
-            "name": "Gemini 2.5 Pro",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Online | Google's model\nGoogle's state-of-the-art multipurpose model that excels at coding and complex reasoning tasks."),
-            "homepage": "https://aistudio.google.com",
-            "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent",
-            "model": "gemini-2.5-pro",
-            "requires_key": true,
-            "key_id": "gemini",
-            "key_get_link": "https://aistudio.google.com/app/apikey",
-            "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
-            "api_format": "gemini",
-        }),
-        "gemini-2.5-flash-lite": aiModelComponent.createObject(this, {
-            "name": "Gemini 2.5 Flash-Lite",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Online | Google's model\nA Gemini 2.5 Flash model optimized for cost-efficiency and high throughput."),
-            "homepage": "https://aistudio.google.com",
-            "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent",
-            "model": "gemini-2.5-flash-lite",
-            "requires_key": true,
-            "key_id": "gemini",
-            "key_get_link": "https://aistudio.google.com/app/apikey",
-            "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
-            "api_format": "gemini",
-        }),
-        "mistral-medium-3": aiModelComponent.createObject(this, {
-            "name": "Mistral Medium 3",
-            "icon": "mistral-symbolic",
-            "description": Translation.tr("Online | %1's model | Delivers fast, responsive and well-formatted answers. Disadvantages: not very eager to do stuff; might make up unknown function calls").arg("Mistral"),
-            "homepage": "https://mistral.ai/news/mistral-medium-3",
-            "endpoint": "https://api.mistral.ai/v1/chat/completions",
-            "model": "mistral-medium-2505",
-            "requires_key": true,
-            "key_id": "mistral",
-            "key_get_link": "https://console.mistral.ai/api-keys",
-            "key_get_description": Translation.tr("**Instructions**: Log into Mistral account, go to Keys on the sidebar, click Create new key"),
-            "api_format": "mistral",
-        }),
-        "openrouter-deepseek-r1": aiModelComponent.createObject(this, {
-            "name": "DeepSeek R1",
-            "icon": "deepseek-symbolic",
-            "description": Translation.tr("Online via %1 | %2's model").arg("OpenRouter").arg("DeepSeek"),
-            "homepage": "https://openrouter.ai/deepseek/deepseek-r1:free",
-            "endpoint": "https://openrouter.ai/api/v1/chat/completions",
-            "model": "deepseek/deepseek-r1:free",
-            "requires_key": true,
-            "key_id": "openrouter",
-            "key_get_link": "https://openrouter.ai/settings/keys",
-            "key_get_description": Translation.tr("**Pricing**: free. Data use policy varies depending on your OpenRouter account settings.\n\n**Instructions**: Log into OpenRouter account, go to Keys on the topright menu, click Create API Key"),
-        }),
+        var result = {};
+        // Add all discovered models from ModelDiscoveryService
+        var providers = Object.keys(ModelDiscoveryService.discoveredModels);
+        for (var i = 0; i < providers.length; i++) {
+            var providerModels = ModelDiscoveryService.discoveredModels[providers[i]];
+            for (var j = 0; j < providerModels.length; j++) {
+                var m = providerModels[j];
+                var safeId = root.safeModelName(m.model);
+                result[safeId] = aiModelComponent.createObject(root, m);
+            }
+        }
+        // Add extraModels from config
+        var extras = Config.options?.ai?.extraModels ?? [];
+        for (var k = 0; k < extras.length; k++) {
+            var safeExtra = root.safeModelName(extras[k].model || extras[k].name || "");
+            result[safeExtra] = aiModelComponent.createObject(root, extras[k]);
+        }
+        return result;
     }
     property var modelList: Object.keys(root.models)
     property var currentModelId: Persistent.states?.ai?.model || modelList[0]
@@ -335,17 +276,6 @@ Singleton {
         "mistral": mistralApiStrategy.createObject(this),
     }
     property ApiStrategy currentApiStrategy: apiStrategies[models[currentModelId]?.api_format || "openai"]
-
-    Connections {
-        target: Config
-        function onReadyChanged() {
-            if (!Config.ready) return;
-            (Config?.options.ai?.extraModels ?? []).forEach(model => {
-                const safeModelName = root.safeModelName(model["model"]);
-                root.addModel(safeModelName, model)
-            });
-        }
-    }
 
     Component.onCompleted: {
         setModel(currentModelId, false, false); // Do necessary setup for model
@@ -374,38 +304,6 @@ Singleton {
 
     function addModel(modelName, data) {
         root.models[modelName] = aiModelComponent.createObject(this, data);
-    }
-
-    Process {
-        id: getOllamaModels
-        running: true
-        command: ["bash", "-c", `${Directories.scriptPath}/ai/show-installed-ollama-models.sh`.replace(/file:\/\//, "")]
-        stdout: SplitParser {
-            onRead: data => {
-                try {
-                    if (data.length === 0) return;
-                    const dataJson = JSON.parse(data);
-                    root.modelList = [...root.modelList, ...dataJson];
-                    dataJson.forEach(model => {
-                        const safeModelName = root.safeModelName(model);
-                        root.addModel(safeModelName, {
-                            "name": guessModelName(model),
-                            "icon": guessModelLogo(model),
-                            "description": Translation.tr("Local Ollama model | %1").arg(model),
-                            "homepage": `https://ollama.com/library/${model}`,
-                            "endpoint": "http://localhost:11434/v1/chat/completions",
-                            "model": model,
-                            "requires_key": false,
-                        })
-                    });
-
-                    root.modelList = Object.keys(root.models);
-
-                } catch (e) {
-                    console.log("Could not fetch Ollama models:", e);
-                }
-            }
-        }
     }
 
     Process {
