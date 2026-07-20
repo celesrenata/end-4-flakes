@@ -858,25 +858,25 @@ Rules:
      */
     function validateAction(action) {
         if (!action || typeof action !== "object") {
-            return { ...action, valid: false, warning: "Action is not an object" };
+            return Object.assign({}, action, { valid: false, warning: "Action is not an object" });
         }
 
         const type = action.type;
         const requiredParams = root.supportedActionTypes[type];
 
         if (!requiredParams) {
-            return { ...action, valid: false, warning: `Unrecognized action type: ${type || "missing"}` };
+            return Object.assign({}, action, { valid: false, warning: `Unrecognized action type: ${type || "missing"}` });
         }
 
         // Check required parameters
         for (const param of requiredParams) {
             if (action[param] === undefined || action[param] === null) {
-                return { ...action, valid: false, warning: `Missing required parameter: ${param}` };
+                return Object.assign({}, action, { valid: false, warning: `Missing required parameter: ${param}` });
             }
         }
 
         // Valid action — enrich with metadata
-        let result = { ...action, valid: true, warning: null };
+        let result = Object.assign({}, action, { valid: true, warning: null });
 
         // For config.set: look up current value
         if (type === "config.set") {
