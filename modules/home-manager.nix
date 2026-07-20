@@ -234,6 +234,13 @@ in
             chmod +x "$HOME/.config/quickshell/ii/scripts/colors/switchwall.sh"
             $DRY_RUN_CMD echo "  → Updated switchwall.sh script"
           fi
+          # Update emoji data (Unicode 17.0) for the emoji picker
+          if [ -f "${./../configs}/scripts/fuzzel-emoji.sh" ]; then
+            mkdir -p "$HOME/.config/hypr/hyprland/scripts"
+            cp "${./../configs}/scripts/fuzzel-emoji.sh" "$HOME/.config/hypr/hyprland/scripts/fuzzel-emoji.sh"
+            chmod +x "$HOME/.config/hypr/hyprland/scripts/fuzzel-emoji.sh"
+            $DRY_RUN_CMD echo "  → Updated fuzzel-emoji.sh (Unicode Emoji 17.0)"
+          fi
         fi
         
         # Ensure quickshell uses the proper environment variables
