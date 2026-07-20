@@ -351,6 +351,13 @@ ContentPage {
 
     ContentSection {
         title: Translation.tr("On-screen display")
+        ConfigSwitch {
+            text: Translation.tr("Show background clock")
+            checked: Config.options.background.showClock
+            onCheckedChanged: {
+                Config.options.background.showClock = checked;
+            }
+        }
         ConfigSpinBox {
             text: Translation.tr("Timeout (ms)")
             value: Config.options.osd.timeout
@@ -359,6 +366,44 @@ ContentPage {
             stepSize: 100
             onValueChanged: {
                 Config.options.osd.timeout = value;
+            }
+        }
+    }
+
+    ContentSection {
+        title: Translation.tr("Background & Wallpaper")
+        
+        ContentSubsectionLabel {
+            text: Translation.tr("Parallax Effects")
+        }
+        
+        ConfigSwitch {
+            text: Translation.tr("Enable workspace parallax")
+            checked: Config.options.background.parallax.enableWorkspace
+            onCheckedChanged: {
+                Config.options.background.parallax.enableWorkspace = checked;
+                Config.save();
+            }
+        }
+        
+        ConfigSwitch {
+            text: Translation.tr("Enable sidebar parallax")
+            checked: Config.options.background.parallax.enableSidebar
+            onCheckedChanged: {
+                Config.options.background.parallax.enableSidebar = checked;
+                Config.save();
+            }
+        }
+        
+        ConfigSpinBox {
+            text: Translation.tr("Workspace zoom (%)")
+            value: Config.options.background.parallax.workspaceZoom * 100
+            from: 80
+            to: 120
+            stepSize: 1
+            onValueChanged: {
+                Config.options.background.parallax.workspaceZoom = value / 100;
+                Config.save();
             }
         }
     }

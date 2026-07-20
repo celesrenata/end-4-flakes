@@ -2,4 +2,5 @@ module qs.modules.bar.weather
 
 WeatherBar 1.0 WeatherBar.qml
 WeatherCard 1.0 WeatherCard.qml
-WeatherIcons 1.0 WeatherIcons.qml
+singleton WeatherIcons 1.0 WeatherIcons.qml
+WeatherPopup 1.0 WeatherPopup.qml

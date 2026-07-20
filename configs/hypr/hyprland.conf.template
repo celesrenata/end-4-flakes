@@ -8,7 +8,9 @@ submap = global # This is required for catchall to work
 
 # Source environment variables
 source=~/.config/hypr/env.conf
+# hyprlang noerror true
 source=~/.config/hypr/custom/env.conf
+# hyprlang noerror false
 
 # Source default configurations
 source=~/.config/hypr/execs.conf
@@ -20,12 +22,18 @@ source=~/.config/hypr/keybinds.conf
 # Custom user overrides - drop .conf files into ~/.config/hypr/custom/
 # to add settings without conflicting with the managed base configuration.
 # These files are created as empty placeholders by Home Manager activation
-# and are preserved across rebuilds.
+# and by the exec-once safety net in execs.conf. They are preserved across rebuilds.
+# Uses hyprlang noerror to gracefully handle missing files on very first boot
+# (mirrors upstream's is_file_exists() conditional require pattern).
+# hyprlang noerror true
 source=~/.config/hypr/custom/general.conf
 source=~/.config/hypr/custom/rules.conf
 source=~/.config/hypr/custom/keybinds.conf
+# hyprlang noerror false
 
 # nwg-displays support — these files are overwritten by nwg-displays
 # when used for graphical monitor layout management
+# hyprlang noerror true
 source=~/.config/hypr/monitors.conf
 source=~/.config/hypr/workspaces.conf
+# hyprlang noerror false

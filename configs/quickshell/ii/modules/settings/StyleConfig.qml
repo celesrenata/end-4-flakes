@@ -151,6 +151,144 @@ ContentPage {
             }
         }
 
+        Loader {
+            active: Config.ready
+            sourceComponent: ContentSubsection {
+                title: Translation.tr("Terminal Effects")
+
+                ConfigRow {
+                    uniform: true
+                    ConfigSwitch {
+                        text: Translation.tr("Transparency")
+                        checked: Config.options.terminal?.transparency ?? true
+                        
+                        onCheckedChanged: {
+                            let transparencyValue = checked ? "60" : "100";
+                            let cmd = `
+                                echo "$(date): Transparency toggled to ${transparencyValue}" >> /tmp/terminal_settings.log &&
+                                mkdir -p ~/.local/state/quickshell/user/generated/terminal && 
+                                echo "${transparencyValue}" > ~/.local/state/quickshell/user/generated/terminal/opacity && 
+                                ~/.config/quickshell/ii/scripts/colors/applycolor.sh --term
+                            `;
+                            Quickshell.execDetached(["bash", "-c", cmd]);
+                            
+                            console.log("Terminal transparency toggled:", checked, "opacity:", transparencyValue);
+                        }
+                        
+                        StyledToolTip {
+                            visible: parent.hovered
+                            content: Translation.tr("Enable/disable terminal transparency\nApplies immediately to all terminals")
+                        }
+                    }
+                }
+
+                ConfigSpinBox {
+                    text: Translation.tr("Terminal opacity (%)")
+                    value: Config.options.terminal?.opacity ?? 80
+                    from: 10
+                    to: 100
+                    stepSize: 5
+                    
+                    onValueChanged: {
+                        if (!Config.options.terminal) Config.options.terminal = {};
+                        Config.options.terminal.opacity = value;
+                        
+                        Quickshell.execDetached(["bash", "-c", `
+                            mkdir -p ~/.local/state/quickshell/user/generated/terminal && 
+                            echo "${value}" > ~/.local/state/quickshell/user/generated/terminal/opacity && 
+                            ~/.config/quickshell/ii/scripts/colors/applycolor.sh --term
+                        `]);
+                    }
+                }
+
+                StyledText {
+                    Layout.topMargin: 5
+                    Layout.alignment: Qt.AlignHCenter
+                    text: Translation.tr("Changes apply to new terminal instances")
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+            }
+        }
+
+        Loader {
+            active: Config.ready
+            sourceComponent: ContentSubsection {
+                title: Translation.tr("Blur Effects")
+
+            ConfigRow {
+                uniform: true
+                ConfigSwitch {
+                    text: Translation.tr("Enable blur")
+                    checked: Config.options.blur?.enabled ?? true
+                    onCheckedChanged: {
+                        if (!Config.options.blur) Config.options.blur = {};
+                        Config.options.blur.enabled = checked;
+                        // Apply blur setting via Hyprland
+                        Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:enabled", checked ? "1" : "0"]);
+                    }
+                    StyledToolTip {
+                        visible: parent.hovered
+                        content: Translation.tr("Enable blur on transparent elements\nDoesn't affect performance unless you have transparent windows")
+                    }
+                }
+                ConfigSwitch {
+                    text: Translation.tr("X-ray mode")
+                    enabled: Config.options.blur?.enabled ?? true
+                    checked: Config.options.blur?.xray ?? false
+                    onCheckedChanged: {
+                        if (!Config.options.blur) Config.options.blur = {};
+                        Config.options.blur.xray = checked;
+                        // Apply X-ray setting via Hyprland
+                        Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:xray", checked ? "1" : "0"]);
+                    }
+                    StyledToolTip {
+                        visible: parent.hovered
+                        content: Translation.tr("Make everything behind a window except wallpaper not rendered on blur surface\nRecommended for better performance")
+                    }
+                }
+            }
+
+            ConfigSpinBox {
+                text: Translation.tr("Blur size")
+                enabled: Config.options.blur?.enabled ?? true
+                value: Config.options.blur?.size ?? 8
+                from: 1
+                to: 50
+                stepSize: 1
+                onValueChanged: {
+                    if (!Config.options.blur) Config.options.blur = {};
+                    Config.options.blur.size = value;
+                    // Apply blur size via Hyprland
+                    Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:size", value.toString()]);
+                }
+                StyledToolTip {
+                    visible: parent.hovered
+                    content: Translation.tr("Adjust blur radius\nHigher = more color spread\nGenerally doesn't affect performance")
+                }
+            }
+
+            ConfigSpinBox {
+                text: Translation.tr("Blur passes")
+                enabled: Config.options.blur?.enabled ?? true
+                value: Config.options.blur?.passes ?? 4
+                from: 1
+                to: 10
+                stepSize: 1
+                onValueChanged: {
+                    if (!Config.options.blur) Config.options.blur = {};
+                    Config.options.blur.passes = value;
+                    // Apply blur passes via Hyprland
+                    Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:passes", value.toString()]);
+                }
+                StyledToolTip {
+                    visible: parent.hovered
+                    content: Translation.tr("Number of blur algorithm runs\nMore passes = more spread and power consumption\n4 is recommended")
+                }
+            }
+        }
+        }
+
         ContentSubsection {
             title: Translation.tr("Fake screen rounding")
 

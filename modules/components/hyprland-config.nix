@@ -66,6 +66,24 @@ in
       description = "Monitor configuration strings";
       example = [ "eDP-1,1920x1080@60,0x0,1.0" ];
     };
+
+    # Night light settings (used via @HYPRSUNSET_TEMP@ template substitution)
+    night = {
+      colorTemperature = mkOption {
+        type = types.int;
+        default = 4500;
+        description = "Night light color temperature in Kelvin for hyprsunset";
+      };
+    };
+
+    # Keybind options
+    keybinds = {
+      darkLightToggle = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Enable Ctrl+Super+Shift+D dark/light mode toggle keybind";
+      };
+    };
   };
   
   config = mkIf (config.programs.dots-hyprland.enable && config.programs.dots-hyprland.overrides.hyprlandConf == null) {
@@ -126,12 +144,13 @@ in
               popups_ignorealpha = 0.6
           }
           
-          drop_shadow = true
-          shadow_ignore_window = true
-          shadow_offset = 0 2
-          shadow_range = 20
-          shadow_render_power = 3
-          col.shadow = rgba(00000055)
+          shadow {
+              enabled = true
+              range = 20
+              offset = 0 2
+              render_power = 3
+              color = rgba(00000055)
+          }
       }
     '';
   };

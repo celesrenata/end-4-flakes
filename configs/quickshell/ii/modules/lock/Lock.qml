@@ -44,7 +44,7 @@ Scope {
 
 	// Blur layer hack
 	Variants {
-        model: Quickshell.screens
+        model: Quickshell.screens.filter(screen => screen.name !== "DP-3")
 
         LazyLoader {
 			id: blurLayerLoader

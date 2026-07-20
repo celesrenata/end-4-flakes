@@ -99,7 +99,7 @@ ShellRoot {
     }
 
     Variants {
-        model: Quickshell.screens
+        model: Quickshell.screens.filter(screen => screen.name !== "DP-3")
 
         PanelWindow {
             id: panelWindow

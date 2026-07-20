@@ -1,1 +1,5 @@
 module qs
+
+singleton GlobalStates 1.0 GlobalStates.qml
+ReloadPopup 1.0 ReloadPopup.qml
+singleton Translation 1.0 Translation.qml

@@ -1,4 +1,4 @@
-module qs.services.ai
+module qs.qs.services.ai
 
 AiMessageData 1.0 AiMessageData.qml
 AiModel 1.0 AiModel.qml

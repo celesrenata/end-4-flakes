@@ -22,12 +22,11 @@ import "./modules/screenCorners/"
 import "./modules/session/"
 import "./modules/sidebarLeft/"
 import "./modules/sidebarRight/"
+
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
 import QtQuick.Window
 import Quickshell
-import qs
+import "./services/"
 
 ShellRoot {
     // Enable/disable modules here. False = not loaded at all, so rest assured

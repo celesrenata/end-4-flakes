@@ -319,8 +319,7 @@ switch() {
         awk -F': ' '/^\$/ {gsub(/\$|;/, "", $0); print "\"" $1 "\": \"" $2 "\","}' \
             "$STATE_DIR"/user/generated/material_colors.scss | \
             sed '$ s/,$//' | \
-            (echo "{"; cat; echo "}") > "$STATE_DIR"/user/generated/colors.json.tmp
-        mv "$STATE_DIR"/user/generated/colors.json.tmp "$STATE_DIR"/user/generated/colors.json
+            (echo "{"; cat; echo "}") > "$STATE_DIR"/user/generated/colors.json
         sync "$STATE_DIR"/user/generated/colors.json
         echo "[$(date)] JSON created, size: $(wc -l < "$STATE_DIR"/user/generated/colors.json)" >> "$LOG"
     else
@@ -334,7 +333,7 @@ switch() {
     sleep 1
     
     # Trigger quickshell to reload theme via IPC (doesn't restart the process)
-    quickshell ipc -c ii call materialTheme reload 2>/dev/null || true
+    quickshell -p ~/.config/quickshell/ii ipc call materialTheme reload 2>/dev/null || true
 
     # Pass screen width, height, and wallpaper path to post_process
     max_width_desired="$(hyprctl monitors -j | jq '([.[].width] | min)' | xargs)"

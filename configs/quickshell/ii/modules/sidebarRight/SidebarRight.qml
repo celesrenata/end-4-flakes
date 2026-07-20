@@ -134,7 +134,7 @@ Scope {
                                     buttonIcon: "settings"
                                     onClicked: {
                                         GlobalStates.sidebarRightOpen = false
-                                        Quickshell.execDetached(["qs", "-p", root.settingsQmlPath])
+                                        Quickshell.execDetached(["quickshell", "-p", root.settingsQmlPath])
                                     }
                                     StyledToolTip {
                                         content: Translation.tr("Settings")

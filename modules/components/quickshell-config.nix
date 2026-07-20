@@ -27,6 +27,12 @@ in
         default = false;
         description = "Enable transparency effects";
       };
+      
+      antiFlashbang = mkOption {
+        type = types.enum [ "off" "weak" "strong" ];
+        default = "off";
+        description = "Anti-flashbang overlay strength during workspace transitions: 'off', 'weak' (semi-transparent), or 'strong' (opaque)";
+      };
     };
     
     # Bar configuration
@@ -106,6 +112,12 @@ in
       };
       
       workspaces = {
+        variant = mkOption {
+          type = types.enum [ "default" "hefty" ];
+          default = "default";
+          description = "Workspace widget variant: 'default' for standard or 'hefty' for enhanced with app icons";
+        };
+        
         monochromeIcons = mkOption {
           type = types.bool;
           default = true;
@@ -192,6 +204,15 @@ in
       };
     };
     
+    # Notification settings
+    notifications = {
+      forceMonitor = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Force notifications to appear on a specific monitor (e.g., 'eDP-1'). When null, notifications appear on the focused monitor.";
+      };
+    };
+
     # Time format
     time = {
       format = mkOption {
@@ -248,6 +269,7 @@ in
                   property bool extraBackgroundTint: ${boolToString cfg.appearance.extraBackgroundTint}
                   property int fakeScreenRounding: ${toString cfg.appearance.fakeScreenRounding}
                   property bool transparency: ${boolToString cfg.appearance.transparency}
+                  property string antiFlashbang: "${cfg.appearance.antiFlashbang}"
                   property JsonObject wallpaperTheming: JsonObject {
                       property bool enableAppsAndShell: true
                       property bool enableQtApps: true
@@ -311,6 +333,7 @@ in
                       property bool monochromeIcons: true
                   }
                   property JsonObject workspaces: JsonObject {
+                      property string variant: "${cfg.bar.workspaces.variant}"
                       property bool monochromeIcons: ${boolToString cfg.bar.workspaces.monochromeIcons}
                       property int shown: ${toString cfg.bar.workspaces.shown}
                       property bool showAppIcons: ${boolToString cfg.bar.workspaces.showAppIcons}
@@ -363,6 +386,10 @@ in
 
               property JsonObject networking: JsonObject {
                   property string userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+              }
+
+              property JsonObject notifications: JsonObject {
+                  property string forceMonitor: "${if cfg.notifications.forceMonitor != null then cfg.notifications.forceMonitor else ""}"
               }
 
               property JsonObject osd: JsonObject {

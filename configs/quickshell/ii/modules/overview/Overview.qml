@@ -15,7 +15,7 @@ Scope {
     property bool dontAutoCancelSearch: false
     Variants {
         id: overviewVariants
-        model: Quickshell.screens
+        model: Quickshell.screens.filter(screen => screen.name !== "DP-3")
         PanelWindow {
             id: root
             required property var modelData

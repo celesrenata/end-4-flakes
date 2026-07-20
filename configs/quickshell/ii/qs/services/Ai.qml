@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 
 import qs.modules.common.functions as CF
 import qs.modules.common
+import qs
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -392,7 +393,7 @@ Singleton {
                             "icon": guessModelLogo(model),
                             "description": Translation.tr("Local Ollama model | %1").arg(model),
                             "homepage": `https://ollama.com/library/${model}`,
-                            "endpoint": "http://localhost:11434/v1/chat/completions",
+                            "endpoint": "http://10.1.1.12:2701/v1/chat/completions",
                             "model": model,
                             "requires_key": false,
                         })

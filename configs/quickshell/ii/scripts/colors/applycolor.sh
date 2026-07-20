@@ -9,7 +9,13 @@ CACHE_DIR="$XDG_CACHE_HOME/quickshell"
 STATE_DIR="$XDG_STATE_HOME/quickshell"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-term_alpha=100 #Set this to < 100 make all your terminals transparent
+# Read opacity from file, default to 10 if not found
+if [ -f "$STATE_DIR/user/generated/terminal/opacity" ]; then
+  term_alpha=$(cat "$STATE_DIR/user/generated/terminal/opacity")
+else
+  term_alpha=10
+fi
+# sleep 0 # idk i wanted some delay or colors dont get applied properly
 if [ ! -d "$STATE_DIR"/user/generated ]; then
   mkdir -p "$STATE_DIR"/user/generated
 fi
@@ -51,6 +57,16 @@ apply_term() {
   done
 }
 
+apply_qt() {
+  sh "$CONFIG_DIR/scripts/kvantum/materialQT.sh"          # generate kvantum theme
+  python "$CONFIG_DIR/scripts/kvantum/changeAdwColors.py" # apply config colors
+}
+
+# Handle arguments
+if [ "$1" = "term" ]; then
+  apply_term
+  exit 0
+fi
 
 # Check if terminal theming is enabled in config
 CONFIG_FILE="$XDG_CONFIG_HOME/illogical-impulse/config.json"
@@ -64,3 +80,4 @@ else
   apply_term &
 fi
 
+# apply_qt & # Qt theming is already handled by kde-material-colors

@@ -25,8 +25,20 @@ exec-once = @WL_PASTE_BIN@ --type image --watch @CLIPHIST_BIN@ store
 # Cursor theme
 exec-once = hyprctl setcursor @CURSOR_THEME@ @CURSOR_SIZE@
 
+# Create custom config placeholders if they don't exist (safety net for first run)
+# This mirrors upstream's create_custom_config service pattern where custom
+# config files are auto-created on first Hyprland start. Home Manager activation
+# also creates these, but this exec-once covers the case where Hyprland starts
+# before home-manager has run (e.g., fresh install first boot).
+exec-once = mkdir -p ~/.config/hypr/custom && for f in env.conf execs.conf general.conf rules.conf keybinds.conf; do [ -f ~/.config/hypr/custom/$f ] || touch ~/.config/hypr/custom/$f; done
+exec-once = for f in monitors.conf workspaces.conf; do [ -f ~/.config/hypr/$f ] || touch ~/.config/hypr/$f; done
+
 # User custom execs
 @CUSTOM_EXECS@
 
 # Custom user execs file (preserved across rebuilds)
+# Uses hyprlang noerror to gracefully handle missing file on very first boot
+# before exec-once or activation script has created the placeholder.
+# hyprlang noerror true
 source=~/.config/hypr/custom/execs.conf
+# hyprlang noerror false

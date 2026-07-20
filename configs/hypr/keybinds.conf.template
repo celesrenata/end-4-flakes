@@ -6,16 +6,6 @@
 # These absolutely need to be on top, or they won't work consistently
 bindid = $Secondary, Space, Toggle overview, global, quickshell:overviewToggleRelease # Toggle overview/launcher
 bind = $Secondary, Space, exec, hyprctl dispatch global quickshell:overviewToggle -c $qsConfig ipc call TEST_ALIVE || pkill fuzzel || @FUZZEL_BIN@ # [hidden] Launcher (fallback)
-binditn = Super, catchall, global, quickshell:overviewToggleReleaseInterrupt # [hidden]
-bind = Ctrl, Super_L, global, quickshell:overviewToggleReleaseInterrupt # [hidden]
-bind = Super, mouse:272, global, quickshell:overviewToggleReleaseInterrupt # [hidden]
-bind = Super, mouse:273, global, quickshell:overviewToggleReleaseInterrupt # [hidden]
-bind = Super, mouse:274, global, quickshell:overviewToggleReleaseInterrupt # [hidden]
-bind = Super, mouse:275, global, quickshell:overviewToggleReleaseInterrupt # [hidden]
-bind = Super, mouse:276, global, quickshell:overviewToggleReleaseInterrupt # [hidden]
-bind = Super, mouse:277, global, quickshell:overviewToggleReleaseInterrupt # [hidden]
-bind = Super, mouse_up,  global, quickshell:overviewToggleReleaseInterrupt # [hidden]
-bind = Super, mouse_down,global, quickshell:overviewToggleReleaseInterrupt # [hidden]
 
 bindit = ,Super_L, global, quickshell:workspaceNumber # [hidden]
 bindit = ,Super_R, global, quickshell:workspaceNumber # [hidden]
@@ -23,7 +13,8 @@ bindrit = ,Super_L, global, quickshell:workspaceNumber # [hidden]
 bindrit = ,Super_R, global, quickshell:workspaceNumber # [hidden]
 bindd = Super, V, Clipboard history >> clipboard, global, quickshell:overviewClipboardToggle # Clipboard history >> clipboard
 bindd = Super, Period, Emoji >> clipboard, global, quickshell:overviewEmojiToggle # Emoji >> clipboard
-bindd = Super, Tab, Toggle overview, global, quickshell:overviewToggle # [hidden] Toggle overview/launcher (alt)
+bindd = Super, Tab, Toggle overview, global, quickshell:overviewWorkspacesToggle # [hidden] Toggle overview/launcher (alt)
+bindd = Super, G, Toggle overlay, global, quickshell:overlayToggle # Toggle overlay
 bindd = Super, A, Toggle left sidebar, global, quickshell:sidebarLeftToggle # Toggle left sidebar
 bind = Super+Alt, A, global, quickshell:sidebarLeftToggleDetach # [hidden]
 bind = Super, B, global, quickshell:sidebarLeftToggle # [hidden]
@@ -39,7 +30,7 @@ bind = Shift+Super+Alt, Slash, exec, @QUICKSHELL_BIN@ -p ~/.config/quickshell/$q
 
 bindle=, XF86MonBrightnessUp, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call brightness increment || @BRIGHTNESSCTL_BIN@ s 5%+ # [hidden]
 bindle=, XF86MonBrightnessDown, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call brightness decrement || @BRIGHTNESSCTL_BIN@ s 5%- # [hidden]
-bindle=, XF86AudioRaiseVolume, exec, @WPCTL_BIN@ set-volume -l 1 @DEFAULT_AUDIO_SINK@ 2%+ # [hidden]
+bindle=, XF86AudioRaiseVolume, exec, @WPCTL_BIN@ set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 2%+ # [hidden]
 bindle=, XF86AudioLowerVolume, exec, @WPCTL_BIN@ set-volume @DEFAULT_AUDIO_SINK@ 2%- # [hidden]
 
 bindl = ,XF86AudioMute, exec, @WPCTL_BIN@ set-mute @DEFAULT_SINK@ toggle # [hidden]
@@ -47,25 +38,36 @@ bindld = Super+Shift,M, Toggle mute, exec, @WPCTL_BIN@ set-mute @DEFAULT_SINK@ t
 bindl = Alt ,XF86AudioMute, exec, @WPCTL_BIN@ set-mute @DEFAULT_SOURCE@ toggle # [hidden]
 bindl = ,XF86AudioMicMute, exec, @WPCTL_BIN@ set-mute @DEFAULT_SOURCE@ toggle # [hidden]
 bindld = Super+Alt,M, Toggle mic, exec, @WPCTL_BIN@ set-mute @DEFAULT_SOURCE@ toggle # [hidden]
-bindd = Ctrl+Super, T, Change wallpaper, exec, ~/.config/quickshell/$qsConfig/scripts/colors/switchwall.sh # Change wallpaper
-bind = Ctrl+Super, R, exec, killall ags agsv1 gjs ydotool qs quickshell; @QUICKSHELL_BIN@ -c $qsConfig & # Restart widgets
+bindd = Ctrl+Super, T, Change wallpaper, global, quickshell:wallpaperSelectorToggle # Change wallpaper
+bind = Ctrl+Super, T, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/quickshell/$qsConfig/scripts/colors/switchwall.sh # [hidden] Change wallpaper (fallback)
+bindd = Ctrl+Super+Alt, T, Random wallpaper, global, quickshell:wallpaperSelectorRandom # Random wallpaper
+bindd = Ctrl+Super, P, Cycle panel family, global, quickshell:panelFamilyCycle # Cycle panel family
+bindd = Ctrl+Super+Shift, D, Toggle light/dark mode, global, quickshell:toggleLightDark # Toggle light/dark mode
+bind = Ctrl+Super+Shift, D, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/quickshell/$qsConfig/scripts/colors/switchwall.sh --mode "$(if [ "$(gsettings get org.gnome.desktop.interface color-scheme)" = "'prefer-dark'" ]; then echo light; else echo dark; fi)" # [hidden] Toggle light/dark (fallback)
+bind = Ctrl+Super, R, exec, killall ydotool qs quickshell; @QUICKSHELL_BIN@ -c $qsConfig & # Restart widgets
 
 ##! Utilities
 # Screenshot, Record, OCR, Color picker, Clipboard history
 bindd = Super, V, Copy clipboard history entry, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || pkill fuzzel || @CLIPHIST_BIN@ list | @FUZZEL_BIN@ --match-mode fzf --dmenu | @CLIPHIST_BIN@ decode | @WL_COPY_BIN@ # [hidden] Clipboard history >> clipboard (fallback)
 bindd = Super, Period, Copy an emoji, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || pkill fuzzel || ~/.config/hypr/scripts/fuzzel-emoji.sh copy # [hidden] Emoji >> clipboard (fallback)
 bindd = Super+Shift, S, Screen snip, exec, @QUICKSHELL_BIN@ -p ~/.config/quickshell/$qsConfig/screenshot.qml || pidof slurp || @HYPRSHOT_BIN@ --freeze --clipboard-only --mode region --silent # Screen snip
-# OCR
-bindd = Super+Shift, T, Character recognition,exec,@GRIM_BIN@ -g "$(@SLURP_BIN@ $SLURP_ARGS)" "tmp.png" && @TESSERACT_BIN@ "tmp.png" - | @WL_COPY_BIN@ && rm "tmp.png" # [hidden]
+# OCR (moved to Super+Shift+X)
+bindd = Super+Shift, X, Character recognition,exec,@GRIM_BIN@ -g "$(@SLURP_BIN@ $SLURP_ARGS)" "tmp.png" && @TESSERACT_BIN@ "tmp.png" - | @WL_COPY_BIN@ && rm "tmp.png" # [hidden]
+# Screen translate (uses freed Super+Shift+T)
+bindd = Super+Shift, T, Translate screen content, global, quickshell:screenTranslate # Translate screen content
+# Region search (Google Lens-like)
+bindd = Super+Shift, A, Region search, global, quickshell:regionSearch # Region search
+bind = Super+Shift, A, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/snip_to_search.sh # [hidden] Region search (fallback)
 # Color picker
 bindd = Super+Shift, C, Color picker, exec, @HYPRPICKER_BIN@ -a # Pick color (Hex) >> clipboard
-# Fullscreen screenshot
-bindld = ,Print, Screenshot >> clipboard ,exec,@GRIM_BIN@ - | @WL_COPY_BIN@ # Screenshot >> clipboard
-bindld = Ctrl,Print, Screenshot >> clipboard & save, exec, mkdir -p $(xdg-user-dir PICTURES)/Screenshots && @GRIM_BIN@ $(xdg-user-dir PICTURES)/Screenshots/Screenshot_"$(date '+%Y-%m-%d_%H.%M.%S')".png # Screenshot >> clipboard & file
+# Fullscreen screenshot (per-monitor: active monitor only)
+bindld = ,Print, Screenshot >> clipboard ,exec,@GRIM_BIN@ -o "$(hyprctl activeworkspace -j | jq -r '.monitor')" - | @WL_COPY_BIN@ # Screenshot >> clipboard
+bindld = Ctrl,Print, Screenshot >> clipboard & save, exec, mkdir -p $(xdg-user-dir PICTURES)/Screenshots && @GRIM_BIN@ -o "$(hyprctl activeworkspace -j | jq -r '.monitor')" $(xdg-user-dir PICTURES)/Screenshots/Screenshot_"$(date '+%Y-%m-%d_%H.%M.%S')".png # Screenshot >> clipboard & file
 # Recording stuff
-bindd = Super+Alt, R, Record region (no sound), exec, ~/.config/hypr/scripts/record.sh # Record region (no sound)
+bindd = Super+Shift, R, Record region (no sound), exec, ~/.config/hypr/scripts/record.sh # Record region (no sound)
+bindd = Super+Alt, R, Record region (no sound alt), exec, ~/.config/hypr/scripts/record.sh # [hidden] Record region (no sound)
 bindd = Ctrl+Alt, R, Record screen (no sound), exec, ~/.config/hypr/scripts/record.sh --fullscreen # [hidden] Record screen (no sound)
-bindd = Super+Shift+Alt, R, Record screen (with sound), exec, ~/.config/hypr/scripts/record.sh --fullscreen-sound # Record screen (with sound)
+bindd = Super+Shift+Alt, R, Record screen (with sound), exec, ~/.config/hypr/scripts/record.sh --fullscreen --sound # Record screen (with sound)
 # AI
 bindd = Super+Shift+Alt, mouse:273, Generate AI summary for selected text, exec, ~/.config/hypr/scripts/ai/primary-buffer-query.sh # AI summary for selected text
 
@@ -87,7 +89,8 @@ bind = Super+Shift, Left, movewindow, l # [hidden]
 bind = Super+Shift, Right, movewindow, r # [hidden]
 bind = Super+Shift, Up, movewindow, u # [hidden]
 bind = Super+Shift, Down, movewindow, d # [hidden]
-bind = Alt, F4, killactive, # [hidden] Close (Windows)
+# Alt+F4: notify user of correct keybind, pass key through to apps that use it (e.g. VMs, games)
+bindnd = Alt, F4, Wrong close keybind, exec, notify-send "Wrong close keybind" "Use Super+Q to close windows" -a "Hyprland" # [hidden] Close (Windows — educate user)
 bind = Super, Q, killactive, # Close
 bind = Super+Shift+Alt, Q, exec, hyprctl kill # Forcefully zap a window
 
@@ -128,7 +131,7 @@ bind = Super+Shift, Page_Up, movetoworkspace, r-1  # [hidden]
 bind = Ctrl+Super+Shift, Right, movetoworkspace, r+1 # [hidden]
 bind = Ctrl+Super+Shift, Left, movetoworkspace, r-1 # [hidden]
 
-bind = Super+Alt, S, movetoworkspacesilent, special # Send to scratchpad
+bind = Super+Alt, S, movetoworkspacesilent, special:special # Send to scratchpad
 
 bind = Ctrl+Super, S, togglespecialworkspace, # [hidden]
 bind = Alt, Tab, cyclenext # [hidden] sus keybind
@@ -158,6 +161,28 @@ bind = Super, code:16, exec, ~/.config/hypr/scripts/workspace_action.sh workspac
 bind = Super, code:17, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 8 # [hidden]
 bind = Super, code:18, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 9 # [hidden]
 bind = Super, code:19, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 10 # [hidden]
+# Keypad workspace binds (numpad 1-9)
+bind = Super, code:87, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 1 # [hidden]
+bind = Super, code:88, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 2 # [hidden]
+bind = Super, code:89, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 3 # [hidden]
+bind = Super, code:90, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 4 # [hidden]
+bind = Super, code:83, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 5 # [hidden]
+bind = Super, code:84, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 6 # [hidden]
+bind = Super, code:85, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 7 # [hidden]
+bind = Super, code:79, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 8 # [hidden]
+bind = Super, code:80, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 9 # [hidden]
+bind = Super, code:81, exec, ~/.config/hypr/scripts/workspace_action.sh workspace 10 # [hidden]
+# Keypad send-to-workspace binds (numpad 1-9)
+bind = Super+Alt, code:87, exec, ~/.config/hypr/scripts/workspace_action.sh movetoworkspacesilent 1 # [hidden]
+bind = Super+Alt, code:88, exec, ~/.config/hypr/scripts/workspace_action.sh movetoworkspacesilent 2 # [hidden]
+bind = Super+Alt, code:89, exec, ~/.config/hypr/scripts/workspace_action.sh movetoworkspacesilent 3 # [hidden]
+bind = Super+Alt, code:90, exec, ~/.config/hypr/scripts/workspace_action.sh movetoworkspacesilent 4 # [hidden]
+bind = Super+Alt, code:83, exec, ~/.config/hypr/scripts/workspace_action.sh movetoworkspacesilent 5 # [hidden]
+bind = Super+Alt, code:84, exec, ~/.config/hypr/scripts/workspace_action.sh movetoworkspacesilent 6 # [hidden]
+bind = Super+Alt, code:85, exec, ~/.config/hypr/scripts/workspace_action.sh movetoworkspacesilent 7 # [hidden]
+bind = Super+Alt, code:79, exec, ~/.config/hypr/scripts/workspace_action.sh movetoworkspacesilent 8 # [hidden]
+bind = Super+Alt, code:80, exec, ~/.config/hypr/scripts/workspace_action.sh movetoworkspacesilent 9 # [hidden]
+bind = Super+Alt, code:81, exec, ~/.config/hypr/scripts/workspace_action.sh movetoworkspacesilent 10 # [hidden]
 
 #/# bind = Ctrl+Super, ←/→,, # Focus left/right
 bind = Ctrl+Super, Right, workspace, r+1 # [hidden]
@@ -192,20 +217,20 @@ bind = Super+Alt, Equal, exec, notify-send "Urgent notification" "Ah hell no" -u
 ##! Session
 bindd = Super, L, Lock, exec, loginctl lock-session # Lock
 bind = Super+Shift, L, exec, loginctl lock-session # [hidden]
-bindld = Super+Shift, L, Suspend system, exec, sleep 0.1 && systemctl suspend || loginctl suspend # Sleep
+bindld = Super+Shift, L, Suspend system, exec, systemctl suspend || loginctl suspend # Sleep
 bindd = Ctrl+Shift+Alt+Super, Delete, Shutdown, exec, systemctl poweroff || loginctl poweroff # [hidden] Power off
 
 ##! Screen
 # Zoom
 binde = Super, Minus, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call zoom zoomOut # Zoom out
 binde = Super, Equal, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call zoom zoomIn # Zoom in
-binde = Super, Minus, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh decrease 0.1 # [hidden] Zoom out
-binde = Super, Equal, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh increase 0.1 # [hidden] Zoom in
+binde = Super, Minus, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh decrease 0.3 # [hidden] Zoom out
+binde = Super, Equal, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh increase 0.3 # [hidden] Zoom in
 # Zoom with keypad
 binde = Super, code:82, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call zoom zoomOut # [hidden] Zoom out
 binde = Super, code:86, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call zoom zoomIn # [hidden] Zoom in
-binde = Super, code:82, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh decrease 0.1 # [hidden] Zoom out
-binde = Super, code:86, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh increase 0.1 # [hidden] Zoom in
+binde = Super, code:82, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh decrease 0.3 # [hidden] Zoom out
+binde = Super, code:86, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/zoom.sh increase 0.3 # [hidden] Zoom in
 
 ##! Media
 bindl= Super+Shift, N, exec, @PLAYERCTL_BIN@ next || @PLAYERCTL_BIN@ position `bc <<< "100 * $(@PLAYERCTL_BIN@ metadata mpris:length) / 1000000 / 100"` # Next track
@@ -225,11 +250,18 @@ bind = Ctrl+Alt, T, exec, ~/.config/hypr/scripts/launch_first_available.sh "@TER
 bind = Super, E, exec, ~/.config/hypr/scripts/launch_first_available.sh "@FILE_MANAGER_APPS@" # File manager
 bind = Super, W, exec, ~/.config/hypr/scripts/launch_first_available.sh "@BROWSER_APPS@" # Browser
 bind = Super, C, exec, ~/.config/hypr/scripts/launch_first_available.sh "@CODE_EDITOR_APPS@" # Code editor
-bind = Super+Shift, W, exec, ~/.config/hypr/scripts/launch_first_available.sh "@OFFICE_APPS@" # Office software
+bind = Ctrl+Super+Shift+Alt, W, exec, ~/.config/hypr/scripts/launch_first_available.sh "@OFFICE_APPS@" # Office software
 bind = Super, X, exec, ~/.config/hypr/scripts/launch_first_available.sh "@TEXT_EDITOR_APPS@" # Text editor
 bind = Ctrl+Super, V, exec, ~/.config/hypr/scripts/launch_first_available.sh "@VOLUME_MIXER_APPS@" # Volume mixer
 bind = Super, I, exec, XDG_CURRENT_DESKTOP=gnome ~/.config/hypr/scripts/launch_first_available.sh "@SETTINGS_APPS@" # Settings app
 bind = Ctrl+Shift, Escape, exec, ~/.config/hypr/scripts/launch_first_available.sh "@TASK_MANAGER_APPS@" # Task manager
+
+##! Virtual Machines
+# Submap for VM passthrough — all keybinds disabled, keys pass to the VM
+bind = Super+Alt, F1, submap, virtual-machine # Toggle VM mode
+submap = virtual-machine
+bind = Super+Alt, F1, submap, reset # Exit VM mode
+submap = reset
 
 # Cursed stuff
 ## Make window not amogus large

@@ -17,7 +17,7 @@ Scope { // Scope
     property bool pinned: Config.options?.dock.pinnedOnStartup ?? false
 
     Variants { // For each monitor
-        model: Quickshell.screens
+        model: Quickshell.screens.filter(screen => screen.name !== "DP-3")
 
         PanelWindow { // Window
             required property var modelData

@@ -5,7 +5,6 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
-import Quickshell.Io
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 
@@ -14,20 +13,6 @@ Item {
     property bool borderless: Config.options.bar.borderless
     implicitWidth: rowLayout.implicitWidth + rowLayout.spacing * 2
     implicitHeight: rowLayout.implicitHeight
-
-    Process {
-        id: themeSwitchProcess
-        running: false
-        stdout: SplitParser {
-            onRead: data => console.log("switchwall:", data)
-        }
-        stderr: SplitParser {
-            onRead: data => console.log("switchwall err:", data)
-        }
-        onExited: (code, status) => {
-            console.log("switchwall exited:", code)
-        }
-    }
 
     RowLayout {
         id: rowLayout
@@ -105,11 +90,11 @@ Item {
             sourceComponent: CircleUtilButton {
                 Layout.alignment: Qt.AlignVCenter
                 onClicked: event => {
-                    const mode = Appearance.m3colors.darkmode ? "light" : "dark"
-                    const wallpaper = Config.options.background.wallpaperPath || `${Quickshell.env("HOME")}/Pictures/Wallpapers/konachan_random_image.png`
-                    themeSwitchProcess.command = ["bash", `${Directories.scriptPath}/colors/switchwall-wrapper.sh`, wallpaper, "--mode", mode]
-                    themeSwitchProcess.running = false
-                    themeSwitchProcess.running = true
+                    if (Appearance.m3colors.darkmode) {
+                        Hyprland.dispatch(`exec ${Directories.wallpaperSwitchScriptPath} --mode light --noswitch`);
+                    } else {
+                        Hyprland.dispatch(`exec ${Directories.wallpaperSwitchScriptPath} --mode dark --noswitch`);
+                    }
                 }
                 MaterialSymbol {
                     horizontalAlignment: Qt.AlignHCenter

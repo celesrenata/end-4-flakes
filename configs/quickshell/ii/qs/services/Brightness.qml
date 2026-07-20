@@ -18,7 +18,7 @@ Singleton {
     signal brightnessChanged()
 
     property var ddcMonitors: []
-    readonly property list<BrightnessMonitor> monitors: Quickshell.screens.map(screen => monitorComp.createObject(root, {
+    readonly property list<BrightnessMonitor> monitors: Quickshell.screens.filter(screen => screen.name !== "DP-3").map(screen => monitorComp.createObject(root, {
         screen
     }))
 

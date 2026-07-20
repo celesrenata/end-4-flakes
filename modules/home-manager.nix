@@ -144,7 +144,8 @@ in
     home.sessionVariables = {
       ILLOGICAL_IMPULSE_VIRTUAL_ENV = "$HOME/.local/state/quickshell/.venv";
       # Ensure GNOME schemas are available for gsettings
-      XDG_DATA_DIRS = "$XDG_DATA_DIRS:${pkgs.gsettings-desktop-schemas}/share";
+      # Uses ${VAR:+...} to avoid a leading colon when XDG_DATA_DIRS is unset
+      XDG_DATA_DIRS = "\${XDG_DATA_DIRS:+$XDG_DATA_DIRS:}${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}";
     };
     
     # Ensure ~/.local/bin is in PATH for user scripts

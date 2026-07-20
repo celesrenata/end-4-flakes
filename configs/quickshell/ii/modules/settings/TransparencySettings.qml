@@ -157,8 +157,25 @@ Rectangle {
                 sed -i "s/^alpha=.*/alpha=${alpha}/" "$FOOT_CONFIG" || echo "alpha=${alpha}" >> "$FOOT_CONFIG"
             fi
             
-            # Send terminal escape sequence to update running terminals
-            # This matches the AGS terminal sequences functionality
+            # Regenerate terminal sequences with new alpha
+            STATE_DIR="$HOME/.local/state/quickshell"
+            SCRIPT_DIR="$HOME/.config/quickshell/ii/scripts/colors"
+            
+            if [ -f "$SCRIPT_DIR/terminal/sequences.txt" ]; then
+                mkdir -p "$STATE_DIR/user/generated/terminal"
+                cp "$SCRIPT_DIR/terminal/sequences.txt" "$STATE_DIR/user/generated/terminal/sequences.txt"
+                
+                # Replace alpha placeholder with actual value
+                sed -i "s/\\[100\\]/[${terminalOpacity}]/g" "$STATE_DIR/user/generated/terminal/sequences.txt"
+                
+                # Apply to running terminals
+                for file in /dev/pts/*; do
+                    if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then
+                        cat "$STATE_DIR/user/generated/terminal/sequences.txt" > "$file" 2>/dev/null || true
+                    fi
+                done
+            fi
+            
             echo "Applied terminal opacity: ${terminalOpacity}%"
         `])
     }

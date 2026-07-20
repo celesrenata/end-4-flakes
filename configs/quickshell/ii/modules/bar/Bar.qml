@@ -10,6 +10,7 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 
 Scope {
     id: bar
@@ -28,7 +29,7 @@ Scope {
     Variants {
         // For each monitor
         model: {
-            const screens = Quickshell.screens;
+            const screens = Quickshell.screens.filter(screen => screen.name !== "DP-3");
             const list = Config.options.bar.screenList;
             if (!list || list.length === 0)
                 return screens;

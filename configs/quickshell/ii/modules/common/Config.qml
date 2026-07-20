@@ -98,19 +98,20 @@ Singleton {
                     // Prevent sudden bangs
                     property bool enable: true
                     property real maxAllowedIncrease: 10
-                    property real maxAllowed: 200
+                    property real maxAllowed: 90 // Realistically should already provide some protection when it's 99...
                 }
             }
 
             property JsonObject apps: JsonObject {
                 property string bluetooth: "kcmshell6-bluetooth"
-                property string network: "plasmawindowed-network"
+                property string network: "kcmshell6-network"
                 property string networkEthernet: "kcmshell6-network"
                 property string taskManager: "plasma-systemmonitor --page-name Processes"
                 property string terminal: "kitty -1" // This is only for shell actions
             }
 
             property JsonObject background: JsonObject {
+                property bool showClock: false
                 property bool fixedClockPosition: false
                 property real clockX: -500
                 property real clockY: -500
@@ -170,7 +171,7 @@ Singleton {
             }
 
             property JsonObject dock: JsonObject {
-                property bool enable: false
+                property bool enable: true
                 property bool monochromeIcons: true
                 property real height: 60
                 property real hoverRegionHeight: 2
@@ -194,7 +195,7 @@ Singleton {
                     property bool automatic: true
                     property string from: "19:00" // Format: "HH:mm", 24-hour time
                     property string to: "06:30"   // Format: "HH:mm", 24-hour time
-                    property int colorTemperature: 4500
+                    property int colorTemperature: 5000
                 }
             }
 
@@ -266,6 +267,18 @@ Singleton {
 
             property JsonObject screenshotTool: JsonObject {
                 property bool showContentRegions: true
+            }
+
+            property JsonObject terminal: JsonObject {
+                property int opacity: 80 // Terminal opacity percentage (10-100)
+                property bool transparency: true // Enable/disable terminal transparency
+            }
+
+            property JsonObject blur: JsonObject {
+                property bool enabled: true
+                property bool xray: false
+                property int size: 8
+                property int passes: 4
             }
         }
     }

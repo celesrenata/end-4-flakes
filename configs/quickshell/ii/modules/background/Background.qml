@@ -14,12 +14,13 @@ import Quickshell.Hyprland
 
 Scope {
     id: root
+    readonly property bool showClock: Config.options.background.showClock
     readonly property bool fixedClockPosition: Config.options.background.fixedClockPosition
     readonly property real fixedClockX: Config.options.background.clockX
     readonly property real fixedClockY: Config.options.background.clockY
 
     Variants {
-        model: Quickshell.screens
+        model: Quickshell.screens.filter(screen => screen.name !== "DP-3")
 
         PanelWindow {
             id: bgRoot
@@ -28,7 +29,7 @@ Scope {
 
             // Hide when fullscreen
             readonly property Toplevel activeWindow: ToplevelManager.activeToplevel
-            property bool focusingThisMonitor: HyprlandData.activeWorkspace.monitor == monitor.name
+            property bool focusingThisMonitor: HyprlandData.activeWorkspace?.monitor == monitor.name
             visible: !(activeWindow?.fullscreen && activeWindow?.activated && focusingThisMonitor)
 
             // Workspaces
@@ -44,11 +45,21 @@ Scope {
                 || Config.options.background.wallpaperPath.endsWith(".mov")
             property string wallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : Config.options.background.wallpaperPath
             property real preferredWallpaperScale: Config.options.background.parallax.workspaceZoom
-            property real effectiveWallpaperScale: 1 // Some reasonable init value, to be updated
-            property int wallpaperWidth: modelData.width // Some reasonable init value, to be updated
-            property int wallpaperHeight: modelData.height // Some reasonable init value, to be updated
-            property real movableXSpace: (Math.min(wallpaperWidth * effectiveWallpaperScale, screen.width * preferredWallpaperScale) - screen.width) / 2
-            property real movableYSpace: (Math.min(wallpaperHeight * effectiveWallpaperScale, screen.height * preferredWallpaperScale) - screen.height) / 2
+            property real effectiveWallpaperScale: {
+                if (wallpaper.status === Image.Ready) {
+                    const minScaleToFill = Math.max(
+                        bgRoot.screen.width / wallpaper.sourceSize.width,
+                        bgRoot.screen.height / wallpaper.sourceSize.height
+                    );
+                    const parallaxScale = 1.05;
+                    return Math.max(minScaleToFill * parallaxScale, preferredWallpaperScale);
+                }
+                return 1;
+            }
+            property int wallpaperWidth: modelData.width
+            property int wallpaperHeight: modelData.height
+            property real movableXSpace: (wallpaperWidth * effectiveWallpaperScale - screen.width) / 2
+            property real movableYSpace: (wallpaperHeight * effectiveWallpaperScale - screen.height) / 2
             // Position
             property real clockX: (modelData.width / 2) + ((Math.random() < 0.5 ? -1 : 1) * modelData.width)
             property real clockY: (modelData.height / 2) + ((Math.random() < 0.5 ? -1 : 1) * modelData.height)
@@ -94,11 +105,16 @@ Scope {
                         const [width, height] = output.split(" ").map(Number);
                         bgRoot.wallpaperWidth = width
                         bgRoot.wallpaperHeight = height
-                        bgRoot.effectiveWallpaperScale = Math.max(1, Math.min(
-                            bgRoot.preferredWallpaperScale,
-                            width / bgRoot.screen.width,
-                            height / bgRoot.screen.height
-                        ));
+                        
+                        // Calculate minimum scale to fill screen
+                        const minScaleToFill = Math.max(
+                            bgRoot.screen.width / width,
+                            bgRoot.screen.height / height
+                        );
+                        
+                        console.log("Image:", width, "x", height, "Screen:", bgRoot.screen.width, "x", bgRoot.screen.height, "minScaleToFill:", minScaleToFill)
+                        
+                        console.log("effectiveWallpaperScale:", bgRoot.effectiveWallpaperScale, "Image will be:", width * bgRoot.effectiveWallpaperScale, "x", height * bgRoot.effectiveWallpaperScale)
 
                         bgRoot.updateClockPosition()
                     }
@@ -146,41 +162,82 @@ Scope {
                 }
             }
 
-            // Wallpaper
-            Image {
-                id: wallpaper
-                visible: !bgRoot.wallpaperIsVideo
-                property real value // 0 to 1, for offset
+            // Wallpaper container
+            Item {
+                anchors.fill: parent
+                clip: true
+                
+                Image {
+                    id: wallpaper
+                    visible: !bgRoot.wallpaperIsVideo
+                    property real value // 0 to 1, for offset
                 value: {
                     // Range = groups that workspaces span on
                     const chunkSize = Config?.options.bar.workspaces.shown ?? 10;
                     const lower = Math.floor(bgRoot.firstWorkspaceId / chunkSize) * chunkSize;
                     const upper = Math.ceil(bgRoot.lastWorkspaceId / chunkSize) * chunkSize;
                     const range = upper - lower;
-                    return (Config.options.background.parallax.enableWorkspace ? ((bgRoot.monitor.activeWorkspace.id - lower) / range) : 0.5)
+                    return (Config.options.background.parallax.enableWorkspace ? (bgRoot.monitor?.activeWorkspace ? ((bgRoot.monitor.activeWorkspace.id - lower) / range) : 0.5) : 0.5)
                         + (0.15 * GlobalStates.sidebarRightOpen * Config.options.background.parallax.enableSidebar)
                         - (0.15 * GlobalStates.sidebarLeftOpen * Config.options.background.parallax.enableSidebar)
                 }
                 property real effectiveValue: Math.max(0, Math.min(1, value))
-                x: -(bgRoot.movableXSpace) - (effectiveValue - 0.5) * 2 * bgRoot.movableXSpace
-                y: -(bgRoot.movableYSpace)
+                property bool dimensionsLoaded: false
+                x: dimensionsLoaded ? -bgRoot.movableXSpace - (effectiveValue * 2 - 1) * bgRoot.movableXSpace : 0
+                y: dimensionsLoaded ? -bgRoot.movableYSpace : 0
                 source: bgRoot.wallpaperPath
-                fillMode: Image.PreserveAspectCrop
+                fillMode: Image.Stretch
+                
+                Binding {
+                    target: wallpaper
+                    property: "width"
+                    value: bgRoot.wallpaperWidth * bgRoot.effectiveWallpaperScale
+                    when: true
+                }
+                Binding {
+                    target: wallpaper
+                    property: "height"
+                    value: bgRoot.wallpaperHeight * bgRoot.effectiveWallpaperScale
+                    when: true
+                }
+                
+                onWidthChanged: console.log("Image width:", width, "wallpaperWidth:", bgRoot.wallpaperWidth, "scale:", bgRoot.effectiveWallpaperScale, "calculated:", bgRoot.wallpaperWidth * bgRoot.effectiveWallpaperScale)
+                onHeightChanged: console.log("Image height:", height, "wallpaperHeight:", bgRoot.wallpaperHeight)
+                onXChanged: console.log("Image x:", x, "movableXSpace:", bgRoot.movableXSpace, "effectiveValue:", effectiveValue)
+                onStatusChanged: {
+                    if (status === Image.Ready) {
+                        console.log("Image loaded - sourceSize:", sourceSize.width, "x", sourceSize.height, "paintedSize:", paintedWidth, "x", paintedHeight, "widget:", width, "x", height)
+                    }
+                }
+                
+                Connections {
+                    target: bgRoot
+                    function onWallpaperWidthChanged() {
+                        if (bgRoot.wallpaperWidth !== modelData.width) {
+                            console.log("Monitor:", modelData.name, "firstWorkspaceId:", bgRoot.firstWorkspaceId, "lastWorkspaceId:", bgRoot.lastWorkspaceId, "activeWorkspace:", bgRoot.monitor?.activeWorkspace?.id)
+                            console.log("Dimensions loaded - movableXSpace:", bgRoot.movableXSpace, "movableYSpace:", bgRoot.movableYSpace, "effectiveValue:", wallpaper.effectiveValue)
+                            const calcX = -(bgRoot.movableXSpace) - (wallpaper.effectiveValue - 0.5) * 2 * bgRoot.movableXSpace
+                            const calcY = -(bgRoot.movableYSpace)
+                            console.log("Calculated x:", calcX, "y:", calcY, "but should be 0,0")
+                            wallpaper.dimensionsLoaded = true
+                        }
+                    }
+                }
+                
                 Behavior on x {
+                    enabled: true
                     NumberAnimation {
                         duration: 600
                         easing.type: Easing.OutCubic
                     }
                 }
-                sourceSize {
-                    width: bgRoot.screen.width * bgRoot.effectiveWallpaperScale
-                    height: bgRoot.screen.height * bgRoot.effectiveWallpaperScale
-                }
             }
+            } // End wallpaper container
 
             // The clock
             Item {
                 id: clock
+                visible: root.showClock
                 anchors {
                     left: wallpaper.left
                     top: wallpaper.top
@@ -199,7 +256,7 @@ Scope {
 
                 ColumnLayout {
                     id: clockColumn
-                    anchors.centerIn: wallpaper
+                    anchors.centerIn: parent
                     spacing: 0
 
                     StyledText {

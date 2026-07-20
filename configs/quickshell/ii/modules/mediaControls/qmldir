@@ -1,0 +1,4 @@
+module qs.modules.mediaControls
+
+MediaControls 1.0 MediaControls.qml
+PlayerControl 1.0 PlayerControl.qml

@@ -1,7 +1,7 @@
 pragma Singleton
 pragma ComponentBehavior: Bound
 
-// From https://github.com/caelestia-dots/shell/ (`quickshell` branch) with modifications.
+// From https://github.com/caelestia-dots/shell with modifications.
 // License: GPLv3
 
 import Quickshell
@@ -18,7 +18,7 @@ Singleton {
     signal brightnessChanged()
 
     property var ddcMonitors: []
-    readonly property list<BrightnessMonitor> monitors: Quickshell.screens.map(screen => monitorComp.createObject(root, {
+    readonly property list<BrightnessMonitor> monitors: Quickshell.screens.filter(screen => screen.name !== "DP-3").map(screen => monitorComp.createObject(root, {
         screen
     }))
 

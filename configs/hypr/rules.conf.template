@@ -1,77 +1,76 @@
 # ######## Window rules ########
+# Hyprland 0.53+ syntax: windowrule = effect value, match:prop regex
 
 # Global transparency (uncomment to apply to all windows)
 @GLOBAL_TRANSPARENCY@
 
 # Disable blur for xwayland context menus
-windowrulev2 = noblur,class:^()$,title:^()$
+windowrule = no_blur, match:class ^()$, match:title ^()$
 
 # Floating windows
-windowrulev2 = float, class:^(blueberry\.py)$
-windowrulev2 = float, class:^(guifetch)$   # FlafyDev/guifetch
-windowrulev2 = float, class:^(pavucontrol)$
-windowrulev2 = size 45%, class:^(pavucontrol)$
-windowrulev2 = center, class:^(pavucontrol)$
-windowrulev2 = float, class:^(org.pulseaudio.pavucontrol)$
-windowrulev2 = size 45%, class:^(org.pulseaudio.pavucontrol)$
-windowrulev2 = center, class:^(org.pulseaudio.pavucontrol)$
-windowrulev2 = float, class:^(nm-connection-editor)$
-windowrulev2 = size 45%, class:^(nm-connection-editor)$
-windowrulev2 = center, class:^(nm-connection-editor)$
-windowrulev2 = float, class:.*plasmawindowed.*
-windowrulev2 = float, class:kcm_.*
-windowrulev2 = float, class:.*bluedevilwizard
-windowrulev2 = float, title:.*Welcome
-windowrulev2 = float, title:^(illogical-impulse Settings)$
-windowrulev2 = float, class:org.freedesktop.impl.portal.desktop.kde
-windowrulev2 = float, class:^(Zotero)$
-windowrulev2 = size 45%, class:^(Zotero)$
+windowrule = float true, match:class ^(blueberry\.py)$
+windowrule = float true, match:class ^(guifetch)$
+windowrule = float true, match:class ^(pavucontrol)$
+windowrule = size 45% 45%, match:class ^(pavucontrol)$
+windowrule = center true, match:class ^(pavucontrol)$
+windowrule = float true, match:class ^(org.pulseaudio.pavucontrol)$
+windowrule = size 45% 45%, match:class ^(org.pulseaudio.pavucontrol)$
+windowrule = center true, match:class ^(org.pulseaudio.pavucontrol)$
+windowrule = float true, match:class ^(nm-connection-editor)$
+windowrule = size 45% 45%, match:class ^(nm-connection-editor)$
+windowrule = center true, match:class ^(nm-connection-editor)$
+windowrule = float true, match:class .*plasmawindowed.*
+windowrule = float true, match:class kcm_.*
+windowrule = float true, match:class .*bluedevilwizard
+windowrule = float true, match:title .*Welcome
+windowrule = float true, match:title ^(illogical-impulse Settings)$
+windowrule = float true, match:class org.freedesktop.impl.portal.desktop.kde
+windowrule = float true, match:class ^(Zotero)$
+windowrule = size 45% 45%, match:class ^(Zotero)$
 
 # Special positioning
-# kde-material-you-colors spawns a window when changing dark/light theme
-windowrulev2 = float, class:^(plasma-changeicons)$
-windowrulev2 = noinitialfocus, class:^(plasma-changeicons)$
-windowrulev2 = move 999999 999999, class:^(plasma-changeicons)$
-# Dolphin copy dialog
-windowrulev2 = move 40 80, title:^(Copying — Dolphin)$
+windowrule = float true, match:class ^(plasma-changeicons)$
+windowrule = no_initial_focus true, match:class ^(plasma-changeicons)$
+windowrule = move 999999 999999, match:class ^(plasma-changeicons)$
+windowrule = move 40 80, match:title ^(Copying — Dolphin)$
 
 # Force tiling for specific apps
-windowrulev2 = tile, class:^dev\.warp\.Warp$
+windowrule = tile true, match:class ^dev\.warp\.Warp$
 
 # Picture-in-Picture
-windowrulev2 = float, title:^([Pp]icture[-\s]?[Ii]n[-\s]?[Pp]icture)(.*)$
-windowrulev2 = keepaspectratio, title:^([Pp]icture[-\s]?[Ii]n[-\s]?[Pp]icture)(.*)$
-windowrulev2 = move 73% 72%, title:^([Pp]icture[-\s]?[Ii]n[-\s]?[Pp]icture)(.*)$ 
-windowrulev2 = size 25%, title:^([Pp]icture[-\s]?[Ii]n[-\s]?[Pp]icture)(.*)$
-windowrulev2 = pin, title:^([Pp]icture[-\s]?[Ii]n[-\s]?[Pp]icture)(.*)$
+windowrule = float true, match:title ^([Pp]icture[-\s]?[Ii]n[-\s]?[Pp]icture)(.*)$
+windowrule = keep_aspect_ratio true, match:title ^([Pp]icture[-\s]?[Ii]n[-\s]?[Pp]icture)(.*)$
+windowrule = move 73% 72%, match:title ^([Pp]icture[-\s]?[Ii]n[-\s]?[Pp]icture)(.*)$
+windowrule = size 25% 25%, match:title ^([Pp]icture[-\s]?[Ii]n[-\s]?[Pp]icture)(.*)$
+windowrule = pin true, match:title ^([Pp]icture[-\s]?[Ii]n[-\s]?[Pp]icture)(.*)$
 
 # Dialog windows – float+center these windows
-windowrulev2 = center, title:^(Open File)(.*)$
-windowrulev2 = center, title:^(Select a File)(.*)$
-windowrulev2 = center, title:^(Choose wallpaper)(.*)$
-windowrulev2 = center, title:^(Open Folder)(.*)$
-windowrulev2 = center, title:^(Save As)(.*)$
-windowrulev2 = center, title:^(Library)(.*)$
-windowrulev2 = center, title:^(File Upload)(.*)$
-windowrulev2 = center, title:^(.*)(wants to save)$
-windowrulev2 = center, title:^(.*)(wants to open)$
-windowrulev2 = float, title:^(Open File)(.*)$
-windowrulev2 = float, title:^(Select a File)(.*)$
-windowrulev2 = float, title:^(Choose wallpaper)(.*)$
-windowrulev2 = float, title:^(Open Folder)(.*)$
-windowrulev2 = float, title:^(Save As)(.*)$
-windowrulev2 = float, title:^(Library)(.*)$
-windowrulev2 = float, title:^(File Upload)(.*)$
-windowrulev2 = float, title:^(.*)(wants to save)$
-windowrulev2 = float, title:^(.*)(wants to open)$
+windowrule = float true, match:title ^(Open File)(.*)$
+windowrule = center true, match:title ^(Open File)(.*)$
+windowrule = float true, match:title ^(Select a File)(.*)$
+windowrule = center true, match:title ^(Select a File)(.*)$
+windowrule = float true, match:title ^(Choose wallpaper)(.*)$
+windowrule = center true, match:title ^(Choose wallpaper)(.*)$
+windowrule = float true, match:title ^(Open Folder)(.*)$
+windowrule = center true, match:title ^(Open Folder)(.*)$
+windowrule = float true, match:title ^(Save As)(.*)$
+windowrule = center true, match:title ^(Save As)(.*)$
+windowrule = float true, match:title ^(Library)(.*)$
+windowrule = center true, match:title ^(Library)(.*)$
+windowrule = float true, match:title ^(File Upload)(.*)$
+windowrule = center true, match:title ^(File Upload)(.*)$
+windowrule = float true, match:title ^(.*)(wants to save)$
+windowrule = center true, match:title ^(.*)(wants to save)$
+windowrule = float true, match:title ^(.*)(wants to open)$
+windowrule = center true, match:title ^(.*)(wants to open)$
 
 # --- Tearing for gaming ---
-windowrulev2 = immediate, title:.*\.exe
-windowrulev2 = immediate, title:.*minecraft.*
-windowrulev2 = immediate, class:^(steam_app).*
+windowrule = immediate true, match:title .*\.exe
+windowrule = immediate true, match:title .*minecraft.*
+windowrule = immediate true, match:class ^(steam_app).*
 
 # No shadow for tiled windows
-windowrulev2 = noshadow, floating:0
+windowrule = no_shadow true, match:float false
 
 # ######## Workspace rules ########
 workspace = special:special, gapsout:30
@@ -91,7 +90,7 @@ layerrule = noanim, noanim
 
 # GTK layer shell
 layerrule = blur, gtk-layer-shell
-layerrule = ignorezero, gtk-layer-shell
+layerrule = ignorealpha 0, gtk-layer-shell
 
 # Launcher
 layerrule = blur, launcher
@@ -102,7 +101,7 @@ layerrule = blur, notifications
 layerrule = ignorealpha 0.69, notifications
 
 # Logout dialog
-layerrule = blur, logout_dialog # wlogout
+layerrule = blur, logout_dialog
 
 # AGS layers
 layerrule = animation slide left, sideleft.*
@@ -135,6 +134,7 @@ layerrule = animation slide top, quickshell:bar
 layerrule = animation fade, quickshell:screenCorners
 layerrule = animation slide right, quickshell:sidebarRight
 layerrule = animation slide left, quickshell:sidebarLeft
+layerrule = noanim, quickshell:overview
 layerrule = animation slide bottom, quickshell:osk
 layerrule = animation slide bottom, quickshell:dock
 layerrule = blur, quickshell:session
@@ -147,13 +147,12 @@ layerrule = noanim, quickshell:screenshot
 layerrule = animation popin 120%, quickshell:screenCorners
 layerrule = noanim, quickshell:lockWindowPusher
 
-# Launchers need to be FAST
-layerrule = noanim, quickshell:overview
+# Launchers
 layerrule = noanim, gtk4-layer-shell
 
 # Outfoxxed's shell layers
 layerrule = blur, shell:bar
-layerrule = ignorezero, shell:bar
+layerrule = ignorealpha 0, shell:bar
 layerrule = blur, shell:notifications
 layerrule = ignorealpha 0.1, shell:notifications
 

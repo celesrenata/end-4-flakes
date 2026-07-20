@@ -10,4 +10,7 @@ echo "[wrapper] Called with args: $@" >> /tmp/switchwall-wrapper.log
 echo "[wrapper] LD_LIBRARY_PATH: $LD_LIBRARY_PATH" >> /tmp/switchwall-wrapper.log
 
 # Run switchwall.sh with all arguments
-exec "$(dirname "$0")/switchwall.sh" "$@"
+"$(dirname "$0")/switchwall.sh" "$@"
+
+# Fix deprecated cursor.color in foot.ini after color generation
+"$(dirname "$0")/fix-foot-cursor.sh"

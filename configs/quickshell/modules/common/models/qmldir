@@ -1,0 +1,5 @@
+module qs.modules.common.models
+
+NestableObject 1.0 NestableObject.qml
+AnimatedTabIndexPair 1.0 AnimatedTabIndexPair.qml
+WorkspaceModel 1.0 WorkspaceModel.qml

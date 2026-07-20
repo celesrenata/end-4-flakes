@@ -10,6 +10,11 @@ Singleton {
     property alias options: configOptionsJsonAdapter
     property bool ready: false
 
+    Component.onCompleted: {
+        console.log("Config initializing with path:", filePath);
+        console.log("File exists:", Qt.resolvedUrl(filePath));
+    }
+
     function setNestedValue(nestedKey, value) {
         let keys = nestedKey.split(".");
         let obj = root.options;
@@ -45,9 +50,14 @@ Singleton {
         watchChanges: true
         onFileChanged: reload()
         onAdapterUpdated: writeAdapter()
-        onLoaded: root.ready = true
+        onLoaded: {
+            console.log("Config loaded successfully from:", root.filePath);
+            root.ready = true;
+        }
         onLoadFailed: error => {
+            console.log("Config load failed:", error, "Path:", root.filePath);
             if (error == FileViewError.FileNotFound) {
+                console.log("Config file not found, creating new one");
                 writeAdapter();
             }
         }
@@ -144,7 +154,7 @@ Singleton {
                     property bool showPerformanceProfileToggle: false
                 }
                 property JsonObject tray: JsonObject {
-                    property bool monochromeIcons: true
+                    property bool monochromeIcons: false
                 }
                 property JsonObject workspaces: JsonObject {
                     property bool monochromeIcons: true
@@ -194,7 +204,7 @@ Singleton {
                     property bool automatic: true
                     property string from: "19:00" // Format: "HH:mm", 24-hour time
                     property string to: "06:30"   // Format: "HH:mm", 24-hour time
-                    property int colorTemperature: 4500
+                    property int colorTemperature: 5000
                 }
             }
 
@@ -266,6 +276,17 @@ Singleton {
 
             property JsonObject screenshotTool: JsonObject {
                 property bool showContentRegions: true
+            }
+
+            property JsonObject terminal: JsonObject {
+                property int opacity: 80 // Terminal opacity percentage (10-100)
+            }
+
+            property JsonObject blur: JsonObject {
+                property bool enabled: true
+                property bool xray: false
+                property int size: 8
+                property int passes: 4
             }
         }
     }
