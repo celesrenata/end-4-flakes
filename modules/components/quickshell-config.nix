@@ -419,9 +419,11 @@ in
                   property bool sloppy: false
                   property JsonObject prefix: JsonObject {
                       property string action: "/"
+                      property string ai: "?"
                       property string clipboard: ";"
                       property string emojis: ":"
                   }
+                  property int aiDebounceMs: 600
               }
 
               property JsonObject sidebar: JsonObject {

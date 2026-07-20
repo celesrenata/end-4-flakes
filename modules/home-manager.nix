@@ -221,28 +221,14 @@ in
     home.activation.setupQuickshellConfig = lib.hm.dag.entryAfter ["linkGeneration"] ''
       ${optionalString (cfg.mode == "hybrid") ''
         # Copy quickshell config to enable relative imports
-        if [[ ! -d "$HOME/.config/quickshell" ]] || [[ -L "$HOME/.config/quickshell" ]]; then
-          $DRY_RUN_CMD mkdir -p "$HOME/.config"
-          $DRY_RUN_CMD cp -r "${cfg.source}/.config/quickshell" "$HOME/.config/"
-          $DRY_RUN_CMD chmod -R u+w "$HOME/.config/quickshell"
-          $DRY_RUN_CMD echo "✅ Quickshell configuration copied successfully"
-        else
-          $DRY_RUN_CMD echo "✅ Quickshell configuration already exists"
-          # Always update critical scripts that need environment fixes
-          # Use the flake's own configs directory, not the GitHub source
-          if [ -f "${./../configs}/quickshell/ii/scripts/colors/switchwall.sh" ]; then
-            cp "${./../configs}/quickshell/ii/scripts/colors/switchwall.sh" "$HOME/.config/quickshell/ii/scripts/colors/switchwall.sh"
-            chmod +x "$HOME/.config/quickshell/ii/scripts/colors/switchwall.sh"
-            $DRY_RUN_CMD echo "  → Updated switchwall.sh script"
-          fi
-          # Update emoji data (Unicode 17.0) for the emoji picker
-          if [ -f "${./../configs}/scripts/fuzzel-emoji.sh" ]; then
-            mkdir -p "$HOME/.config/hypr/hyprland/scripts"
-            cp "${./../configs}/scripts/fuzzel-emoji.sh" "$HOME/.config/hypr/hyprland/scripts/fuzzel-emoji.sh"
-            chmod +x "$HOME/.config/hypr/hyprland/scripts/fuzzel-emoji.sh"
-            $DRY_RUN_CMD echo "  → Updated fuzzel-emoji.sh (Unicode Emoji 17.0)"
-          fi
+        # Always sync to pick up new/changed files from the flake
+        if [[ -L "$HOME/.config/quickshell" ]]; then
+          $DRY_RUN_CMD rm "$HOME/.config/quickshell"
         fi
+        $DRY_RUN_CMD mkdir -p "$HOME/.config/quickshell"
+        $DRY_RUN_CMD cp -r "${cfg.source}/.config/quickshell/." "$HOME/.config/quickshell/"
+        $DRY_RUN_CMD chmod -R u+w "$HOME/.config/quickshell"
+        $DRY_RUN_CMD echo "✅ Quickshell configuration synced"
         
         # Ensure quickshell uses the proper environment variables
         $DRY_RUN_CMD mkdir -p "$HOME/.local/bin"

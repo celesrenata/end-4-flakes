@@ -21,6 +21,9 @@ result-*
 .DS_Store
 Thumbs.db
 
+# Node.js
+node_modules/
+
 # Logs
 *.log
 

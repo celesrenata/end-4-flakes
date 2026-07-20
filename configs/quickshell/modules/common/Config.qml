@@ -74,6 +74,18 @@ Singleton {
                         "model": "deepseek/deepseek-r1-distill-llama-70b:free",
                         "name": "Custom: DS R1 Dstl. LLaMA 70B",
                         "requires_key": true
+                    },
+                    {
+                        "api_format": "openai",
+                        "description": "OpenAI GPT-4.1 Mini | Fast, cheap, great at structured JSON output",
+                        "endpoint": "https://api.openai.com/v1/chat/completions",
+                        "homepage": "https://platform.openai.com/docs/models",
+                        "icon": "ai-openai-symbolic",
+                        "key_get_link": "https://platform.openai.com/api-keys",
+                        "key_id": "openai",
+                        "model": "gpt-4.1-mini",
+                        "name": "GPT-4.1 Mini",
+                        "requires_key": true
                     }
                 ]
             }
@@ -237,9 +249,11 @@ Singleton {
                 property bool sloppy: false // Uses levenshtein distance based scoring instead of fuzzy sort. Very weird.
                 property JsonObject prefix: JsonObject {
                     property string action: "/"
+                    property string ai: "?"
                     property string clipboard: ";"
                     property string emojis: ":"
                 }
+                property int aiDebounceMs: 600
             }
 
             property JsonObject sidebar: JsonObject {
