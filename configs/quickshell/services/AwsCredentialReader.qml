@@ -13,6 +13,7 @@ Singleton {
     id: root
 
     // State properties
+    property string homePath: ""
     property string credentialsFilePath: ""
     property bool credentialsDetected: false
     property string region: "us-west-2"
@@ -20,7 +21,19 @@ Singleton {
     property string statusMessage: ""
 
     Component.onCompleted: {
-        awsCliCheckProcess.running = true;
+        homeResolver.running = true;
+    }
+
+    // Step 0: Resolve home directory
+    Process {
+        id: homeResolver
+        command: ["bash", "-c", "echo $HOME"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.homePath = text.trim();
+                awsCliCheckProcess.running = true;
+            }
+        }
     }
 
     // Step 1: Check if aws CLI is available
@@ -28,15 +41,12 @@ Singleton {
         id: awsCliCheckProcess
         command: ["which", "aws"]
         stdout: StdioCollector {
-            onStreamFinished: {
-                // which exits 0 if found, non-zero if not
-            }
+            onStreamFinished: {}
         }
         onExited: function(exitCode, exitStatus) {
             if (exitCode === 0) {
                 root.awsCliAvailable = true;
                 root.statusMessage = "AWS CLI found";
-                // Proceed to check credentials.bedrock
                 credBedrockCheckProcess.running = true;
             } else {
                 root.awsCliAvailable = false;
@@ -48,19 +58,17 @@ Singleton {
     // Step 2: Check ~/.aws/credentials.bedrock existence
     Process {
         id: credBedrockCheckProcess
-        command: ["test", "-f", StandardPaths.home + "/.aws/credentials.bedrock"]
+        command: ["test", "-f", root.homePath + "/.aws/credentials.bedrock"]
         stdout: StdioCollector {
             onStreamFinished: {}
         }
         onExited: function(exitCode, exitStatus) {
             if (exitCode === 0) {
-                root.credentialsFilePath = StandardPaths.home + "/.aws/credentials.bedrock";
+                root.credentialsFilePath = root.homePath + "/.aws/credentials.bedrock";
                 root.credentialsDetected = true;
                 root.statusMessage = "Credentials detected: " + root.credentialsFilePath;
-                // Proceed to read region
                 regionCheckProcess.running = true;
             } else {
-                // Fall back to standard credentials
                 credStandardCheckProcess.running = true;
             }
         }
@@ -69,16 +77,15 @@ Singleton {
     // Step 3: Fall back to ~/.aws/credentials
     Process {
         id: credStandardCheckProcess
-        command: ["test", "-f", StandardPaths.home + "/.aws/credentials"]
+        command: ["test", "-f", root.homePath + "/.aws/credentials"]
         stdout: StdioCollector {
             onStreamFinished: {}
         }
         onExited: function(exitCode, exitStatus) {
             if (exitCode === 0) {
-                root.credentialsFilePath = StandardPaths.home + "/.aws/credentials";
+                root.credentialsFilePath = root.homePath + "/.aws/credentials";
                 root.credentialsDetected = true;
                 root.statusMessage = "Credentials detected: " + root.credentialsFilePath;
-                // Proceed to read region
                 regionCheckProcess.running = true;
             } else {
                 root.credentialsDetected = false;
@@ -90,14 +97,13 @@ Singleton {
     // Step 4: Parse ~/.aws/config for region
     Process {
         id: regionCheckProcess
-        command: ["cat", StandardPaths.home + "/.aws/config"]
+        command: ["cat", root.homePath + "/.aws/config"]
         stdout: StdioCollector {
             onStreamFinished: {
                 var parsed = root.parseRegionFromConfig(text);
                 if (parsed !== "") {
                     root.region = parsed;
                 }
-                // else keep default "us-west-2"
             }
         }
         onExited: function(exitCode, exitStatus) {
@@ -111,7 +117,6 @@ Singleton {
         var inDefaultSection = false;
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i].split("\r").join("").trim();
-            // Check for section headers
             if (line.indexOf("[") === 0) {
                 if (line === "[default]") {
                     inDefaultSection = true;
