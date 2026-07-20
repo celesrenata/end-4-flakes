@@ -24,6 +24,7 @@ Singleton {
     property Component geminiApiStrategy: GeminiApiStrategy {}
     property Component openaiApiStrategy: OpenAiApiStrategy {}
     property Component mistralApiStrategy: MistralApiStrategy {}
+    property Component bedrockApiStrategy: BedrockApiStrategy {}
     readonly property string interfaceRole: "interface"
     readonly property string apiKeyEnvVarName: "API_KEY"
 
@@ -274,6 +275,7 @@ Singleton {
         "openai": openaiApiStrategy.createObject(this),
         "gemini": geminiApiStrategy.createObject(this),
         "mistral": mistralApiStrategy.createObject(this),
+        "bedrock": bedrockApiStrategy.createObject(this),
     }
     property ApiStrategy currentApiStrategy: apiStrategies[models[currentModelId]?.api_format || "openai"]
 
@@ -612,10 +614,116 @@ Singleton {
         }
     }
 
+    Process {
+        id: bedrockRequester
+        property AiMessageData message
+        property string stderrOutput: ""
+        environment: ({
+            "AWS_SHARED_CREDENTIALS_FILE": AwsCredentialReader.credentialsFilePath
+        })
+
+        function markDone() {
+            bedrockRequester.message.done = true;
+            if (root.postResponseHook) {
+                root.postResponseHook();
+                root.postResponseHook = null;
+            }
+            root.saveChat("lastSession")
+        }
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                bedrockRequester.stderrOutput = text;
+            }
+        }
+
+        stdout: SplitParser {
+            onRead: data => {
+                if (data.length === 0) return;
+                if (bedrockRequester.message.thinking) bedrockRequester.message.thinking = false;
+                try {
+                    var result = root.apiStrategies["bedrock"].parseResponseLine(data, bedrockRequester.message);
+                    if (result.tokenUsage) {
+                        root.tokenCount.input = result.tokenUsage.input || 0;
+                        root.tokenCount.output = result.tokenUsage.output || 0;
+                        root.tokenCount.total = result.tokenUsage.total || 0;
+                    }
+                    if (result.finished) {
+                        bedrockRequester.markDone();
+                    }
+                } catch (e) {
+                    console.log("[AI] Bedrock: Could not parse response: ", e);
+                }
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) {
+                bedrockRequester.message.content += "\n\n[Error: " + (bedrockRequester.stderrOutput || "Process exited with code " + exitCode) + "]";
+                bedrockRequester.message.rawContent = bedrockRequester.message.content;
+            }
+            if (!bedrockRequester.message.done) {
+                bedrockRequester.markDone();
+            }
+            bedrockRequester.stderrOutput = "";
+        }
+    }
+
+    function makeBedrockRequest() {
+        var model = models[currentModelId];
+        var strategy = root.apiStrategies["bedrock"];
+
+        var messageArray = root.messageIDs.map(function(id) { return root.messageByID[id]; });
+        var filteredMessageArray = messageArray.filter(function(message) { return message.role !== Ai.interfaceRole; });
+        var data = strategy.buildRequestData(model, filteredMessageArray, root.systemPrompt, root.temperature, []);
+
+        // Create message object
+        bedrockRequester.message = root.aiMessageComponent.createObject(root, {
+            "role": "assistant",
+            "model": currentModelId,
+            "content": "",
+            "rawContent": "",
+            "thinking": true,
+            "done": false,
+        });
+        var id = idForMessage(bedrockRequester.message);
+        root.messageIDs = [...root.messageIDs, id];
+        root.messageByID[id] = bedrockRequester.message;
+
+        // Build aws CLI command
+        var messagesJson = JSON.stringify(data.messages);
+        var systemJson = JSON.stringify(data.system);
+        var cmdArgs = "aws bedrock-runtime converse-stream"
+            + " --model-id " + model.model
+            + " --messages '" + CF.StringUtils.shellSingleQuoteEscape(messagesJson) + "'"
+            + " --region " + AwsCredentialReader.region
+            + " --output json";
+        if (data.system && data.system.length > 0) {
+            cmdArgs += " --system '" + CF.StringUtils.shellSingleQuoteEscape(systemJson) + "'";
+        }
+
+        bedrockRequester.command = ["bash", "-c", cmdArgs];
+        bedrockRequester.running = true;
+    }
+
+    function cancelRequest() {
+        if (bedrockRequester.running) {
+            bedrockRequester.running = false;
+        }
+        if (requester.running) {
+            requester.running = false;
+        }
+    }
+
     function sendUserMessage(message) {
         if (message.length === 0) return;
         root.addMessage(message, "user");
-        requester.makeRequest();
+        var model = models[currentModelId];
+        if (model && model.api_format === "bedrock") {
+            root.makeBedrockRequest();
+        } else {
+            requester.makeRequest();
+        }
     }
 
     function createFunctionOutputMessage(name, output, includeOutputInChat = true) {

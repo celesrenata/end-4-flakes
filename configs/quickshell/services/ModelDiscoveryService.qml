@@ -87,6 +87,15 @@ Singleton {
             auth_type: "none",
             api_format: "openai",
             supports_balance: false
+        },
+        "bedrock": {
+            name: "AWS Bedrock",
+            icon: "aws-bedrock-symbolic",
+            key_id: "bedrock",
+            requires_key: false,
+            auth_type: "aws_cli",
+            api_format: "bedrock",
+            supports_balance: false
         }
     })
 
@@ -271,7 +280,38 @@ Singleton {
         validationProcess.running = true;
     }
 
+    function validateBedrock() {
+        if (!AwsCredentialReader.awsCliAvailable) {
+            var newStates = Object.assign({}, root.validationStates);
+            newStates["bedrock"] = { status: "error", message: "AWS CLI not found. Install the aws-cli package to use Bedrock." };
+            root.validationStates = newStates;
+            return;
+        }
+        if (!AwsCredentialReader.credentialsDetected) {
+            var newStates2 = Object.assign({}, root.validationStates);
+            newStates2["bedrock"] = { status: "error", message: "No AWS credentials found. Create ~/.aws/credentials.bedrock with access key on line 1 and secret key on line 2." };
+            root.validationStates = newStates2;
+            return;
+        }
+        // Set loading state
+        var newStates3 = Object.assign({}, root.validationStates);
+        newStates3["bedrock"] = { status: "loading", message: "" };
+        root.validationStates = newStates3;
+        // Build and launch validation process
+        bedrockValidationProcess.command = ["aws", "bedrock", "list-foundation-models", "--max-results", "1", "--region", AwsCredentialReader.region, "--output", "json"];
+        bedrockValidationProcess.running = true;
+    }
+
+    function discoverBedrockModels() {
+        bedrockDiscoveryProcess.command = ["aws", "bedrock", "list-foundation-models", "--region", AwsCredentialReader.region, "--output", "json"];
+        bedrockDiscoveryProcess.running = true;
+    }
+
     function discoverModels(providerId) {
+        if (providerId === "bedrock") {
+            root.discoverBedrockModels();
+            return;
+        }
         var config = getEffectiveProviderConfig(providerId);
         if (!config) return;
         var endpoint = config.model_endpoint;
@@ -506,6 +546,112 @@ Singleton {
                     }
                 }
             }
+        }
+    }
+
+    Process {
+        id: bedrockValidationProcess
+        property string stderrOutput: ""
+        environment: ({
+            "AWS_SHARED_CREDENTIALS_FILE": AwsCredentialReader.credentialsFilePath
+        })
+        stderr: StdioCollector {
+            onStreamFinished: {
+                bedrockValidationProcess.stderrOutput = text;
+            }
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {}
+        }
+        onExited: function(exitCode, exitStatus) {
+            if (exitCode === 0) {
+                var newStates = Object.assign({}, root.validationStates);
+                newStates["bedrock"] = { status: "success", message: "" };
+                root.validationStates = newStates;
+                root.discoverBedrockModels();
+            } else {
+                var newStates2 = Object.assign({}, root.validationStates);
+                newStates2["bedrock"] = { status: "error", message: bedrockValidationProcess.stderrOutput };
+                root.validationStates = newStates2;
+            }
+            bedrockValidationProcess.stderrOutput = "";
+        }
+    }
+
+    Process {
+        id: bedrockDiscoveryProcess
+        property string stderrOutput: ""
+        environment: ({
+            "AWS_SHARED_CREDENTIALS_FILE": AwsCredentialReader.credentialsFilePath
+        })
+        stderr: StdioCollector {
+            onStreamFinished: {
+                bedrockDiscoveryProcess.stderrOutput = text;
+            }
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.length === 0) {
+                    var newDiscovered = Object.assign({}, root.discoveredModels);
+                    newDiscovered["bedrock"] = [];
+                    root.discoveredModels = newDiscovered;
+                    return;
+                }
+                try {
+                    var data = JSON.parse(text);
+                    var summaries = data.modelSummaries || [];
+                    var filtered = [];
+                    for (var i = 0; i < summaries.length; i++) {
+                        var model = summaries[i];
+                        var inferenceTypes = model.inferenceTypesSupported || [];
+                        var hasOnDemand = false;
+                        for (var j = 0; j < inferenceTypes.length; j++) {
+                            if (inferenceTypes[j] === "ON_DEMAND") {
+                                hasOnDemand = true;
+                                break;
+                            }
+                        }
+                        var lifecycle = model.modelLifecycle || {};
+                        var isActive = lifecycle.status === "ACTIVE";
+                        if (hasOnDemand && isActive) {
+                            filtered.push(model);
+                        }
+                    }
+                    var mapped = [];
+                    for (var k = 0; k < filtered.length; k++) {
+                        var m = filtered[k];
+                        var modelId = m.modelId || "";
+                        var modelName = m.modelName || modelId;
+                        mapped.push({
+                            name: root.formatModelName(modelName),
+                            icon: "aws-bedrock-symbolic",
+                            description: "AWS Bedrock | " + modelId,
+                            endpoint: "aws-bedrock-converse",
+                            model: modelId,
+                            requires_key: false,
+                            key_id: "bedrock",
+                            api_format: "bedrock"
+                        });
+                    }
+                    var newDiscovered2 = Object.assign({}, root.discoveredModels);
+                    newDiscovered2["bedrock"] = mapped;
+                    root.discoveredModels = newDiscovered2;
+                } catch (e) {
+                    console.error("[ModelDiscovery] Failed to parse Bedrock model list:", e);
+                    var newDiscovered3 = Object.assign({}, root.discoveredModels);
+                    newDiscovered3["bedrock"] = [];
+                    root.discoveredModels = newDiscovered3;
+                }
+            }
+        }
+        onExited: function(exitCode, exitStatus) {
+            if (exitCode !== 0) {
+                console.error("[ModelDiscovery] Bedrock model discovery failed:", bedrockDiscoveryProcess.stderrOutput);
+                var newDiscovered = Object.assign({}, root.discoveredModels);
+                newDiscovered["bedrock"] = [];
+                root.discoveredModels = newDiscovered;
+            }
+            bedrockDiscoveryProcess.stderrOutput = "";
         }
     }
 }

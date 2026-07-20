@@ -19,7 +19,7 @@ Item {
         if (Config.options.policies.ai === 2) {
             builtIn = ["ollama"];
         } else {
-            builtIn = ["openai", "anthropic", "gemini", "mistral", "openrouter", "ollama"];
+            builtIn = ["openai", "anthropic", "gemini", "mistral", "openrouter", "ollama", "bedrock"];
         }
         // Add custom providers
         var customs = ModelDiscoveryService.customProviders || [];

@@ -174,6 +174,104 @@ Item {
             }
         }
 
+        // --- AWS Bedrock Credentials Section ---
+        ColumnLayout {
+            visible: root.config ? root.config.auth_type === "aws_cli" : false
+            Layout.fillWidth: true
+            spacing: 6
+
+            // AWS CLI availability check
+            StyledText {
+                visible: !AwsCredentialReader.awsCliAvailable
+                text: Translation.tr("AWS CLI not found. Install the aws-cli package to use Bedrock.")
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colError
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            // Credential status
+            StyledText {
+                visible: AwsCredentialReader.credentialsDetected
+                text: Translation.tr("Credentials: %1").arg(AwsCredentialReader.credentialsFilePath)
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colSubtext
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            StyledText {
+                visible: !AwsCredentialReader.credentialsDetected && AwsCredentialReader.awsCliAvailable
+                text: Translation.tr("No AWS credentials found. Create ~/.aws/credentials.bedrock with access key on line 1 and secret key on line 2.")
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colError
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            // Region display
+            StyledText {
+                visible: AwsCredentialReader.credentialsDetected
+                text: Translation.tr("Region: %1").arg(AwsCredentialReader.region)
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colSubtext
+                Layout.fillWidth: true
+            }
+
+            // Test Connection button row
+            RowLayout {
+                visible: AwsCredentialReader.credentialsDetected && AwsCredentialReader.awsCliAvailable
+                Layout.fillWidth: true
+                spacing: 8
+
+                RippleButton {
+                    enabled: root.validationState.status !== "loading"
+                    implicitWidth: 120
+                    implicitHeight: 32
+                    buttonRadius: Appearance.rounding.small
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: Translation.tr("Test Connection")
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colOnLayer1
+                    }
+                    releaseAction: function() {
+                        ModelDiscoveryService.validateBedrock();
+                    }
+                }
+
+                BusyIndicator {
+                    visible: root.validationState.status === "loading"
+                    implicitWidth: 24
+                    implicitHeight: 24
+                }
+
+                MaterialSymbol {
+                    visible: root.validationState.status === "success"
+                    text: "check_circle"
+                    iconSize: 24
+                    color: "green"
+                }
+
+                MaterialSymbol {
+                    visible: root.validationState.status === "error"
+                    text: "error"
+                    iconSize: 24
+                    color: Appearance.colors.colError
+                }
+            }
+
+            // Error message for bedrock validation
+            StyledText {
+                visible: root.validationState.status === "error" && (root.config ? root.config.auth_type === "aws_cli" : false)
+                text: root.validationState.message || ""
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colError
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+        }
+
         // --- Balance display (only for providers that support it) ---
         RowLayout {
             visible: (root.config ? root.config.supports_balance : false) && root.validationState.status === "success"
