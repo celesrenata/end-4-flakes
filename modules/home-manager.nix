@@ -35,6 +35,14 @@ in
       default = "essential";
       description = "Which package set to install";
     };
+
+    packages = {
+      includeNwgDisplays = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Include nwg-displays for graphical monitor layout management";
+      };
+    };
     
     mode = mkOption {
       type = types.enum [ "declarative" "writable" "hybrid" ];
@@ -91,10 +99,14 @@ in
     home.packages = 
       let
         packageSets = import ../packages/dots-hyprland-packages.nix { inherit lib pkgs; };
+        basePackages =
+          if cfg.packageSet == "minimal" then packageSets.minimalPackages
+          else if cfg.packageSet == "essential" then packageSets.essentialPackages
+          else packageSets.allPackages;
+        optionalPackages =
+          lib.optional cfg.packages.includeNwgDisplays pkgs.nwg-displays;
       in
-      if cfg.packageSet == "minimal" then packageSets.minimalPackages
-      else if cfg.packageSet == "essential" then packageSets.essentialPackages
-      else packageSets.allPackages;
+      basePackages ++ optionalPackages;
 
     # Enable configuration management based on mode
     programs.dots-hyprland.configuration = mkIf (cfg.mode == "declarative" || cfg.mode == "hybrid") {

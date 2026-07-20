@@ -165,6 +165,17 @@ in
           $DRY_RUN_CMD echo "  → Created placeholder: $CUSTOM_DIR/$conffile"
         fi
       done
+
+      # nwg-displays support: create monitors.conf and workspaces.conf placeholders
+      # These files are sourced by hyprland.conf and overwritten by nwg-displays
+      # when used for graphical monitor layout management.
+      HYPR_DIR="$HOME/.config/hypr"
+      for conffile in monitors.conf workspaces.conf; do
+        if [[ ! -f "$HYPR_DIR/$conffile" ]]; then
+          $DRY_RUN_CMD touch "$HYPR_DIR/$conffile"
+          $DRY_RUN_CMD echo "  → Created nwg-displays placeholder: $HYPR_DIR/$conffile"
+        fi
+      done
     '';
   };
 }

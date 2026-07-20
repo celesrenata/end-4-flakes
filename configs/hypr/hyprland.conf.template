@@ -24,3 +24,8 @@ source=~/.config/hypr/keybinds.conf
 source=~/.config/hypr/custom/general.conf
 source=~/.config/hypr/custom/rules.conf
 source=~/.config/hypr/custom/keybinds.conf
+
+# nwg-displays support — these files are overwritten by nwg-displays
+# when used for graphical monitor layout management
+source=~/.config/hypr/monitors.conf
+source=~/.config/hypr/workspaces.conf
