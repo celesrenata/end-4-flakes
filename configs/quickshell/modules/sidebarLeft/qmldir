@@ -1,0 +1,15 @@
+module qs.modules.sidebarLeft
+
+AiChat 1.0 AiChat.qml
+Anime 1.0 Anime.qml
+ApiCommandButton 1.0 ApiCommandButton.qml
+ApiInputBoxIndicator 1.0 ApiInputBoxIndicator.qml
+CustomProviderForm 1.0 CustomProviderForm.qml
+DescriptionBox 1.0 DescriptionBox.qml
+ModelListItem 1.0 ModelListItem.qml
+ProviderDetailView 1.0 ProviderDetailView.qml
+ProviderListItem 1.0 ProviderListItem.qml
+ProviderPanel 1.0 ProviderPanel.qml
+SidebarLeftContent 1.0 SidebarLeftContent.qml
+SidebarLeft 1.0 SidebarLeft.qml
+Translator 1.0 Translator.qml

@@ -1,13 +1,13 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 
 Item {
     id: root
-    anchors.fill: parent
 
     property string selectedProvider: ""
     property bool showCustomForm: false
