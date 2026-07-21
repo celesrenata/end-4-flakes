@@ -539,10 +539,11 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         required property var modelData
                         required property int index
                         Layout.fillWidth: true
-                        implicitHeight: 32
+                        implicitHeight: 36
 
                         readonly property bool isActive: modelData.name === Ai.activeSessionName
                         readonly property bool isRenaming: sessionDrawer.renamingSession === modelData.name
+                        readonly property bool hovered: sessionRowHover.containsMouse
 
                         // Hover/active background
                         Rectangle {
@@ -550,14 +551,16 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             radius: Appearance.rounding.small
                             color: sessionRow.isActive
                                 ? Qt.alpha(Appearance.m3colors.m3secondaryContainer, 0.5)
-                                : (sessionRowHover.containsMouse ? Qt.alpha(Appearance.m3colors.m3onSurface, 0.06) : "transparent")
+                                : (sessionRow.hovered ? Qt.alpha(Appearance.m3colors.m3onSurface, 0.06) : "transparent")
                             Behavior on color { ColorAnimation { duration: 100 } }
                         }
 
+                        // Full-row hover detection (underneath everything)
                         MouseArea {
                             id: sessionRowHover
                             anchors.fill: parent
                             hoverEnabled: true
+                            acceptedButtons: Qt.LeftButton
                             cursorShape: sessionRow.isRenaming ? Qt.ArrowCursor : Qt.PointingHandCursor
                             onClicked: {
                                 if (!sessionRow.isRenaming) {
@@ -566,6 +569,10 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                     }
                                     root.sessionDrawerOpen = false
                                 }
+                            }
+                            onDoubleClicked: {
+                                sessionDrawer.renamingSession = sessionRow.modelData.name
+                                sessionDrawer.renameText = sessionRow.modelData.name
                             }
                         }
 
@@ -609,15 +616,6 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                             ? Appearance.m3colors.m3onSecondaryContainer
                                             : Appearance.m3colors.m3onSurface
                                         elide: Text.ElideRight
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onDoubleClicked: {
-                                                sessionDrawer.renamingSession = sessionRow.modelData.name
-                                                sessionDrawer.renameText = sessionRow.modelData.name
-                                            }
-                                        }
                                     }
                                 }
 
@@ -659,10 +657,14 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                 }
                             }
 
-                            // Action buttons — only visible on hover or when active
+                            // Action buttons — fade in on hover or when active (no layout shift)
                             RowLayout {
                                 spacing: 0
-                                visible: sessionRowHover.containsMouse || sessionRow.isActive
+                                opacity: (sessionRow.hovered || sessionRow.isActive) ? 1 : 0
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 80 }
+                                }
 
                                 // Rename button
                                 RippleButton {

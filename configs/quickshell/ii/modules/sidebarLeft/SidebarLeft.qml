@@ -42,8 +42,9 @@ Scope { // Scope
         
         sourceComponent: PanelWindow { // Window
             id: sidebarRoot
-            visible: GlobalStates.sidebarLeftOpen
+            visible: poppedOut || GlobalStates.sidebarLeftOpen
             
+            property bool poppedOut: Persistent.states.sidebar.poppedOut
             property bool extend: false
             property real userWidth: Persistent.states.sidebar?.leftWidth ?? Appearance.sizes.sidebarWidth
             property real minWidth: Appearance.sizes.sidebarWidth
@@ -55,7 +56,8 @@ Scope { // Scope
                 GlobalStates.sidebarLeftOpen = false
             }
 
-            exclusiveZone: 0
+            exclusionMode: poppedOut ? ExclusionMode.Normal : ExclusionMode.Ignore
+            exclusiveZone: poppedOut ? sidebarWidth : 0
             implicitWidth: maxWidth + Appearance.sizes.elevationMargin
             WlrLayershell.namespace: "quickshell:sidebarLeft"
             // Hyprland 0.49: OnDemand is Exclusive, Exclusive just breaks click-outside-to-close
@@ -75,7 +77,7 @@ Scope { // Scope
             HyprlandFocusGrab { // Click outside to close
                 id: grab
                 windows: [ sidebarRoot ]
-                active: sidebarRoot.visible
+                active: sidebarRoot.visible && !sidebarRoot.poppedOut
                 onActiveChanged: { // Focus the selected tab
                     if (active) sidebarLeftBackground.children[0].focusActiveItem()
                 }
@@ -89,6 +91,32 @@ Scope { // Scope
                 target: sidebarLeftBackground
                 radius: sidebarLeftBackground.radius
             }
+
+            // Popout toggle button (above sidebar content to avoid being covered)
+            RippleButton {
+                id: popoutButton
+                anchors.top: sidebarLeftBackground.top
+                anchors.right: sidebarLeftBackground.right
+                anchors.topMargin: Appearance.sizes.hyprlandGapsOut + 8
+                anchors.rightMargin: 8
+                implicitWidth: 28
+                implicitHeight: 28
+                buttonRadius: Appearance.rounding.full
+                z: 200
+
+                contentItem: MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "push_pin"
+                    iconSize: 16
+                    fill: sidebarRoot.poppedOut ? 1 : 0
+                    color: Appearance.colors.colOnLayer1
+                }
+
+                releaseAction: function() {
+                    Persistent.states.sidebar.poppedOut = !sidebarRoot.poppedOut;
+                }
+            }
+
             Rectangle {
                 id: sidebarLeftBackground
                 anchors.top: parent.top
@@ -121,7 +149,7 @@ Scope { // Scope
                             Persistent.states.sidebar.leftWidth = sidebarRoot.userWidth;
                         }
                         else if (event.key === Qt.Key_P) {
-                            root.detach = !root.detach;
+                            Persistent.states.sidebar.poppedOut = !sidebarRoot.poppedOut;
                         }
                         event.accepted = true;
                     }
@@ -212,6 +240,30 @@ Scope { // Scope
         function open(): void {
             GlobalStates.sidebarLeftOpen = true
         }
+
+        function togglePopout(): void {
+            Persistent.states.sidebar.poppedOut = !Persistent.states.sidebar.poppedOut
+        }
+    }
+
+    IpcHandler {
+        target: "contextLens"
+
+        function sendToChat(imageBase64, resultText, actionLabel) {
+            GlobalStates.sidebarLeftOpen = true;
+            var content = "[Context Lens: " + actionLabel + "]\n\n" + resultText;
+            var message = Ai.aiMessageComponent.createObject(Ai, {
+                "role": "user",
+                "content": content,
+                "rawContent": content,
+                "images": [imageBase64],
+                "thinking": false,
+                "done": true,
+            });
+            var id = Ai.idForMessage(message);
+            Ai.messageIDs = [...Ai.messageIDs, id];
+            Ai.messageByID[id] = message;
+        }
     }
 
     GlobalShortcut {
@@ -247,6 +299,15 @@ Scope { // Scope
 
         onPressed: {
             root.detach = !root.detach;
+        }
+    }
+
+    GlobalShortcut {
+        name: "sidebarLeftTogglePopout"
+        description: "Toggles left sidebar popout mode"
+
+        onPressed: {
+            Persistent.states.sidebar.poppedOut = !Persistent.states.sidebar.poppedOut;
         }
     }
 
