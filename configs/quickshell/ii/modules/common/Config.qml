@@ -230,6 +230,7 @@ Singleton {
                 property bool sloppy: false // Uses levenshtein distance based scoring instead of fuzzy sort. Very weird.
                 property JsonObject prefix: JsonObject {
                     property string action: "/"
+                    property string ai: "?"
                     property string clipboard: ";"
                     property string emojis: ":"
                 }
