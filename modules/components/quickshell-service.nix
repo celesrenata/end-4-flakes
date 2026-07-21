@@ -121,6 +121,9 @@ EOF
     # Let quickshell use its own Qt libraries
     export XDG_DATA_DIRS="$XDG_DATA_DIRS:${pkgs.gsettings-desktop-schemas}/share"
     
+    # Add kirigami QML module path (needed for AppIcon widget)
+    export QML2_IMPORT_PATH="${pkgs.kdePackages.kirigami}/lib/qt-6/qml''${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
+    
     # Start quickshell (from PATH - must be in home.packages)
     exec quickshell -p "$CONFIG_DIR/quickshell/ii/shell.qml"
   '';
