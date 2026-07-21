@@ -618,9 +618,6 @@ Singleton {
         id: bedrockRequester
         property AiMessageData message
         property string stderrOutput: ""
-        environment: ({
-            "AWS_SHARED_CREDENTIALS_FILE": AwsCredentialReader.credentialsFilePath
-        })
 
         function markDone() {
             bedrockRequester.message.done = true;
@@ -697,6 +694,7 @@ Singleton {
             + " --model-id " + model.model
             + " --messages '" + CF.StringUtils.shellSingleQuoteEscape(messagesJson) + "'"
             + " --region " + AwsCredentialReader.region
+            + " --profile " + AwsCredentialReader.profile
             + " --output json";
         if (data.system && data.system.length > 0) {
             cmdArgs += " --system '" + CF.StringUtils.shellSingleQuoteEscape(systemJson) + "'";

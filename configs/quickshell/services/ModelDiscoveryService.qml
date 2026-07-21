@@ -298,12 +298,12 @@ Singleton {
         newStates3["bedrock"] = { status: "loading", message: "" };
         root.validationStates = newStates3;
         // Build and launch validation process
-        bedrockValidationProcess.command = ["aws", "bedrock", "list-foundation-models", "--max-results", "1", "--region", AwsCredentialReader.region, "--output", "json"];
+        bedrockValidationProcess.command = ["aws", "bedrock", "list-foundation-models", "--region", AwsCredentialReader.region, "--profile", AwsCredentialReader.profile, "--output", "json"];
         bedrockValidationProcess.running = true;
     }
 
     function discoverBedrockModels() {
-        bedrockDiscoveryProcess.command = ["aws", "bedrock", "list-foundation-models", "--region", AwsCredentialReader.region, "--output", "json"];
+        bedrockDiscoveryProcess.command = ["aws", "bedrock", "list-foundation-models", "--region", AwsCredentialReader.region, "--profile", AwsCredentialReader.profile, "--output", "json"];
         bedrockDiscoveryProcess.running = true;
     }
 
@@ -552,9 +552,6 @@ Singleton {
     Process {
         id: bedrockValidationProcess
         property string stderrOutput: ""
-        environment: ({
-            "AWS_SHARED_CREDENTIALS_FILE": AwsCredentialReader.credentialsFilePath
-        })
         stderr: StdioCollector {
             onStreamFinished: {
                 bedrockValidationProcess.stderrOutput = text;
@@ -581,9 +578,6 @@ Singleton {
     Process {
         id: bedrockDiscoveryProcess
         property string stderrOutput: ""
-        environment: ({
-            "AWS_SHARED_CREDENTIALS_FILE": AwsCredentialReader.credentialsFilePath
-        })
         stderr: StdioCollector {
             onStreamFinished: {
                 bedrockDiscoveryProcess.stderrOutput = text;
