@@ -135,6 +135,7 @@ Singleton {
     signal previewStarted()
     signal previewEnded()
     signal approvalRequired(string command, int actionIndex)
+    signal responseSummary(string text)
 
     // === Supported action types and their required parameters ===
     readonly property var supportedActionTypes: ({
@@ -440,6 +441,28 @@ Singleton {
         root.lastQuery = queryText;
         root.state = ActionPalette.Debouncing;
         debounceTimer.restart();
+    }
+
+    /**
+     * Direct query submission for voice assistant mode.
+     * Does NOT require overview to be open. Skips debounce.
+     * Appends extraSystemPrompt to the LLM system prompt for this request.
+     * Emits responseSummary when the plan's summary is available.
+     * Auto-executes safe actions, emits approvalRequired for shell.exec.
+     */
+    function submitQueryDirect(queryText, extraSystemPrompt) {
+        root.lastQuery = queryText;
+        root._directMode = true;
+        root._extraSystemPrompt = extraSystemPrompt || "";
+        root.state = ActionPalette.Loading;
+        root._sendLlmRequest(queryText);
+    }
+
+    property bool _directMode: false
+    property string _extraSystemPrompt: ""
+
+    function _sendLlmRequest(queryText) {
+        root.sendRequest();
     }
 
     function cancelRequest() {
@@ -847,7 +870,7 @@ Rules:
         /* Build messages: system prompt + single user message (no chat history) */
         const context = root.buildActionContext();
         const userContent = root.lastQuery + "\n\nCurrent desktop context:\n" + JSON.stringify(context, null, 2);
-        const systemPrompt = root.buildSystemPrompt();
+        const systemPrompt = root.buildSystemPrompt() + (root._extraSystemPrompt ? "\n\n" + root._extraSystemPrompt : "");
 
         /* Build request data via the strategy pattern */
         const fakeMessages = [{
@@ -983,6 +1006,16 @@ Rules:
         root.canRetry = false;
         root.errorMessage = "";
         root.actionPlanReady();
+
+        // In direct mode (voice assistant), auto-execute and emit summary
+        if (root._directMode) {
+            root.responseSummary(root.actionPlan.summary || "Done");
+            if (root.actionPlan.actions.length > 0) {
+                root.applyPlan();
+            }
+            root._directMode = false;
+            root._extraSystemPrompt = "";
+        }
     }
 
     /**
