@@ -229,7 +229,7 @@ Singleton {
             "none": [],
         }
     }
-    property list<var> availableTools: Object.keys(root.tools[models[currentModelId]?.api_format])
+    property list<var> availableTools: Object.keys(root.tools[models[currentModelId]?.api_format] || root.tools["openai"])
     property var toolDescriptions: {
         "functions": Translation.tr("Commands, edit configs, search.\nTakes an extra turn to switch to search mode if that's needed"),
         "search": Translation.tr("Gives the model search capabilities (immediately)"),
@@ -401,7 +401,7 @@ Singleton {
     }
 
     function getModel() {
-        return models[currentModelId];
+        return models[currentModelId] || { name: "No model", icon: "auto_awesome", api_format: "openai" };
     }
 
     function setModel(modelId, feedback = true, setPersistentState = true) {

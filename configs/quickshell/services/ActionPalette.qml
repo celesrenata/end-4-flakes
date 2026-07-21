@@ -34,7 +34,7 @@ Singleton {
                 name: Translation.tr("Thinking..."),
                 type: Translation.tr("AI Action"),
                 materialSymbol: "hourglass_top",
-                execute: () => {}
+                execute: function() {}
             }];
         }
 
@@ -44,23 +44,15 @@ Singleton {
             if (root.canRetry) {
                 errorActions.push({
                     name: Translation.tr("Retry"),
-                    icon: "refresh",
-                    execute: () => root.retry()
-                });
-            }
-            // Offer undo if there are config changes to rollback
-            if (root._configUndoSnapshot && root._configUndoSnapshot.entries.length > 0) {
-                errorActions.push({
-                    name: Translation.tr("Undo"),
-                    icon: "undo",
-                    execute: () => root.rollbackConfig()
+                    icon: "",
+                    execute: function() { ActionPalette.retry(); }
                 });
             }
             return [{
                 name: root.errorMessage,
                 type: Translation.tr("AI Action"),
                 materialSymbol: "error",
-                execute: () => {},
+                execute: function() {},
                 actions: errorActions
             }];
         }
@@ -74,22 +66,23 @@ Singleton {
 
             let results = [];
 
-            // Summary entry with Apply/Preview buttons (disabled if no actions)
+            // Summary entry — clicking it applies the full plan
             const hasActions = plan.actions.length > 0;
             results.push({
                 name: displaySummary,
                 type: Translation.tr("AI Action Plan"),
                 materialSymbol: "auto_awesome",
                 clickActionName: "",
-                execute: () => {},
+                execute: function() { ActionPalette.applyPlan(); },
                 actions: hasActions ? [
-                    { name: Translation.tr("Apply"), icon: "play_arrow", execute: () => root.applyPlan() },
-                    { name: Translation.tr("Preview"), icon: "visibility", execute: () => root.previewPlan() }
+                    { name: Translation.tr("Apply"), icon: "", execute: function() { ActionPalette.applyPlan(); } },
+                    { name: Translation.tr("Preview"), icon: "", execute: function() { ActionPalette.previewPlan(); } }
                 ] : []
             });
 
-            // Per-action entries
-            for (const action of plan.actions) {
+            // Per-action entries — clicking executes just that action
+            for (var idx = 0; idx < plan.actions.length; idx++) {
+                const action = plan.actions[idx];
                 let name = "";
                 let icon = "";
 
@@ -119,11 +112,12 @@ Singleton {
                         break;
                 }
 
+                const actionIdx = idx;
                 results.push({
                     name: name,
                     type: action.type || "unknown",
                     materialSymbol: action.valid === false ? "warning" : icon,
-                    execute: () => {}
+                    execute: function() { ActionPalette.executeSingleAction(actionIdx); }
                 });
             }
 
@@ -423,24 +417,43 @@ Singleton {
     }
 
     function applyPlan() {
-        if (!root.actionPlan || root.actionPlan.actions.length === 0) return;
+        console.log("[ActionPalette] applyPlan called. actionPlan=" + JSON.stringify(root.actionPlan ? {summary: root.actionPlan.summary, actionsCount: root.actionPlan.actions.length} : null));
+        if (!root.actionPlan || root.actionPlan.actions.length === 0) {
+            console.log("[ActionPalette] applyPlan: no actionPlan or empty actions, returning");
+            return;
+        }
 
-        root.state = ActionPalette.Executing;
-        root._executionIndex = 0;
+        // Execute all actions directly — user triggered from action palette (implicit approval)
+        for (var i = 0; i < root.actionPlan.actions.length; i++) {
+            var action = root.actionPlan.actions[i];
+            console.log("[ActionPalette] processing action " + i + ": type=" + (action ? action.type : "null") + " valid=" + (action ? action.valid : "n/a") + " command=" + (action ? action.command : ""));
+            if (!action || action.valid === false) continue;
 
-        // Capture previous values for all config.set actions before executing.
-        // This enables rollback on failure (Requirement 5.8).
-        root._configUndoSnapshot = { entries: [] };
-        for (const action of root.actionPlan.actions) {
-            if (action.type === "config.set" && action.valid) {
-                root._configUndoSnapshot.entries.push({
-                    key: action.key,
-                    previousValue: root.getNestedValue(action.key)
-                });
+            switch (action.type) {
+                case "config.set":
+                    try { Config.setNestedValue(action.key, action.value); } catch (e) { console.log("[ActionPalette] config.set error: " + e); }
+                    break;
+                case "shell.exec":
+                    console.log("[ActionPalette] executing shell: " + action.command);
+                    // Run in a visible terminal so the user sees output
+                    var termCmd = "foot -e bash -c '" + action.command.replace(/'/g, "'\\''") + "; echo; echo Press Enter to close...; read'";
+                    Hyprland.dispatch("exec " + termCmd);
+                    break;
+                case "hyprland.dispatch":
+                    try { Hyprland.dispatch(action.dispatcher + " " + action.args); } catch (e) { console.log("[ActionPalette] dispatch error: " + e); }
+                    break;
+                case "app.launch":
+                    var entry = DesktopEntries.byId(action.id);
+                    if (entry) { try { entry.execute(); } catch (e) {} }
+                    break;
+                default:
+                    console.log("[ActionPalette] unknown action type: " + action.type);
+                    break;
             }
         }
 
-        root._executeNext();
+        root.state = ActionPalette.Idle;
+        GlobalStates.overviewOpen = false;
     }
 
     /**
@@ -452,6 +465,58 @@ Singleton {
      *
      * Requirements: 6.1, 6.6
      */
+
+    /**
+     * Execute a single action by index. Used when the user clicks a specific
+     * action row in the results list rather than applying the entire plan.
+     * For shell.exec: runs directly (user click is implicit approval).
+     * For config.set: applies immediately.
+     * For hyprland.dispatch: dispatches immediately.
+     * For app.launch: launches immediately.
+     */
+    function executeSingleAction(actionIndex) {
+        console.log("[ActionPalette] executeSingleAction called. index=" + actionIndex + " actionPlan=" + (root.actionPlan ? "exists, actions=" + root.actionPlan.actions.length : "null"));
+        if (!root.actionPlan || actionIndex >= root.actionPlan.actions.length) {
+            console.log("[ActionPalette] executeSingleAction: guard failed, returning");
+            return;
+        }
+
+        const action = root.actionPlan.actions[actionIndex];
+        if (!action || action.valid === false) return;
+
+        switch (action.type) {
+            case "config.set":
+                try {
+                    Config.setNestedValue(action.key, action.value);
+                } catch (e) {
+                    console.error("[ActionPalette] config.set failed:", e);
+                }
+                GlobalStates.overviewOpen = false;
+                break;
+            case "shell.exec":
+                // Run in a visible terminal so the user sees output
+                var termCmd2 = "foot -e bash -c '" + action.command.replace(/'/g, "'\\''") + "; echo; echo Press Enter to close...; read'";
+                Hyprland.dispatch("exec " + termCmd2);
+                GlobalStates.overviewOpen = false;
+                break;
+            case "hyprland.dispatch":
+                try {
+                    Hyprland.dispatch(`${action.dispatcher} ${action.args}`);
+                } catch (e) {
+                    console.error("[ActionPalette] hyprland.dispatch failed:", e);
+                }
+                GlobalStates.overviewOpen = false;
+                break;
+            case "app.launch":
+                const entry = DesktopEntries.byId(action.id);
+                if (entry) {
+                    try { entry.execute(); } catch (e) {}
+                }
+                GlobalStates.overviewOpen = false;
+                break;
+        }
+    }
+
     function previewPlan() {
         if (!root.actionPlan || root.actionPlan.actions.length === 0) return;
 

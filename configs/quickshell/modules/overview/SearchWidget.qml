@@ -320,8 +320,24 @@ Item { // Wrapper
                                 }];
                             }
                             if (afterPrefix.startsWith(" ") && afterPrefix.trim().length > 0) {
-                                // Delegate to ActionPalette service — return its current results
-                                return ActionPalette.currentResults;
+                                // Map ActionPalette results with local execute closures
+                                var aiResults = ActionPalette.currentResults;
+                                var mapped = [];
+                                for (var ai = 0; ai < aiResults.length; ai++) {
+                                    var r = aiResults[ai];
+                                    var actionIdx = ai - 1; // First entry is summary (index -1)
+                                    mapped.push({
+                                        name: r.name || "",
+                                        type: r.type || "",
+                                        materialSymbol: r.materialSymbol || "",
+                                        clickActionName: r.clickActionName || "",
+                                        execute: actionIdx < 0
+                                            ? (function() { ActionPalette.applyPlan(); })
+                                            : (function(idx) { return function() { ActionPalette.executeSingleAction(idx); }; })(actionIdx),
+                                        actions: r.actions || []
+                                    });
+                                }
+                                return mapped;
                             }
                         }
 
