@@ -462,6 +462,7 @@ Singleton {
         description: "Dictation double-tap detection (Control_R release)"
 
         onPressed: {
+            console.log("[DictationService] GlobalShortcut dictationTap pressed!")
             root.onKeyTap()
         }
     }
@@ -592,19 +593,23 @@ Singleton {
 
     // Called when Control_R is released (from GlobalShortcut dictationTap)
     function onKeyTap() {
+        console.log("[DictationService] onKeyTap: state=" + root.state + " _waitingForSecondTap=" + root._waitingForSecondTap)
         if (root.state === DictationService.State.Listening || root.state === DictationService.State.StreamingActive) {
             // Already recording — tap stops recording
+            console.log("[DictationService] Already recording, stopping")
             stopRecording()
             return
         }
 
         if (root._waitingForSecondTap) {
             // Second tap within threshold — activate!
+            console.log("[DictationService] Second tap detected — activating!")
             root._waitingForSecondTap = false
             doubleTapTimer.stop()
             activate()
         } else {
             // First tap — start waiting for second
+            console.log("[DictationService] First tap — waiting for second")
             root._waitingForSecondTap = true
             doubleTapTimer.restart()
         }
