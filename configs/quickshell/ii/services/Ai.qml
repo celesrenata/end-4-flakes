@@ -487,6 +487,27 @@ Singleton {
         }
     }
 
+    // Bridge ModelDiscoveryService discovered models into Ai's model registry
+    Connections {
+        target: ModelDiscoveryService
+        function onDiscoveredModelsChanged() {
+            const discovered = ModelDiscoveryService.discoveredModels;
+            const providers = Object.keys(discovered);
+            for (let i = 0; i < providers.length; i++) {
+                const providerModels = discovered[providers[i]];
+                for (let j = 0; j < providerModels.length; j++) {
+                    const m = providerModels[j];
+                    const safeId = root.safeModelName(m.model);
+                    if (!root.models[safeId]) {
+                        root.addModel(safeId, m);
+                    }
+                }
+            }
+            // Refresh modelList to include newly discovered models
+            root.modelList = Object.keys(root.models);
+        }
+    }
+
     Component.onCompleted: {
         setModel(currentModelId, false, false); // Do necessary setup for model
         // Restore session state on startup
@@ -1126,6 +1147,46 @@ Singleton {
         const sessions = (root.sessionsIndex.sessions || []).filter(s => s.name !== name);
         root.sessionsIndex = { "sessions": sessions };
         root.saveSessionsIndex();
+    }
+
+    Process {
+        id: renameSessionFileProc
+        running: false
+        property string oldPath: ""
+        property string newPath: ""
+        command: ["mv", "-f", oldPath, newPath]
+    }
+
+    /**
+     * Renames a session (updates index, moves file, updates active name if needed).
+     * @param oldName current session name
+     * @param newName new session name (non-empty, no path separators)
+     */
+    function renameSession(oldName, newName) {
+        oldName = (oldName || "").trim();
+        newName = (newName || "").trim();
+        if (!oldName || !newName || oldName === newName) return;
+        if (newName.indexOf("/") !== -1 || newName.indexOf("\\") !== -1) return;
+
+        // Update sessions index
+        const sessions = root.sessionsIndex.sessions || [];
+        const entry = sessions.find(s => s.name === oldName);
+        if (entry) {
+            entry.name = newName;
+            root.sessionsIndex = { "sessions": sessions };
+            root.saveSessionsIndex();
+        }
+
+        // Move the file on disk
+        renameSessionFileProc.oldPath = `${Directories.aiChats}/${oldName}.json`;
+        renameSessionFileProc.newPath = `${Directories.aiChats}/${newName}.json`;
+        renameSessionFileProc.running = true;
+
+        // If this was the active session, update active name and persist
+        if (oldName === root.activeSessionName) {
+            root.activeSessionName = newName;
+            Persistent.states.ai.activeSession = newName;
+        }
     }
 
     FileView {

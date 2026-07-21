@@ -299,6 +299,17 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         color: Appearance.colors.colOutlineVariant
     }
 
+    // Whether the session drawer is open
+    property bool sessionDrawerOpen: false
+
+    // Close the drawer when the active session changes (e.g. after a switch)
+    Connections {
+        target: Ai
+        function onActiveSessionNameChanged() {
+            root.sessionDrawerOpen = false
+        }
+    }
+
     component ContextIndicator: RowLayout {
         id: contextIndicator
         spacing: 4
@@ -308,11 +319,41 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                               : usage > 0.7 ? Appearance.m3colors.m3tertiary
                                               : Appearance.colors.colSubtext
 
-        // Session name label
-        StyledText {
-            font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colSubtext
-            text: Ai.activeSessionName
+        // Session name — clickable chip that toggles the drawer
+        MouseArea {
+            id: sessionChipArea
+            hoverEnabled: true
+            implicitWidth: sessionChipRow.implicitWidth + 10
+            implicitHeight: sessionChipRow.implicitHeight + 4
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.sessionDrawerOpen = !root.sessionDrawerOpen
+
+            Rectangle {
+                anchors.fill: parent
+                radius: height / 2
+                color: sessionChipArea.containsMouse
+                    ? Qt.alpha(Appearance.m3colors.m3secondaryContainer, 0.6)
+                    : (root.sessionDrawerOpen ? Qt.alpha(Appearance.m3colors.m3secondaryContainer, 0.9) : "transparent")
+                Behavior on color { ColorAnimation { duration: 120 } }
+            }
+
+            RowLayout {
+                id: sessionChipRow
+                anchors.centerIn: parent
+                spacing: 3
+                MaterialSymbol {
+                    text: root.sessionDrawerOpen ? "expand_less" : "chat"
+                    iconSize: Appearance.font.pixelSize.normal
+                    color: Appearance.colors.colSubtext
+                }
+                StyledText {
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colSubtext
+                    text: Ai.activeSessionName
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                }
+            }
         }
 
         // Separator dot between session name and context usage
@@ -400,6 +441,297 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             }
             StatusSeparator {}
             ContextIndicator {}
+        }
+
+        // Session drawer — collapsible panel showing all sessions
+        Rectangle {
+            id: sessionDrawer
+            Layout.fillWidth: true
+            visible: root.sessionDrawerOpen
+            clip: true
+            implicitHeight: root.sessionDrawerOpen ? sessionDrawerColumn.implicitHeight + 12 : 0
+            radius: Appearance.rounding.small
+            color: Appearance.colors.colLayer1
+            border.color: Appearance.colors.colOutlineVariant
+            border.width: 1
+
+            Behavior on implicitHeight {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMove.duration
+                    easing.type: Appearance.animation.elementMove.type
+                }
+            }
+
+            // Track which session is being renamed
+            property string renamingSession: ""
+            property string renameText: ""
+
+            ColumnLayout {
+                id: sessionDrawerColumn
+                anchors {
+                    top: parent.top
+                    left: parent.left
+                    right: parent.right
+                    topMargin: 6
+                    leftMargin: 8
+                    rightMargin: 8
+                    bottomMargin: 6
+                }
+                spacing: 2
+
+                // Header row: "+ New session" button
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    StyledText {
+                        text: Translation.tr("Sessions")
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.weight: Font.Medium
+                        color: Appearance.colors.colSubtext
+                        Layout.fillWidth: true
+                    }
+
+                    // New session button
+                    RippleButton {
+                        implicitHeight: 26
+                        implicitWidth: 26
+                        buttonRadius: 13
+                        colBackground: "transparent"
+                        colBackgroundHover: Qt.alpha(Appearance.m3colors.m3onSurface, 0.08)
+
+                        contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "add"
+                            iconSize: Appearance.font.pixelSize.larger
+                            color: Appearance.m3colors.m3primary
+                        }
+
+                        StyledToolTip {
+                            content: Translation.tr("New session")
+                            extraVisibleCondition: false
+                            alternativeVisibleCondition: parent.hovered
+                        }
+
+                        onClicked: {
+                            Ai.newSession("")
+                            sessionDrawer.renamingSession = Ai.activeSessionName
+                            sessionDrawer.renameText = Ai.activeSessionName
+                        }
+                    }
+                }
+
+                // Divider
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 1
+                    color: Appearance.colors.colOutlineVariant
+                    opacity: 0.5
+                }
+
+                // Session list
+                Repeater {
+                    model: ScriptModel {
+                        values: Ai.listSessions()
+                    }
+                    delegate: Item {
+                        id: sessionRow
+                        required property var modelData
+                        required property int index
+                        Layout.fillWidth: true
+                        implicitHeight: 32
+
+                        readonly property bool isActive: modelData.name === Ai.activeSessionName
+                        readonly property bool isRenaming: sessionDrawer.renamingSession === modelData.name
+
+                        // Hover/active background
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: Appearance.rounding.small
+                            color: sessionRow.isActive
+                                ? Qt.alpha(Appearance.m3colors.m3secondaryContainer, 0.5)
+                                : (sessionRowHover.containsMouse ? Qt.alpha(Appearance.m3colors.m3onSurface, 0.06) : "transparent")
+                            Behavior on color { ColorAnimation { duration: 100 } }
+                        }
+
+                        MouseArea {
+                            id: sessionRowHover
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: sessionRow.isRenaming ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            onClicked: {
+                                if (!sessionRow.isRenaming) {
+                                    if (!sessionRow.isActive) {
+                                        Ai.switchSession(modelData.name)
+                                    }
+                                    root.sessionDrawerOpen = false
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            anchors {
+                                left: parent.left
+                                right: parent.right
+                                verticalCenter: parent.verticalCenter
+                                leftMargin: 8
+                                rightMargin: 4
+                            }
+                            spacing: 6
+
+                            // Active indicator dot
+                            Rectangle {
+                                implicitWidth: 6
+                                implicitHeight: 6
+                                radius: 3
+                                color: Appearance.m3colors.m3primary
+                                visible: sessionRow.isActive
+                            }
+                            Item {
+                                implicitWidth: 6
+                                implicitHeight: 6
+                                visible: !sessionRow.isActive
+                            }
+
+                            // Session name — text when idle, TextInput when renaming
+                            Loader {
+                                id: nameLoader
+                                Layout.fillWidth: true
+                                sourceComponent: sessionRow.isRenaming ? renameFieldComponent : nameLabelComponent
+
+                                Component {
+                                    id: nameLabelComponent
+                                    StyledText {
+                                        text: sessionRow.modelData.name
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        font.weight: sessionRow.isActive ? Font.Medium : Font.Normal
+                                        color: sessionRow.isActive
+                                            ? Appearance.m3colors.m3onSecondaryContainer
+                                            : Appearance.m3colors.m3onSurface
+                                        elide: Text.ElideRight
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onDoubleClicked: {
+                                                sessionDrawer.renamingSession = sessionRow.modelData.name
+                                                sessionDrawer.renameText = sessionRow.modelData.name
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Component {
+                                    id: renameFieldComponent
+                                    TextField {
+                                        text: sessionDrawer.renameText
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        color: Appearance.m3colors.m3onSurface
+                                        background: Rectangle {
+                                            color: Qt.alpha(Appearance.m3colors.m3onSurface, 0.06)
+                                            radius: 4
+                                        }
+                                        leftPadding: 4
+                                        rightPadding: 4
+                                        topPadding: 2
+                                        bottomPadding: 2
+                                        onTextChanged: sessionDrawer.renameText = text
+
+                                        Component.onCompleted: {
+                                            forceActiveFocus()
+                                            selectAll()
+                                        }
+
+                                        Keys.onReturnPressed: commitRename()
+                                        Keys.onEscapePressed: {
+                                            sessionDrawer.renamingSession = ""
+                                        }
+
+                                        function commitRename() {
+                                            const oldName = sessionDrawer.renamingSession
+                                            const newName = sessionDrawer.renameText.trim()
+                                            if (newName.length > 0 && newName !== oldName) {
+                                                Ai.renameSession(oldName, newName)
+                                            }
+                                            sessionDrawer.renamingSession = ""
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Action buttons — only visible on hover or when active
+                            RowLayout {
+                                spacing: 0
+                                visible: sessionRowHover.containsMouse || sessionRow.isActive
+
+                                // Rename button
+                                RippleButton {
+                                    implicitWidth: 22
+                                    implicitHeight: 22
+                                    buttonRadius: 11
+                                    colBackground: "transparent"
+                                    colBackgroundHover: Qt.alpha(Appearance.m3colors.m3onSurface, 0.08)
+                                    visible: !sessionRow.isRenaming
+
+                                    contentItem: MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "edit"
+                                        iconSize: Appearance.font.pixelSize.small
+                                        color: Appearance.colors.colSubtext
+                                    }
+
+                                    onClicked: {
+                                        sessionDrawer.renamingSession = sessionRow.modelData.name
+                                        sessionDrawer.renameText = sessionRow.modelData.name
+                                    }
+                                }
+
+                                // Confirm rename button (shown while renaming)
+                                RippleButton {
+                                    implicitWidth: 22
+                                    implicitHeight: 22
+                                    buttonRadius: 11
+                                    colBackground: "transparent"
+                                    colBackgroundHover: Qt.alpha(Appearance.m3colors.m3onSurface, 0.08)
+                                    visible: sessionRow.isRenaming
+
+                                    contentItem: MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "check"
+                                        iconSize: Appearance.font.pixelSize.small
+                                        color: Appearance.m3colors.m3primary
+                                    }
+
+                                    onClicked: {
+                                        // Trigger commit via the TextField's function
+                                        if (nameLoader.item && nameLoader.item.commitRename)
+                                            nameLoader.item.commitRename()
+                                    }
+                                }
+
+                                // Delete button (only for non-active sessions)
+                                RippleButton {
+                                    implicitWidth: 22
+                                    implicitHeight: 22
+                                    buttonRadius: 11
+                                    colBackground: "transparent"
+                                    colBackgroundHover: Qt.alpha(Appearance.m3colors.m3error, 0.12)
+                                    visible: !sessionRow.isActive && !sessionRow.isRenaming
+
+                                    contentItem: MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "delete"
+                                        iconSize: Appearance.font.pixelSize.small
+                                        color: Appearance.m3colors.m3error
+                                    }
+
+                                    onClicked: Ai.deleteSession(sessionRow.modelData.name)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Item { // Messages
