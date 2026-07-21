@@ -39,6 +39,11 @@ Singleton {
     // property var messages: []
     property var messageIDs: []
     property var messageByID: ({})
+    onMessageIDsChanged: {
+        if (root.messageIDs.length > 0) {
+            root.saveCurrentSession();
+        }
+    }
     readonly property var apiKeys: KeyringStorage.keyringData?.apiKeys ?? {}
     readonly property var apiKeysLoaded: KeyringStorage.loaded
     readonly property bool currentModelHasApiKey: {
@@ -54,6 +59,135 @@ Singleton {
         property int input: -1
         property int output: -1
         property int total: -1
+    }
+
+    // Context window tracking
+    function estimateTokens(text) {
+        return Math.ceil((text || "").length / 4);
+    }
+
+    readonly property int contextTokens: {
+        let total = estimateTokens(root.systemPrompt);
+        for (const id of root.messageIDs) {
+            const msg = root.messageByID[id];
+            if (msg) total += estimateTokens(msg.rawContent);
+        }
+        return total;
+    }
+
+    readonly property int contextLimit: models[currentModelId]?.context_length ?? 128000
+
+    readonly property real contextUsageRatio: contextLimit > 0 ? contextTokens / contextLimit : 0
+
+    readonly property bool contextFull: contextUsageRatio >= 1.0
+
+    // Auto-compact notification state (reset per session)
+    property bool autoCompactShown: false
+    property bool autoCompactDismissed: false
+    property real previousContextUsageRatio: 0
+
+    onContextUsageRatioChanged: {
+        // Detect threshold crossing from below (0.85)
+        if (root.previousContextUsageRatio < 0.85 && root.contextUsageRatio >= 0.85) {
+            if (!root.autoCompactDismissed) {
+                root.autoCompactShown = true;
+            }
+        }
+        // After compaction drops below 0.85, reset dismissed so it can re-trigger
+        if (root.previousContextUsageRatio >= 0.85 && root.contextUsageRatio < 0.85) {
+            root.autoCompactDismissed = false;
+            root.autoCompactShown = false;
+        }
+        root.previousContextUsageRatio = root.contextUsageRatio;
+    }
+
+    // AI_Doctor: models with larger context windows than the current model
+    readonly property var largerContextModels: {
+        const currentLimit = root.contextLimit;
+        return root.modelList.filter(id => {
+            const model = root.models[id];
+            return model && model.context_length > currentLimit;
+        });
+    }
+
+    // Session management
+    property string activeSessionName: Persistent.states?.ai?.activeSession ?? "Chat 1"
+    property var sessionsIndex: ({})
+
+    // Compact state
+    property bool compacting: false
+    property string compactPromptTemplate: "Summarize the following conversation concisely, preserving key context, decisions, and any code or technical details."
+
+    /**
+     * Returns the smallest positive integer N such that "Chat {N}" is not
+     * already used as a session name in the sessions index.
+     */
+    function getNextDefaultName() {
+        const sessions = root.sessionsIndex.sessions || [];
+        const existingNames = sessions.map(s => s.name);
+        let n = 1;
+        while (existingNames.indexOf(`Chat ${n}`) !== -1) {
+            n++;
+        }
+        return `Chat ${n}`;
+    }
+
+    /**
+     * Creates a new chat session with the given name.
+     * Validates name (non-empty after trim, no / or \ characters).
+     * Saves current session, creates empty message list, updates active session.
+     * @param name - the session name (optional; if empty, uses getNextDefaultName())
+     */
+    function newSession(name) {
+        // Use default name if none provided
+        if (!name || name.trim().length === 0) {
+            name = getNextDefaultName();
+        } else {
+            name = name.trim();
+        }
+
+        // Validate: no path separator characters
+        if (name.indexOf("/") !== -1 || name.indexOf("\\") !== -1) {
+            root.addMessage(
+                Translation.tr("Invalid session name: must not contain '/' or '\\' characters"),
+                root.interfaceRole
+            );
+            return;
+        }
+
+        // Save the current session before switching
+        root.saveCurrentSession();
+
+        // Clear messages for the new session
+        root.clearMessages();
+
+        // Reset auto-compact notification state for new session
+        root.autoCompactShown = false;
+        root.autoCompactDismissed = false;
+        root.previousContextUsageRatio = 0;
+
+        // Update active session name
+        root.activeSessionName = name;
+
+        // Update Persistent state
+        Persistent.states.ai.activeSession = name;
+
+        // Add entry to sessions index
+        const sessions = root.sessionsIndex.sessions || [];
+        sessions.push({
+            "name": name,
+            "createdAt": Math.floor(Date.now() / 1000),
+            "lastModified": Math.floor(Date.now() / 1000),
+        });
+        root.sessionsIndex = { "sessions": sessions };
+
+        // Persist the updated index
+        root.saveSessionsIndex();
+
+        root.addMessage(
+            Translation.tr("Created new session: %1").arg(name),
+            root.interfaceRole
+        );
     }
 
     function idForMessage(message) {
@@ -260,6 +394,7 @@ Singleton {
             "key_get_link": "https://aistudio.google.com/app/apikey",
             "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
             "api_format": "gemini",
+            "context_length": 1048576,
         }),
         "gemini-2.5-flash": aiModelComponent.createObject(this, {
             "name": "Gemini 2.5 Flash",
@@ -273,6 +408,7 @@ Singleton {
             "key_get_link": "https://aistudio.google.com/app/apikey",
             "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
             "api_format": "gemini",
+            "context_length": 1048576,
         }),
         "gemini-2.5-flash-pro": aiModelComponent.createObject(this, {
             "name": "Gemini 2.5 Pro",
@@ -286,6 +422,7 @@ Singleton {
             "key_get_link": "https://aistudio.google.com/app/apikey",
             "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
             "api_format": "gemini",
+            "context_length": 1048576,
         }),
         "gemini-2.5-flash-lite": aiModelComponent.createObject(this, {
             "name": "Gemini 2.5 Flash-Lite",
@@ -299,6 +436,7 @@ Singleton {
             "key_get_link": "https://aistudio.google.com/app/apikey",
             "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
             "api_format": "gemini",
+            "context_length": 1048576,
         }),
         "mistral-medium-3": aiModelComponent.createObject(this, {
             "name": "Mistral Medium 3",
@@ -312,6 +450,7 @@ Singleton {
             "key_get_link": "https://console.mistral.ai/api-keys",
             "key_get_description": Translation.tr("**Instructions**: Log into Mistral account, go to Keys on the sidebar, click Create new key"),
             "api_format": "mistral",
+            "context_length": 131072,
         }),
         "openrouter-deepseek-r1": aiModelComponent.createObject(this, {
             "name": "DeepSeek R1",
@@ -324,6 +463,7 @@ Singleton {
             "key_id": "openrouter",
             "key_get_link": "https://openrouter.ai/settings/keys",
             "key_get_description": Translation.tr("**Pricing**: free. Data use policy varies depending on your OpenRouter account settings.\n\n**Instructions**: Log into OpenRouter account, go to Keys on the topright menu, click Create API Key"),
+            "context_length": 65536,
         }),
     }
     property var modelList: Object.keys(root.models)
@@ -349,6 +489,53 @@ Singleton {
 
     Component.onCompleted: {
         setModel(currentModelId, false, false); // Do necessary setup for model
+        // Restore session state on startup
+        root.loadSessionsIndex();
+        const persistedSession = Persistent.states?.ai?.activeSession;
+        if (persistedSession && persistedSession.length > 0) {
+            try {
+                chatSaveFile.chatName = persistedSession;
+                chatSaveFile.reload();
+                const content = chatSaveFile.text();
+                if (content && content.trim().length > 0) {
+                    const saveData = JSON.parse(content);
+                    root.clearMessages();
+                    const newMessageByID = ({});
+                    for (let i = 0; i < saveData.length; i++) {
+                        const message = saveData[i];
+                        newMessageByID[i] = root.aiMessageComponent.createObject(root, {
+                            "role": message.role,
+                            "rawContent": message.rawContent,
+                            "content": message.rawContent,
+                            "model": message.model ?? "",
+                            "thinking": message.thinking ?? false,
+                            "done": message.done ?? true,
+                            "annotations": message.annotations ?? [],
+                            "annotationSources": message.annotationSources ?? [],
+                            "functionName": message.functionName ?? "",
+                            "functionCall": message.functionCall ?? null,
+                            "functionResponse": message.functionResponse ?? "",
+                            "visibleToUser": message.visibleToUser ?? true,
+                        });
+                    }
+                    // Assign messageByID first, then messageIDs, so that when
+                    // contextTokens and the message list view re-evaluate on
+                    // messageIDsChanged, all message objects are already present.
+                    root.messageByID = newMessageByID;
+                    root.messageIDs = saveData.map((_, i) => i);
+                    root.activeSessionName = persistedSession;
+                } else {
+                    // File empty or unreadable, create new default session
+                    root.newSession();
+                }
+            } catch (e) {
+                console.log("[AI] Startup: Could not load persisted session, creating default:", e);
+                root.newSession();
+            }
+        } else {
+            // No persisted session, create a new default
+            root.newSession();
+        }
     }
 
     function guessModelLogo(model) {
@@ -530,6 +717,21 @@ Singleton {
         } else {
             if (feedback) root.addMessage(Translation.tr("Invalid model. Supported: \n```\n") + modelList.join("\n```\n```\n"), Ai.interfaceRole) + "\n```"
         }
+    }
+
+    /**
+     * Switches to a model suggested by AI_Doctor (e.g. one with a larger context window).
+     * Calls setModel which updates Persistent state, triggering QML bindings to
+     * recalculate contextLimit → contextUsageRatio → contextFull, unblocking message sending.
+     * @param modelId - the model ID to switch to
+     */
+    function switchToModel(modelId) {
+        const model = models[modelId];
+        if (!model) {
+            root.addMessage(Translation.tr("Cannot switch: model '%1' not found").arg(modelId), root.interfaceRole);
+            return;
+        }
+        root.setModel(modelId, true, true);
     }
 
     function setTool(tool) {
@@ -716,6 +918,13 @@ Singleton {
 
     function sendUserMessage(message) {
         if (message.length === 0) return;
+        if (root.contextFull) {
+            root.addMessage(
+                Translation.tr("Context window is full. Please compact the conversation or switch to a model with a larger context window."),
+                root.interfaceRole
+            );
+            return;
+        }
         root.addMessage(message, "user");
         requester.makeRequest();
     }
@@ -833,6 +1042,93 @@ Singleton {
     }
 
     FileView {
+        id: sessionsIndexFile
+        path: `${Directories.aiChats}/sessions-index.json`
+        blockLoading: true
+    }
+
+    Process {
+        id: scanSessionFiles
+        running: false
+        command: ["ls", "-1", Directories.aiChats]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.length === 0) {
+                    root.sessionsIndex = { "sessions": [] };
+                    root.saveSessionsIndex();
+                    return;
+                }
+                const files = text.split("\n")
+                    .filter(fileName => fileName.endsWith(".json") && fileName !== "sessions-index.json");
+                const now = Math.floor(Date.now() / 1000);
+                const sessions = files.map(fileName => {
+                    const name = fileName.replace(/\.json$/, "");
+                    return {
+                        "name": name,
+                        "createdAt": now,
+                        "lastModified": now
+                    };
+                });
+                root.sessionsIndex = { "sessions": sessions };
+                root.saveSessionsIndex();
+            }
+        }
+    }
+
+    function loadSessionsIndex() {
+        try {
+            sessionsIndexFile.reload();
+            const content = sessionsIndexFile.text();
+            if (!content || content.trim().length === 0) {
+                // File is empty or missing, rebuild
+                scanSessionFiles.running = true;
+                return;
+            }
+            const parsed = JSON.parse(content);
+            if (parsed && Array.isArray(parsed.sessions)) {
+                root.sessionsIndex = parsed;
+            } else {
+                // Invalid structure, rebuild
+                scanSessionFiles.running = true;
+            }
+        } catch (e) {
+            console.log("[AI] Could not load sessions index, rebuilding:", e);
+            scanSessionFiles.running = true;
+        }
+    }
+
+    function saveSessionsIndex() {
+        const content = JSON.stringify(root.sessionsIndex, null, 2);
+        sessionsIndexFile.setText(content);
+    }
+
+    Process {
+        id: deleteSessionFileProc
+        running: false
+        property string sessionFilePath: ""
+        command: ["rm", "-f", sessionFilePath]
+    }
+
+    function deleteSession(name) {
+        if (!name || name.trim().length === 0) {
+            root.addMessage(Translation.tr("Please specify a session name to delete"), root.interfaceRole);
+            return;
+        }
+        name = name.trim();
+        if (name === root.activeSessionName) {
+            root.addMessage(Translation.tr("Cannot delete the active session \"%1\". Switch to another session first.").arg(name), root.interfaceRole);
+            return;
+        }
+        // Remove session JSON file from filesystem
+        deleteSessionFileProc.sessionFilePath = `${Directories.aiChats}/${name}.json`;
+        deleteSessionFileProc.running = true;
+        // Remove entry from sessionsIndex and save
+        const sessions = (root.sessionsIndex.sessions || []).filter(s => s.name !== name);
+        root.sessionsIndex = { "sessions": sessions };
+        root.saveSessionsIndex();
+    }
+
+    FileView {
         id: chatSaveFile
         property string chatName: "chat"
         path: `${Directories.aiChats}/${chatName}.json`
@@ -862,13 +1158,13 @@ Singleton {
             // console.log(saveContent)
             const saveData = JSON.parse(saveContent)
             root.clearMessages()
-            root.messageIDs = saveData.map((_, i) => {
-                return i
-            })
-            // console.log(JSON.stringify(messageIDs))
+            // Populate messageByID before assigning messageIDs so that when
+            // contextTokens and the message list view re-evaluate on
+            // messageIDsChanged, all message objects are already present.
+            const newMessageByID = ({});
             for (let i = 0; i < saveData.length; i++) {
                 const message = saveData[i];
-                root.messageByID[i] = root.aiMessageComponent.createObject(root, {
+                newMessageByID[i] = root.aiMessageComponent.createObject(root, {
                     "role": message.role,
                     "rawContent": message.rawContent,
                     "content": message.rawContent,
@@ -883,10 +1179,259 @@ Singleton {
                     "visibleToUser": message.visibleToUser,
                 });
             }
+            root.messageByID = newMessageByID;
+            root.messageIDs = saveData.map((_, i) => i);
+            // console.log(JSON.stringify(messageIDs))
         } catch (e) {
             console.log("[AI] Could not load chat: ", e);
         } finally {
             getSavedChats.running = true;
+        }
+    }
+
+    // Compact chat process - sends summarization request
+    Process {
+        id: compactRequester
+        property list<string> baseCommand: ["bash", "-c"]
+        property AiMessageData compactMessage
+        property ApiStrategy currentStrategy
+
+        stdout: SplitParser {
+            onRead: data => {
+                if (data.length === 0) return;
+                try {
+                    compactRequester.currentStrategy.parseResponseLine(data, compactRequester.compactMessage);
+                } catch (e) {
+                    // Fallback: accumulate raw data
+                    compactRequester.compactMessage.rawContent += data;
+                    compactRequester.compactMessage.content += data;
+                }
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            // Let strategy finalize if needed
+            compactRequester.currentStrategy.onRequestFinished(compactRequester.compactMessage);
+
+            const summary = compactRequester.compactMessage.rawContent.trim();
+            if (exitCode !== 0 || summary.length === 0) {
+                // Failure: preserve original messages, show error
+                root.addMessage(
+                    Translation.tr("Failed to compact conversation. Your messages have been preserved."),
+                    root.interfaceRole
+                );
+                root.compacting = false;
+                return;
+            }
+
+            // Success: replace entire message list with a single system-role summary
+            root.clearMessages();
+            const aiMessage = root.aiMessageComponent.createObject(root, {
+                "role": "system",
+                "content": summary,
+                "rawContent": summary,
+                "thinking": false,
+                "done": true,
+            });
+            const id = root.idForMessage(aiMessage);
+            root.messageIDs = [id];
+            root.messageByID[id] = aiMessage;
+
+            // Save session and update state
+            root.saveCurrentSession();
+            root.compacting = false;
+        }
+    }
+
+    /**
+     * Compacts the current conversation by sending it to the model for summarization.
+     * On success, replaces the conversation with a single system-role summary message.
+     * On failure, preserves original messages and shows an error.
+     * @param focusInstruction Optional instruction to guide what to preserve in the summary
+     */
+    function compactChat(focusInstruction) {
+        if (root.compacting) return; // Already compacting
+        if (root.messageIDs.length === 0) {
+            root.addMessage(Translation.tr("Nothing to compact — conversation is empty."), root.interfaceRole);
+            return;
+        }
+
+        root.compacting = true;
+
+        const model = models[currentModelId];
+        const strategy = root.currentApiStrategy;
+        compactRequester.currentStrategy = strategy;
+        strategy.reset();
+
+        // Create a temporary message object to accumulate the response
+        compactRequester.compactMessage = root.aiMessageComponent.createObject(root, {
+            "role": "assistant",
+            "content": "",
+            "rawContent": "",
+            "thinking": false,
+            "done": false,
+        });
+
+        // Build the summarization system prompt
+        let summarizationPrompt = root.compactPromptTemplate;
+        if (focusInstruction && focusInstruction.trim().length > 0) {
+            summarizationPrompt += " " + focusInstruction.trim();
+        }
+
+        // Build conversation content as a single user message
+        const conversationText = root.messageIDs.map(id => {
+            const msg = root.messageByID[id];
+            if (!msg) return "";
+            return `[${msg.role}]: ${msg.rawContent}`;
+        }).filter(line => line.length > 0).join("\n\n");
+
+        // Create a synthetic message array with the conversation as a single user message
+        const syntheticMessages = [root.aiMessageComponent.createObject(root, {
+            "role": "user",
+            "content": conversationText,
+            "rawContent": conversationText,
+            "thinking": false,
+            "done": true,
+        })];
+
+        // Build the request using the current API strategy
+        const endpoint = strategy.buildEndpoint(model);
+        const data = strategy.buildRequestData(model, syntheticMessages, summarizationPrompt, root.temperature, []);
+
+        // Set up API key environment variable
+        if (model.requires_key) {
+            compactRequester.environment[`${root.apiKeyEnvVarName}`] = root.apiKeys ? (root.apiKeys[model.key_id] ?? "") : "";
+        }
+
+        // Build request headers
+        let requestHeaders = { "Content-Type": "application/json" };
+        let headerString = Object.entries(requestHeaders)
+            .filter(([k, v]) => v && v.length > 0)
+            .map(([k, v]) => `-H '${k}: ${v}'`)
+            .join(' ');
+
+        const authHeader = strategy.buildAuthorizationHeader(root.apiKeyEnvVarName);
+
+        const requestCommandString = `curl --no-buffer "${endpoint}"`
+            + ` ${headerString}`
+            + (authHeader ? ` ${authHeader}` : "")
+            + ` -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify(data))}'`;
+
+        compactRequester.command = compactRequester.baseCommand.concat([requestCommandString]);
+        compactRequester.running = true;
+    }
+
+    /**
+     * Saves the current session to its JSON file.
+     * Updates the lastModified timestamp in the sessions index.
+     */
+    function saveCurrentSession() {
+        root.saveChat(root.activeSessionName);
+        if (root.sessionsIndex.sessions) {
+            const entry = root.sessionsIndex.sessions.find(s => s.name === root.activeSessionName);
+            if (entry) {
+                entry.lastModified = Math.floor(Date.now() / 1000);
+                root.saveSessionsIndex();
+            }
+        }
+    }
+
+    /**
+     * Returns all sessions sorted by lastModified (newest first).
+     * Each entry contains name and lastModified timestamp.
+     */
+    function listSessions() {
+        const sessions = root.sessionsIndex.sessions || [];
+        return [...sessions].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+    }
+
+    /**
+     * Switches to the specified session by name.
+     * Saves the current session first, then loads the target session.
+     * @param name The session name to switch to
+     */
+    function switchSession(name) {
+        const trimmedName = (name || "").trim();
+        if (trimmedName.length === 0) {
+            root.addMessage(Translation.tr("Session name cannot be empty"), root.interfaceRole);
+            return;
+        }
+
+        // Verify session exists in index
+        if (!root.sessionsIndex.sessions || !root.sessionsIndex.sessions.find(s => s.name === trimmedName)) {
+            const available = (root.sessionsIndex.sessions || []).map(s => s.name).join("\n- ");
+            root.addMessage(
+                Translation.tr("Session \"%1\" not found.\n\nAvailable sessions:\n- %2").arg(trimmedName).arg(available || Translation.tr("(none)")),
+                root.interfaceRole
+            );
+            return;
+        }
+
+        // Don't switch to the already active session
+        if (trimmedName === root.activeSessionName) {
+            root.addMessage(Translation.tr("Already on session \"%1\"").arg(trimmedName), root.interfaceRole);
+            return;
+        }
+
+        // Save current session before switching
+        root.saveCurrentSession();
+
+        // Load the target session
+        root.loadSession(trimmedName);
+
+        // Reset auto-compact notification state for the switched session
+        root.autoCompactShown = false;
+        root.autoCompactDismissed = false;
+        root.previousContextUsageRatio = 0;
+
+        // Update active session name and persist
+        root.activeSessionName = trimmedName;
+        Persistent.states.ai.activeSession = trimmedName;
+    }
+
+    /**
+     * Loads a session's message history from its JSON file.
+     * @param name The session name to load
+     */
+    function loadSession(name) {
+        const trimmedName = (name || "").trim();
+        try {
+            chatSaveFile.chatName = trimmedName;
+            chatSaveFile.reload();
+            const saveContent = chatSaveFile.text();
+            const saveData = JSON.parse(saveContent);
+
+            root.clearMessages();
+            // Populate messageByID before assigning messageIDs so that when
+            // contextTokens and the message list view re-evaluate on
+            // messageIDsChanged, all message objects are already present.
+            const newMessageByID = ({});
+            for (let i = 0; i < saveData.length; i++) {
+                const message = saveData[i];
+                newMessageByID[i] = root.aiMessageComponent.createObject(root, {
+                    "role": message.role,
+                    "rawContent": message.rawContent,
+                    "content": message.rawContent,
+                    "model": message.model ?? "",
+                    "thinking": message.thinking ?? false,
+                    "done": message.done ?? true,
+                    "annotations": message.annotations ?? [],
+                    "annotationSources": message.annotationSources ?? [],
+                    "functionName": message.functionName ?? "",
+                    "functionCall": message.functionCall ?? null,
+                    "functionResponse": message.functionResponse ?? "",
+                    "visibleToUser": message.visibleToUser ?? true,
+                });
+            }
+            root.messageByID = newMessageByID;
+            root.messageIDs = saveData.map((_, i) => i);
+        } catch (e) {
+            console.log("[AI] Could not load session:", trimmedName, e);
+            const available = (root.sessionsIndex.sessions || []).map(s => s.name).join("\n- ");
+            root.addMessage(
+                Translation.tr("Failed to load session \"%1\".\n\nAvailable sessions:\n- %2").arg(trimmedName).arg(available || Translation.tr("(none)")),
+                root.interfaceRole
+            );
         }
     }
 }

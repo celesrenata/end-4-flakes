@@ -31,6 +31,7 @@ Singleton {
             property JsonObject ai: JsonObject {
                 property string model
                 property real temperature: 0.5
+                property string activeSession: "Chat 1"
             }
 
             property JsonObject sidebar: JsonObject {

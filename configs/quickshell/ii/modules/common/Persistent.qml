@@ -31,10 +31,12 @@ Singleton {
             property JsonObject ai: JsonObject {
                 property string model
                 property real temperature: 0.5
+                property string activeSession: "Chat 1"
             }
 
             property JsonObject sidebar: JsonObject {
                 property real leftWidth: 460
+                property bool poppedOut: false
                 property JsonObject bottomGroup: JsonObject {
                     property bool collapsed: false
                     property int tab: 0

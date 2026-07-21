@@ -128,6 +128,64 @@ Item {
             }
         },
         {
+            name: "compact",
+            description: Translation.tr("Compact conversation history into a summary to free context space"),
+            execute: (args) => {
+                const focus = args.join(" ").trim();
+                Ai.compactChat(focus);
+            }
+        },
+        {
+            name: "new",
+            description: Translation.tr("Create a new chat session"),
+            execute: (args) => {
+                const name = args.join(" ").trim();
+                Ai.newSession(name);
+            }
+        },
+        {
+            name: "switch",
+            description: Translation.tr("Switch to a named chat session"),
+            execute: (args) => {
+                const name = args.join(" ").trim();
+                if (name.length === 0) {
+                    Ai.addMessage(Translation.tr("Usage: %1switch SESSION_NAME").arg(root.commandPrefix), Ai.interfaceRole);
+                    return;
+                }
+                Ai.switchSession(name);
+            }
+        },
+        {
+            name: "list",
+            description: Translation.tr("List all chat sessions"),
+            execute: () => {
+                const sessions = Ai.listSessions();
+                if (sessions.length === 0) {
+                    Ai.addMessage(Translation.tr("No sessions found."), Ai.interfaceRole);
+                    return;
+                }
+                const lines = sessions.map(s => {
+                    const date = new Date((s.lastModified || 0) * 1000);
+                    const timestamp = date.toLocaleString();
+                    const active = s.name === Ai.activeSessionName ? " *(active)*" : "";
+                    return `- **${s.name}**${active} — last modified: ${timestamp}`;
+                });
+                Ai.addMessage(Translation.tr("**Chat Sessions:**\n") + lines.join("\n"), Ai.interfaceRole);
+            }
+        },
+        {
+            name: "delete",
+            description: Translation.tr("Delete a chat session"),
+            execute: (args) => {
+                const name = args.join(" ").trim();
+                if (name.length === 0) {
+                    Ai.addMessage(Translation.tr("Usage: %1delete SESSION_NAME").arg(root.commandPrefix), Ai.interfaceRole);
+                    return;
+                }
+                Ai.deleteSession(name);
+            }
+        },
+        {
             name: "test",
             description: Translation.tr("Markdown test"),
             execute: () => {
@@ -241,6 +299,75 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         color: Appearance.colors.colOutlineVariant
     }
 
+    component ContextIndicator: RowLayout {
+        id: contextIndicator
+        spacing: 4
+
+        readonly property real usage: Ai.contextUsageRatio
+        readonly property color indicatorColor: usage > 0.9 ? Appearance.m3colors.m3error
+                                              : usage > 0.7 ? Appearance.m3colors.m3tertiary
+                                              : Appearance.colors.colSubtext
+
+        // Session name label
+        StyledText {
+            font.pixelSize: Appearance.font.pixelSize.small
+            color: Appearance.colors.colSubtext
+            text: Ai.activeSessionName
+        }
+
+        // Separator dot between session name and context usage
+        Rectangle {
+            visible: Ai.contextUsageRatio > 0 || Ai.compacting
+            implicitWidth: 3
+            implicitHeight: 3
+            radius: implicitWidth / 2
+            color: Appearance.colors.colOutlineVariant
+        }
+
+        // Context usage pill
+        RowLayout {
+            visible: Ai.contextUsageRatio > 0 || Ai.compacting
+            spacing: 4
+
+            // Progress bar segment
+            Rectangle {
+                visible: !Ai.compacting
+                implicitWidth: 36
+                implicitHeight: 4
+                radius: implicitHeight / 2
+                color: Appearance.colors.colOutlineVariant
+
+                Rectangle {
+                    width: Math.min(parent.width, parent.width * contextIndicator.usage)
+                    height: parent.height
+                    radius: parent.radius
+                    color: contextIndicator.indicatorColor
+
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: Appearance.animation.elementMove.duration
+                            easing.type: Appearance.animation.elementMove.type
+                        }
+                    }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Appearance.animation.elementMove.duration
+                        }
+                    }
+                }
+            }
+
+            // Percentage text or "Compacting..." label
+            StyledText {
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Ai.compacting ? Appearance.m3colors.m3tertiary : contextIndicator.indicatorColor
+                text: Ai.compacting
+                    ? Translation.tr("Compacting…")
+                    : Translation.tr("%1%").arg(Math.round(contextIndicator.usage * 100))
+            }
+        }
+    }
+
     ColumnLayout {
         id: columnLayout
         anchors.fill: parent
@@ -271,6 +398,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     .arg(Ai.tokenCount.input)
                     .arg(Ai.tokenCount.output)
             }
+            StatusSeparator {}
+            ContextIndicator {}
         }
 
         Item { // Messages
@@ -424,18 +553,107 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             }
         }
 
+        // AutoCompactNotification banner
+        Rectangle {
+            id: autoCompactBanner
+            visible: Ai.autoCompactShown && !Ai.autoCompactDismissed
+            Layout.fillWidth: true
+            implicitHeight: visible ? autoCompactBannerRow.implicitHeight + 12 : 0
+            radius: Appearance.rounding.small
+            color: Appearance.m3colors.m3tertiaryContainer
+
+            Behavior on implicitHeight {
+                animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+            }
+
+            RowLayout {
+                id: autoCompactBannerRow
+                anchors {
+                    left: parent.left
+                    right: parent.right
+                    verticalCenter: parent.verticalCenter
+                    leftMargin: 10
+                    rightMargin: 6
+                }
+                spacing: 6
+
+                MaterialSymbol {
+                    text: "info"
+                    iconSize: Appearance.font.pixelSize.normal
+                    color: Appearance.m3colors.m3onTertiaryContainer
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.m3colors.m3onTertiaryContainer
+                    text: Translation.tr("Context is getting full. Consider compacting.")
+                    wrapMode: Text.NoWrap
+                    elide: Text.ElideRight
+                }
+
+                ApiCommandButton {
+                    buttonText: Translation.tr("Compact")
+                    colBackground: Appearance.m3colors.m3tertiary
+                    colBackgroundHover: Qt.darker(Appearance.m3colors.m3tertiary, 1.1)
+                    colBackgroundActive: Qt.darker(Appearance.m3colors.m3tertiary, 1.2)
+                    contentItem: StyledText {
+                        horizontalAlignment: Text.AlignHCenter
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.m3colors.m3onTertiary
+                        text: Translation.tr("Compact")
+                    }
+                    onClicked: {
+                        Ai.compactChat("")
+                    }
+                }
+
+                RippleButton {
+                    implicitWidth: 28
+                    implicitHeight: 28
+                    buttonRadius: Appearance.rounding.small
+                    colBackground: "transparent"
+                    colBackgroundHover: Qt.alpha(Appearance.m3colors.m3onTertiaryContainer, 0.12)
+
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "close"
+                        iconSize: Appearance.font.pixelSize.normal
+                        color: Appearance.m3colors.m3onTertiaryContainer
+                    }
+
+                    onClicked: {
+                        Ai.autoCompactDismissed = true
+                    }
+                }
+            }
+        }
+
+        Item { // Input area wrapper (holds normal input + context-full overlay)
+            id: inputAreaWrapper
+            Layout.fillWidth: true
+            implicitHeight: Ai.contextFull ? contextFullOverlay.implicitHeight : inputWrapper.implicitHeight
+
+            Behavior on implicitHeight {
+                animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+            }
+
         Rectangle { // Input area
             id: inputWrapper
             property real columnSpacing: 5
-            Layout.fillWidth: true
+            anchors.left: parent.left
+            anchors.right: parent.right
             radius: Appearance.rounding.small
             color: Appearance.colors.colLayer1
-            implicitWidth: messageInputField.implicitWidth
             implicitHeight: Math.max(inputFieldRowLayout.implicitHeight + inputFieldRowLayout.anchors.topMargin 
                 + commandButtonsRow.implicitHeight + commandButtonsRow.anchors.bottomMargin + columnSpacing, 45)
             clip: true
             border.color: Appearance.colors.colOutlineVariant
             border.width: 1
+
+            // Hide normal input content when context is full
+            opacity: Ai.contextFull ? 0 : 1
+            visible: !Ai.contextFull
 
             Behavior on implicitHeight {
                 animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
@@ -555,6 +773,48 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                     name: `${messageInputField.text.trim().split(" ").length == 1 ? (root.commandPrefix + "tool ") : ""}${tool.target}`,
                                     displayName: toolName,
                                     description: Ai.toolDescriptions[toolName],
+                                }
+                            })
+                        } else if (messageInputField.text.startsWith(`${root.commandPrefix}switch`)) {
+                            root.suggestionQuery = messageInputField.text.split(" ").slice(1).join(" ") ?? ""
+                            const sessions = Ai.listSessions();
+                            const sessionResults = Fuzzy.go(root.suggestionQuery, sessions.map(s => {
+                                return {
+                                    name: Fuzzy.prepare(s.name),
+                                    obj: s,
+                                }
+                            }), {
+                                all: true,
+                                key: "name"
+                            })
+                            root.suggestionList = sessionResults.map(s => {
+                                const session = s.obj;
+                                const date = new Date((session.lastModified || 0) * 1000);
+                                return {
+                                    name: `${messageInputField.text.trim().split(" ").length == 1 ? (root.commandPrefix + "switch ") : ""}${session.name}`,
+                                    displayName: session.name,
+                                    description: Translation.tr("Switch to session \"%1\" (last modified: %2)").arg(session.name).arg(date.toLocaleString()),
+                                }
+                            })
+                        } else if (messageInputField.text.startsWith(`${root.commandPrefix}delete`)) {
+                            root.suggestionQuery = messageInputField.text.split(" ").slice(1).join(" ") ?? ""
+                            const sessions = Ai.listSessions();
+                            const sessionResults = Fuzzy.go(root.suggestionQuery, sessions.map(s => {
+                                return {
+                                    name: Fuzzy.prepare(s.name),
+                                    obj: s,
+                                }
+                            }), {
+                                all: true,
+                                key: "name"
+                            })
+                            root.suggestionList = sessionResults.map(s => {
+                                const session = s.obj;
+                                const date = new Date((session.lastModified || 0) * 1000);
+                                return {
+                                    name: `${messageInputField.text.trim().split(" ").length == 1 ? (root.commandPrefix + "delete ") : ""}${session.name}`,
+                                    displayName: session.name,
+                                    description: Translation.tr("Delete session \"%1\" (last modified: %2)").arg(session.name).arg(date.toLocaleString()),
                                 }
                             })
                         } else if(messageInputField.text.startsWith(root.commandPrefix)) {
@@ -694,7 +954,162 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 }
             }
 
-        }
+        } // end inputWrapper
+
+        Rectangle { // Context-full overlay
+            id: contextFullOverlay
+            anchors.left: parent.left
+            anchors.right: parent.right
+            visible: Ai.contextFull
+            opacity: Ai.contextFull ? 1 : 0
+            radius: Appearance.rounding.small
+            color: Appearance.colors.colLayer1
+            border.color: Appearance.m3colors.m3error
+            border.width: 1
+            implicitHeight: contextFullColumn.implicitHeight + 20
+
+            Behavior on opacity {
+                animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+            }
+
+            ColumnLayout {
+                id: contextFullColumn
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 12
+                spacing: 8
+
+                // Title row
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    MaterialSymbol {
+                        text: "warning"
+                        iconSize: Appearance.font.pixelSize.larger
+                        color: Appearance.m3colors.m3error
+                    }
+                    StyledText {
+                        text: Translation.tr("Context window full")
+                        font.pixelSize: Appearance.font.pixelSize.normal
+                        font.weight: Font.Medium
+                        color: Appearance.m3colors.m3error
+                        Layout.fillWidth: true
+                    }
+                }
+
+                // Model suggestions (only shown when largerContextModels is non-empty)
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    visible: Ai.largerContextModels.length > 0
+
+                    StyledText {
+                        text: Translation.tr("Switch to a model with a larger context window:")
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colSubtext
+                    }
+
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        Repeater {
+                            model: Ai.largerContextModels
+                            delegate: ApiCommandButton {
+                                required property string modelData
+                                bounce: false
+                                colBackground: Appearance.colors.colSecondaryContainer
+                                contentItem: StyledText {
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: Appearance.m3colors.m3onSurface
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: Ai.models[modelData]?.name ?? modelData
+                                }
+                                onClicked: Ai.switchToModel(modelData)
+                            }
+                        }
+                    }
+                }
+
+                // Compact section
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    StyledText {
+                        text: Translation.tr("Or compact the conversation to free up space:")
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colSubtext
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: compactFocusInput.implicitHeight + 8
+                            radius: Appearance.rounding.small
+                            color: Appearance.colors.colLayer2
+                            border.color: Appearance.colors.colOutlineVariant
+                            border.width: 1
+
+                            StyledTextArea {
+                                id: compactFocusInput
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                padding: 6
+                                wrapMode: TextArea.Wrap
+                                background: null
+                                placeholderText: Translation.tr("Optional: focus instructions (e.g. keep the code examples)")
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
+                            }
+                        }
+
+                        RippleButton {
+                            id: compactButton
+                            implicitHeight: 34
+                            implicitWidth: 90
+                            buttonRadius: Appearance.rounding.small
+                            enabled: !Ai.compacting
+                            toggled: enabled
+
+                            contentItem: RowLayout {
+                                anchors.centerIn: parent
+                                spacing: 4
+                                MaterialSymbol {
+                                    text: "compress"
+                                    iconSize: Appearance.font.pixelSize.normal
+                                    color: compactButton.enabled ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnLayer2Disabled
+                                }
+                                StyledText {
+                                    text: Ai.compacting ? Translation.tr("Compacting…") : Translation.tr("Compact")
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: compactButton.enabled ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnLayer2Disabled
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: compactButton.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: {
+                                    if (compactButton.enabled) {
+                                        Ai.compactChat(compactFocusInput.text.trim())
+                                        compactFocusInput.clear()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } // end contextFullOverlay
+
+        } // end inputAreaWrapper
         
     }
 

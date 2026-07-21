@@ -31,6 +31,12 @@ node_modules/
 *.bak
 *.orig
 
+# Python / testing
+.hypothesis/
+__pycache__/
+*.pyc
+.pytest_cache/
+
 # External repositories (for reference only)
 dots-hyprland/
 dots-hyprland-wiki/
