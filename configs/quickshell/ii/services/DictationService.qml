@@ -425,8 +425,15 @@ Singleton {
             return
         }
 
-        // Success — put text in input field for review/edit before sending
-        root.transcriptionComplete(text)
+        // Route based on sidebar state
+        if (GlobalStates.sidebarLeftOpen) {
+            // Sidebar open — put text in input field for review/edit
+            root.transcriptionComplete(text)
+        } else {
+            // Sidebar closed — open overview with "? text" to trigger ActionPalette
+            var aiPrefix = Config.options.search.prefix.ai || "?"
+            Quickshell.execDetached(["quickshell", "ipc", "call", "overview", "setSearchingText", aiPrefix + " " + text])
+        }
 
         // Clean up temp audio file
         Quickshell.execDetached(["rm", "-f", root._recordingPath])
