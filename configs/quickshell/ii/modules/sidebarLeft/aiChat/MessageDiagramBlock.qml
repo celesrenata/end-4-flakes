@@ -123,6 +123,10 @@ ColumnLayout {
         }
     }
 
+    Process {
+        id: copyImageProc
+    }
+
     // Header bar
     Rectangle {
         Layout.fillWidth: true
@@ -161,6 +165,27 @@ ColumnLayout {
             Item { Layout.fillWidth: true }
 
             ButtonGroup {
+                AiMessageControlButton {
+                    id: copyImageButton
+                    visible: root.svgPath.length > 0 && !root.rendering && !root.renderError
+                    buttonIcon: activated ? "inventory" : "image"
+                    onClicked: {
+                        // Copy rendered diagram as PNG to clipboard via wl-copy
+                        copyImageProc.command = ["bash", "-c",
+                            "magick '" + root.svgPath + "' png:- | wl-copy --type image/png"
+                        ];
+                        copyImageProc.running = true;
+                        copyImageButton.activated = true;
+                        copyImageTimer.restart();
+                    }
+                    Timer {
+                        id: copyImageTimer
+                        interval: 1500
+                        repeat: false
+                        onTriggered: copyImageButton.activated = false
+                    }
+                    StyledToolTip { content: Translation.tr("Copy image") }
+                }
                 AiMessageControlButton {
                     id: copyButton
                     buttonIcon: activated ? "inventory" : "content_copy"
