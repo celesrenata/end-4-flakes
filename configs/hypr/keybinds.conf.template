@@ -17,7 +17,6 @@ bindd = Super, Tab, Toggle overview, global, quickshell:overviewWorkspacesToggle
 bindd = Super, G, Toggle overlay, global, quickshell:overlayToggle # Toggle overlay
 bindd = Super, A, Toggle left sidebar, global, quickshell:sidebarLeftToggle # Toggle left sidebar
 bind = Super+Alt, A, global, quickshell:sidebarLeftToggleDetach # [hidden]
-bindrit = ,Control_R, global, quickshell:dictationTap # [hidden] Dictation double-tap detection
 bind = Super, B, global, quickshell:sidebarLeftToggle # [hidden]
 bind = Super, O, global, quickshell:sidebarLeftToggle # [hidden]
 bindd = Super, N, Toggle right sidebar, global, quickshell:sidebarRightToggle # Toggle right sidebar
@@ -269,3 +268,4 @@ submap = reset
 bind = Ctrl+Super, Backslash, resizeactive, exact 640 480 # [hidden]
 
 @CUSTOM_KEYBINDS@
+bind = ,F20, global, quickshell:dictationTap # [hidden] Dictation (double-tap Right Alt via keyd)

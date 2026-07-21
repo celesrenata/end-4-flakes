@@ -595,7 +595,7 @@ Singleton {
         }
     }
 
-    // Called when Control_R is released (from GlobalShortcut dictationTap)
+    // Called when dictation trigger fires (F20 from keyd double-tap, or hyprctl dispatch)
     function onKeyTap() {
         console.log("[DictationService] onKeyTap: state=" + root.state + " _waitingForSecondTap=" + root._waitingForSecondTap)
         if (root.state === DictationService.State.Listening || root.state === DictationService.State.StreamingActive) {
@@ -605,18 +605,10 @@ Singleton {
             return
         }
 
-        if (root._waitingForSecondTap) {
-            // Second tap within threshold — activate!
-            console.log("[DictationService] Second tap detected — activating!")
-            root._waitingForSecondTap = false
-            doubleTapTimer.stop()
-            activate()
-        } else {
-            // First tap — start waiting for second
-            console.log("[DictationService] First tap — waiting for second")
-            root._waitingForSecondTap = true
-            doubleTapTimer.restart()
-        }
+        // keyd handles double-tap detection at kernel level, so F20 only fires
+        // on confirmed double-tap. Activate directly.
+        console.log("[DictationService] Activating directly (keyd double-tap confirmed)")
+        activate()
     }
 
     function detectCapability(provider, streamingEndpoint) {
