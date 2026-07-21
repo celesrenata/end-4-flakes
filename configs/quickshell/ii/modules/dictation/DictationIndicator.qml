@@ -253,6 +253,8 @@ Scope {
             implicitHeight: contentColumn.implicitHeight + 16
             radius: Appearance.rounding.normal
             color: Appearance.colors.colLayer1
+            border.width: 2
+            border.color: Appearance.m3colors.m3primary
 
             Behavior on implicitWidth {
                 animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)

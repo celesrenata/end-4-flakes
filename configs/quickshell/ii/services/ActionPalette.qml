@@ -816,6 +816,7 @@ Rules:
     function checkPolicyGates() {
         // 1. AI completely disabled
         if (Config.options.policies.ai === 0) {
+            console.log("[ActionPalette] Gate BLOCKED: AI disabled by policy")
             root.errorMessage = "AI is disabled by policies.ai configuration";
             root.state = ActionPalette.Error;
             root.canRetry = false;
@@ -824,15 +825,23 @@ Rules:
 
         // 2. No valid model selected
         if (!Ai.currentModelId || !Ai.models[Ai.currentModelId]) {
-            root.errorMessage = "Select a model in the AI sidebar";
-            root.state = ActionPalette.Error;
-            root.canRetry = false;
-            return false;
+            // Model might not be loaded yet (provider discovery pending) — fall back to first available
+            if (Ai.modelList.length > 0 && Ai.models[Ai.modelList[0]]) {
+                console.log("[ActionPalette] Model '" + Ai.currentModelId + "' not found, falling back to " + Ai.modelList[0])
+                Ai.setModel(Ai.modelList[0], false, false);
+            } else {
+                console.log("[ActionPalette] Gate BLOCKED: No model. currentModelId=" + Ai.currentModelId)
+                root.errorMessage = "Select a model in the AI sidebar";
+                root.state = ActionPalette.Error;
+                root.canRetry = false;
+                return false;
+            }
         }
 
         // 3. Local-only policy with online model
         const endpoint = Ai.models[Ai.currentModelId]?.endpoint || "";
         if (Config.options.policies.ai === 2 && !endpoint.includes("localhost")) {
+            console.log("[ActionPalette] Gate BLOCKED: Online model disallowed")
             root.errorMessage = "Online models are disallowed by policies.ai configuration";
             root.state = ActionPalette.Error;
             root.canRetry = false;
@@ -841,6 +850,7 @@ Rules:
 
         // 4. Missing API key
         if (!Ai.currentModelHasApiKey) {
+            console.log("[ActionPalette] Gate BLOCKED: No API key for model " + Ai.currentModelId)
             root.errorMessage = "Set an API key via /key in the AI sidebar";
             root.state = ActionPalette.Error;
             root.canRetry = false;
@@ -852,7 +862,9 @@ Rules:
 
     // === Internal: Send request to LLM ===
     function sendRequest() {
+        console.log("[ActionPalette] sendRequest called, query: " + root.lastQuery.substring(0, 50))
         if (!root.checkPolicyGates()) {
+            console.log("[ActionPalette] Policy gates blocked request")
             return;
         }
 

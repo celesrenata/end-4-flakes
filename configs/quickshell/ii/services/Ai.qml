@@ -505,6 +505,12 @@ Singleton {
             }
             // Refresh modelList to include newly discovered models
             root.modelList = Object.keys(root.models);
+
+            // If the persisted model is now available, switch to it
+            const persistedModel = Persistent.states?.ai?.model;
+            if (persistedModel && root.models[persistedModel] && root.currentModelId !== persistedModel) {
+                root.setModel(persistedModel, false, false);
+            }
         }
     }
 

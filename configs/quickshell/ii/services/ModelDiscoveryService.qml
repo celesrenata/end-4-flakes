@@ -109,6 +109,31 @@ Singleton {
     // Custom providers from user config
     property var customProviders: Config.options.ai.customProviders || []
 
+    // Auto-discover models for all providers that have stored API keys on startup
+    Connections {
+        target: KeyringStorage
+        function onLoadedChanged() {
+            if (!KeyringStorage.loaded) return
+            console.log("[ModelDiscovery] KeyringStorage loaded, auto-discovering providers...")
+            var keys = KeyringStorage.keyringData?.apiKeys || {}
+            var providers = Object.keys(root.providerConfigs)
+            for (var i = 0; i < providers.length; i++) {
+                var pid = providers[i]
+                var config = root.providerConfigs[pid]
+                if (config.requires_key && keys[config.key_id]) {
+                    root.discoverModels(pid)
+                } else if (!config.requires_key && pid !== "bedrock") {
+                    root.discoverModels(pid)
+                }
+            }
+            // Also discover custom providers
+            var customs = root.customProviders || []
+            for (var j = 0; j < customs.length; j++) {
+                root.discoverModels(customs[j].id)
+            }
+        }
+    }
+
     // --- Pure functions (testable) ---
 
     function getEffectiveProviderConfig(providerId) {

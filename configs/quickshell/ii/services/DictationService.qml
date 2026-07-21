@@ -276,6 +276,10 @@ Singleton {
         repeat: false
         onTriggered: {
             root.responseText = ""
+            // Always reset to Idle so the service can be activated again
+            if (root.state === DictationService.State.Error) {
+                root.state = DictationService.State.Idle
+            }
         }
     }
 
@@ -668,6 +672,12 @@ Singleton {
     }
 
     function activate() {
+        // Force reset from any stuck state (Error, Processing) so activation always works
+        if (root.state === DictationService.State.Error || root.state === DictationService.State.Processing) {
+            console.log("[DictationService] Resetting from stuck state: " + root.state)
+            root.state = DictationService.State.Idle
+        }
+
         // Stop any in-progress TTS playback before starting a new dictation session
         TtsService.stop()
 
