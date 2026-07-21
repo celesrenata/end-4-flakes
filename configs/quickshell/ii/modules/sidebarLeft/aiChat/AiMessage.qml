@@ -254,7 +254,8 @@ Rectangle {
                     property bool done: root.messageData?.done ?? false
                     property bool completed: thisBlock.completed ?? false
                     
-                    source: thisBlock.type === "code" ? "MessageCodeBlock.qml" : 
+                    source: thisBlock.type === "code" && (thisBlock.lang === "dot" || thisBlock.lang === "graphviz") ? "MessageDiagramBlock.qml" :
+                        thisBlock.type === "code" ? "MessageCodeBlock.qml" : 
                         thisBlock.type === "think" ? "MessageThinkBlock.qml" :
                         "MessageTextBlock.qml"
 
