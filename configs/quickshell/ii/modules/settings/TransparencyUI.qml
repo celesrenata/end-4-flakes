@@ -172,8 +172,14 @@ Rectangle {
                                 value: transparencySettings ? transparencySettings.terminalOpacity : 100
                                 
                                 onValueChanged: {
-                                    if (transparencySettings && Math.abs(value - transparencySettings.terminalOpacity) > 0.5) {
-                                        transparencySettings.setTerminalOpacity(Math.round(value))
+                                    let v = Math.round(value)
+                                    if (v >= 0 && v <= 100) {
+                                        Quickshell.execDetached(["bash", "-c",
+                                            "mkdir -p ~/.local/state/quickshell/user/generated/terminal && " +
+                                            "echo " + v + " > ~/.local/state/quickshell/user/generated/terminal/opacity && " +
+                                            "~/.config/quickshell/ii/scripts/colors/applycolor.sh --term"
+                                        ])
+                                        if (transparencySettings) transparencySettings.terminalOpacity = v
                                     }
                                 }
                             }

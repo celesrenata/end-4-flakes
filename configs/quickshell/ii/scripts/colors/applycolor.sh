@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Parse arguments
+TERM_ONLY=false
+if [[ "$1" == "--term" ]]; then
+  TERM_ONLY=true
+fi
+
 QUICKSHELL_CONFIG_NAME="ii"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
@@ -9,13 +15,13 @@ CACHE_DIR="$XDG_CACHE_HOME/quickshell"
 STATE_DIR="$XDG_STATE_HOME/quickshell"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Read opacity from file, default to 10 if not found
+# Read terminal alpha from file or default
 if [ -f "$STATE_DIR/user/generated/terminal/opacity" ]; then
   term_alpha=$(cat "$STATE_DIR/user/generated/terminal/opacity")
 else
-  term_alpha=10
+  term_alpha=60
 fi
-# sleep 0 # idk i wanted some delay or colors dont get applied properly
+
 if [ ! -d "$STATE_DIR"/user/generated ]; then
   mkdir -p "$STATE_DIR"/user/generated
 fi
@@ -25,6 +31,12 @@ colornames=''
 colorstrings=''
 colorlist=()
 colorvalues=()
+
+# If material_colors.scss is empty or doesn't exist, generate colors first
+if [ ! -f "$STATE_DIR/user/generated/material_colors.scss" ] || [ ! -s "$STATE_DIR/user/generated/material_colors.scss" ]; then
+  echo "material_colors.scss is missing or empty, generating colors..."
+  "$SCRIPT_DIR/switchwall.sh" --noswitch
+fi
 
 colornames=$(cat $STATE_DIR/user/generated/material_colors.scss | cut -d: -f1)
 colorstrings=$(cat $STATE_DIR/user/generated/material_colors.scss | cut -d: -f2 | cut -d ' ' -f2 | cut -d ";" -f1)
@@ -57,14 +69,43 @@ apply_term() {
   done
 }
 
-apply_qt() {
-  sh "$CONFIG_DIR/scripts/kvantum/materialQT.sh"          # generate kvantum theme
-  python "$CONFIG_DIR/scripts/kvantum/changeAdwColors.py" # apply config colors
+apply_foot() {
+  if [ ! -f "$SCRIPT_DIR/foot/foot.ini" ]; then
+    echo "Template file not found for Foot. Skipping that."
+    return
+  fi
+  mkdir -p "$STATE_DIR"/user/generated/foot
+  cp "$SCRIPT_DIR/foot/foot.ini" "$STATE_DIR"/user/generated/foot/foot.ini
+  for i in "${!colorlist[@]}"; do
+    sed -i "s/{{ ${colorlist[$i]} }}/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/foot/foot.ini
+  done
+  # Substitute alpha value (convert percentage to decimal)
+  local alpha_decimal=$(awk "BEGIN {printf \"%.2f\", $term_alpha/100}")
+  sed -i "s/{{ \$alpha }}/$alpha_decimal/g" "$STATE_DIR"/user/generated/foot/foot.ini
+  cp "$STATE_DIR"/user/generated/foot/foot.ini "$XDG_CONFIG_HOME/foot/foot.ini"
+
+  # Signal running foot instances to reload config (colors hot-reload on new terminals)
+  pkill -USR1 foot 2>/dev/null || true
 }
 
-# Handle arguments
-if [ "$1" = "term" ]; then
+apply_wofi() {
+  if [ ! -f "$SCRIPT_DIR/wofi/style.css" ]; then
+    echo "Template file not found for Wofi. Skipping that."
+    return
+  fi
+  mkdir -p "$STATE_DIR"/user/generated/wofi
+  cp "$SCRIPT_DIR/wofi/style.css" "$STATE_DIR"/user/generated/wofi/style.css
+  for i in "${!colorlist[@]}"; do
+    sed -i "s/{{ ${colorlist[$i]} }}/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/wofi/style.css
+  done
+  cp "$STATE_DIR"/user/generated/wofi/style.css "$XDG_CONFIG_HOME/wofi/style.css"
+}
+
+
+# If --term flag is set, only update terminal
+if [ "$TERM_ONLY" = true ]; then
   apply_term
+  apply_foot
   exit 0
 fi
 
@@ -80,4 +121,5 @@ else
   apply_term &
 fi
 
-# apply_qt & # Qt theming is already handled by kde-material-colors
+apply_foot &
+apply_wofi &

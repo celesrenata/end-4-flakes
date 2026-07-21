@@ -190,12 +190,9 @@ ContentPage {
                     stepSize: 5
                     
                     onValueChanged: {
-                        if (!Config.options.terminal) Config.options.terminal = {};
-                        Config.options.terminal.opacity = value;
-                        
                         Quickshell.execDetached(["bash", "-c", `
                             mkdir -p ~/.local/state/quickshell/user/generated/terminal && 
-                            echo "${value}" > ~/.local/state/quickshell/user/generated/terminal/opacity && 
+                            echo "${Math.round(value)}" > ~/.local/state/quickshell/user/generated/terminal/opacity && 
                             ~/.config/quickshell/ii/scripts/colors/applycolor.sh --term
                         `]);
                     }

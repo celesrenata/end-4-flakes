@@ -103,12 +103,12 @@ Rectangle {
     function setTerminalOpacity(opacity) {
         terminalOpacity = opacity
         
-        // Save to terminal transparency file
-        Process.exec("bash", ["-c", `mkdir -p $(dirname "${terminalTransparencyFile}")
-            echo "${opacity}" > "${terminalTransparencyFile}"`])
-        
-        // Apply terminal colors (equivalent to AGS applycolor.sh term)
-        applyTerminalColors()
+        // Save to terminal opacity file and apply via applycolor.sh
+        Process.exec("bash", ["-c", `
+            mkdir -p ~/.local/state/quickshell/user/generated/terminal &&
+            echo "${opacity}" > ~/.local/state/quickshell/user/generated/terminal/opacity &&
+            ~/.config/quickshell/ii/scripts/colors/applycolor.sh --term
+        `])
     }
     
     // Apply Hyprland blur settings
