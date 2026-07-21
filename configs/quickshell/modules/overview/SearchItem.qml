@@ -90,7 +90,10 @@ RippleButton {
 
     onClicked: {
         root.itemExecute()
-        GlobalStates.overviewOpen = false
+        // Only close overview if the entry has a real action (non-empty clickActionName)
+        // AI Action Palette entries have empty execute and rely on action buttons instead
+        if (root.itemClickActionName && root.itemClickActionName !== "")
+            GlobalStates.overviewOpen = false
     }
     Keys.onPressed: (event) => {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -224,6 +227,7 @@ RippleButton {
 
         RowLayout {
             spacing: 4
+            visible: root.hovered || root.focus
             Repeater {
                 model: (root.entry.actions ?? []).slice(0, 4)
                 delegate: RippleButton {
@@ -235,26 +239,18 @@ RippleButton {
                     contentItem: Item {
                         id: actionContentItem
                         anchors.centerIn: parent
-                        Loader {
+                        MaterialSymbol {
                             anchors.centerIn: parent
-                            active: !(actionButton.modelData.icon && actionButton.modelData.icon !== "")
-                            sourceComponent: MaterialSymbol {
-                                text: "video_settings"
-                                font.pixelSize: Appearance.font.pixelSize.hugeass
-                                color: Appearance.m3colors.m3onSurface
-                            }
-                        }
-                        Loader {
-                            anchors.centerIn: parent
-                            active: actionButton.modelData.icon && actionButton.modelData.icon !== ""
-                            sourceComponent: IconImage {
-                                source: Quickshell.iconPath(actionButton.modelData.icon)
-                                implicitSize: 20
-                            }
+                            text: actionButton.modelData.icon ?? "video_settings"
+                            font.pixelSize: Appearance.font.pixelSize.hugeass
+                            color: Appearance.m3colors.m3onSurface
                         }
                     }
 
-                    onClicked: modelData.execute()
+                    onClicked: (event) => {
+                        event.accepted = true
+                        modelData.execute()
+                    }
 
                     StyledToolTip {
                         content: modelData.name

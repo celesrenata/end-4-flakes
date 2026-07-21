@@ -31,6 +31,7 @@ let
     hyprutils
     hyprlock
     hyprpicker
+    libsecret # provides secret-tool for secure API key storage
     networkmanagerapplet # nm-connection-editor
     pkgs.quickshell
     translate-shell

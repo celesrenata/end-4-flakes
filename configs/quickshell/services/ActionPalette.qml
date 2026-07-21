@@ -472,6 +472,10 @@ Singleton {
         }
 
         // Execute all actions directly — user triggered from action palette (implicit approval)
+        // Close the overview BEFORE dispatching — Hyprland dispatches like focuswindow/fullscreen
+        // don't work correctly while the overview layer-shell surface is active
+        GlobalStates.overviewOpen = false;
+
         // Collect all shell.exec commands to run as a single combined script
         var shellCommands = [];
         for (var i = 0; i < root.actionPlan.actions.length; i++) {
@@ -501,14 +505,25 @@ Singleton {
         }
 
         // Run shell commands via delayed Timer (ensures dispatch fires after click handler)
+        // Wrap non-silent commands in a terminal so output is visible to the user
         if (shellCommands.length > 0) {
-            console.log("[ActionPalette] queuing " + shellCommands.length + " commands for delayed dispatch");
-            root._pendingCommands = shellCommands;
+            var wrappedCommands = shellCommands.map(function(cmd) {
+                var isSilent = /^(pkill|kill|killall|systemctl|hyprctl|notify-send|xdg-open|nohup|sleep)\b/.test(cmd)
+                    || /&\s*$/.test(cmd)
+                    || />\s*\/dev\/null/.test(cmd)
+                    || /^sleep\s/.test(cmd);
+                if (isSilent) {
+                    return cmd;
+                } else {
+                    return "foot -e bash -c '" + cmd.replace(/'/g, "'\\''") + "; echo; echo Press Enter to close...; read'";
+                }
+            });
+            console.log("[ActionPalette] queuing " + wrappedCommands.length + " commands for delayed dispatch");
+            root._pendingCommands = wrappedCommands;
             execDelayTimer.start();
         }
 
         root.state = ActionPalette.Idle;
-        GlobalStates.overviewOpen = false;
     }
 
     /**
@@ -556,11 +571,10 @@ Singleton {
                     || />\s*\/dev\/null/.test(cmd2)
                     || /^sleep\s/.test(cmd2);
                 if (isSilent2) {
-                    fireAndForgetProcess.command = ["hyprctl", "dispatch", "exec", cmd2];
+                    root._spawn(["hyprctl", "dispatch", "exec", cmd2]);
                 } else {
-                    fireAndForgetProcess.command = ["hyprctl", "dispatch", "exec", "foot -e bash -c '" + cmd2.replace(/'/g, "'\\''") + "; echo; echo Press Enter to close...; read'"];
+                    root._spawn(["hyprctl", "dispatch", "exec", "foot -e bash -c '" + cmd2.replace(/'/g, "'\\''") + "; echo; echo Press Enter to close...; read'"]);
                 }
-                fireAndForgetProcess.running = true;
                 GlobalStates.overviewOpen = false;
                 break;
             case "hyprland.dispatch":
@@ -720,13 +734,32 @@ Supported action types:
    Required parameters: "id" (string - desktop entry app ID)
    Example: {"type": "app.launch", "id": "org.kde.dolphin"}
 
+Hyprland dispatcher reference (use with hyprland.dispatch):
+- Window targeting uses the "address" field from the windows context (e.g., "0x5625c2cb74c0")
+- focuswindow — Focus a specific window. Args: "address:<hex_address>"
+  Example: {"type": "hyprland.dispatch", "dispatcher": "focuswindow", "args": "address:0x5625c2cb74c0"}
+- fullscreen — Toggle fullscreen on the CURRENTLY FOCUSED window. Args: "1" (maximize) or "0" (real fullscreen)
+  IMPORTANT: fullscreen operates on the focused window only. To fullscreen a specific app, you MUST first focus it, then fullscreen it as TWO separate actions.
+  Example (fullscreen Discord):
+    [{"type": "hyprland.dispatch", "dispatcher": "focuswindow", "args": "address:0x..."},
+     {"type": "hyprland.dispatch", "dispatcher": "fullscreen", "args": "1"}]
+- workspace — Switch to workspace. Args: workspace number or "r+1"/"r-1" for relative
+- movetoworkspace — Move focused window to workspace. Args: "N" or "N,address:<hex>"
+- movetoworkspacesilent — Same but don't follow the window
+- closewindow — Close a window. Args: "address:<hex_address>"
+- togglefloating — Toggle floating on focused window (or "address:<hex>")
+- pin — Pin focused window (always on top)
+- exec — Run a shell command detached. Args: the command string
+
+Window context: The "windows" array in the context contains REAL window data with actual addresses. ALWAYS use the exact address from context — never guess or fabricate addresses.
+
 Configuration key namespaces (use with config.set):
 - appearance.* — Visual settings (transparency, borderless, schemeIndex, etc.)
 - bar.* — Status bar configuration
 - search.* — Search/launcher settings
 - apps.* — Default application settings
 - ai.* — AI model configuration
-- policies.* — Policy settings
+- policies.* — Policy settings (READ-ONLY, cannot be changed)
 
 Rules:
 - Return ONLY valid JSON, no markdown, no explanation text
@@ -735,6 +768,8 @@ Rules:
 - Each action must have a "type" field and all required parameters for that type
 - Prefer config.set over shell.exec when possible (safer, reversible)
 - Use hyprland.dispatch for window/workspace management
+- ALWAYS use the actual window address from the context when targeting specific windows
+- To act on a window that is NOT currently focused, ALWAYS issue a focuswindow dispatch FIRST, then the action (e.g., fullscreen)
 - Use app.launch for opening applications when you know the exact desktop entry ID
 - When unsure of the desktop entry ID, use shell.exec to launch apps by command name
 - For "restart X" requests, use TWO shell.exec actions: first "pkill -f X" then "sleep 1 && X"
@@ -959,9 +994,13 @@ Rules:
     function buildActionContext() {
         const config = JSON.parse(JSON.stringify(Config.options));
         const windows = HyprlandData.windowList.map(w => ({
+            address: w.address || "",
             appId: w.class || "",
             title: w.title || "",
-            workspace: w.workspace?.id ?? -1
+            workspace: w.workspace?.id ?? -1,
+            fullscreen: w.fullscreen || 0,
+            floating: w.floating || false,
+            focused: w.focusHistoryID === 0
         }));
         const activeWorkspace = HyprlandData.activeWorkspace?.id ?? 1;
         return {
