@@ -237,6 +237,45 @@ Rectangle {
             id: messageContentColumnLayout
 
             spacing: 0
+
+            // Attached image thumbnails (Context Lens integration)
+            Flow {
+                visible: (root.messageData?.images?.length ?? 0) > 0
+                Layout.fillWidth: true
+                Layout.bottomMargin: 8
+                spacing: 5
+
+                Repeater {
+                    model: root.messageData?.images?.length ?? 0
+                    delegate: Rectangle {
+                        required property int index
+                        width: 120
+                        height: 90
+                        radius: Appearance.rounding.small
+                        color: Appearance.colors.colLayer2
+                        clip: true
+
+                        Image {
+                            anchors.fill: parent
+                            source: (root.messageData?.images?.[index] ?? "").length > 0
+                                ? ("data:image/png;base64," + root.messageData.images[index])
+                                : ""
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                imageViewPopup.imageSource = "data:image/png;base64," + root.messageData.images[index];
+                                imageViewPopup.visible = true;
+                            }
+                        }
+                    }
+                }
+            }
+
             Repeater {
                 model: root.messageBlocks.length
                 delegate: Loader {
@@ -254,7 +293,7 @@ Rectangle {
                     property bool done: root.messageData?.done ?? false
                     property bool completed: thisBlock.completed ?? false
                     
-                    source: thisBlock.type === "code" && (thisBlock.lang === "dot" || thisBlock.lang === "graphviz") ? "MessageDiagramBlock.qml" :
+                    source: thisBlock.type === "code" && (thisBlock.lang === "dot" || thisBlock.lang === "graphviz" || thisBlock.lang === "mermaid") ? "MessageDiagramBlock.qml" :
                         thisBlock.type === "code" ? "MessageCodeBlock.qml" : 
                         thisBlock.type === "think" ? "MessageThinkBlock.qml" :
                         "MessageTextBlock.qml"
@@ -299,5 +338,28 @@ Rectangle {
         }
 
     }
-}
 
+    // Full-image view popup overlay
+    Rectangle {
+        id: imageViewPopup
+        property string imageSource: ""
+        visible: false
+        anchors.fill: parent
+        color: "#cc000000"
+        z: 100
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: imageViewPopup.visible = false
+        }
+
+        Image {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 20, sourceSize.width)
+            height: Math.min(parent.height - 20, sourceSize.height)
+            source: imageViewPopup.imageSource
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+        }
+    }
+}

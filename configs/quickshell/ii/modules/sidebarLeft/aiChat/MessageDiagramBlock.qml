@@ -25,26 +25,33 @@ ColumnLayout {
     property var segmentLang: parent?.segmentLang ?? "dot"
     property var messageData: parent?.messageData ?? {}
     property bool done: parent?.done ?? true
+    property bool completed: parent?.completed ?? false
 
     property string svgPath: ""
     property bool rendering: false
     property bool renderError: false
+    property bool waiting: !completed  // Waiting for closing fence
     property string errorText: ""
 
     property real diagramRounding: Appearance.rounding.small
+
+    // Determine render command based on language
+    readonly property bool isMermaid: segmentLang === "mermaid"
+    readonly property string diagramLabel: isMermaid ? "Mermaid Diagram" : "Diagram"
 
     spacing: 2
     anchors.left: parent.left
     anchors.right: parent.right
 
     Component.onCompleted: {
-        if (segmentContent && segmentContent.length > 0) {
+        if (segmentContent && segmentContent.length > 0 && root.done) {
             root.renderDiagram();
         }
     }
 
     onSegmentContentChanged: {
-        if (segmentContent && segmentContent.length > 0 && root.done) {
+        // Don't render while streaming — wait for block to be complete
+        if (segmentContent && segmentContent.length > 0 && root.done && root.completed) {
             root.renderDiagram();
         }
     }
@@ -55,19 +62,37 @@ ColumnLayout {
         }
     }
 
+    // When the code block's closing fence arrives, render
+    onCompletedChanged: {
+        if (completed && segmentContent && segmentContent.length > 0) {
+            root.renderDiagram();
+        }
+    }
+
     function renderDiagram() {
         root.rendering = true;
         root.renderError = false;
         root.errorText = "";
+        root.waiting = false;
         // Generate unique filename based on content hash
         let hash = Qt.md5(segmentContent);
         let outPath = "/tmp/quickshell-diagrams/" + hash + ".svg";
         root.svgPath = outPath;
-        dotProcess.command = ["bash", "-c",
-            "mkdir -p /tmp/quickshell-diagrams && echo '" +
-            StringUtils.shellSingleQuoteEscape(segmentContent) +
-            "' | dot -Tsvg -o '" + outPath + "' 2>&1 && echo SUCCESS || echo FAILED"
-        ];
+
+        let renderCmd;
+        if (root.isMermaid) {
+            // Use mmdr (mermaid-rs-renderer) for mermaid diagrams
+            renderCmd = "mkdir -p /tmp/quickshell-diagrams && echo '" +
+                StringUtils.shellSingleQuoteEscape(segmentContent) +
+                "' | mmdr -e svg -o '" + outPath + "' 2>&1 && echo SUCCESS || echo FAILED";
+        } else {
+            // Use Graphviz dot for dot/graphviz diagrams
+            renderCmd = "mkdir -p /tmp/quickshell-diagrams && echo '" +
+                StringUtils.shellSingleQuoteEscape(segmentContent) +
+                "' | dot -Tsvg -o '" + outPath + "' 2>&1 && echo SUCCESS || echo FAILED";
+        }
+
+        dotProcess.command = ["bash", "-c", renderCmd];
         dotProcess.running = true;
     }
 
@@ -130,7 +155,7 @@ ColumnLayout {
                 font.pixelSize: Appearance.font.pixelSize.small
                 font.weight: Font.DemiBold
                 color: Appearance.colors.colOnLayer2
-                text: "Diagram"
+                text: root.diagramLabel
             }
 
             Item { Layout.fillWidth: true }
@@ -165,6 +190,27 @@ ColumnLayout {
         bottomRightRadius: diagramRounding
         color: Appearance.colors.colLayer2
         implicitHeight: Math.max(60, diagramImage.implicitHeight + 20)
+
+        // Waiting for stream to complete (closing fence not yet received)
+        ColumnLayout {
+            anchors.centerIn: parent
+            visible: root.waiting && !root.rendering && !root.renderError
+            spacing: 4
+
+            MaterialSymbol {
+                Layout.alignment: Qt.AlignHCenter
+                iconSize: Appearance.font.pixelSize.huger
+                color: Appearance.colors.colSubtext
+                text: "schema"
+                opacity: 0.5
+            }
+            StyledText {
+                Layout.alignment: Qt.AlignHCenter
+                text: Translation.tr("Rendering when complete...")
+                color: Appearance.colors.colSubtext
+                font.pixelSize: Appearance.font.pixelSize.small
+            }
+        }
 
         // Loading state
         BusyIndicator {
