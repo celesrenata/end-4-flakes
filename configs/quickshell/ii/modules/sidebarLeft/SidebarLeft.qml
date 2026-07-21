@@ -45,7 +45,10 @@ Scope { // Scope
             visible: GlobalStates.sidebarLeftOpen
             
             property bool extend: false
-            property real sidebarWidth: sidebarRoot.extend ? Appearance.sizes.sidebarWidthExtended : Appearance.sizes.sidebarWidth
+            property real userWidth: Persistent.states.sidebar?.leftWidth ?? Appearance.sizes.sidebarWidth
+            property real minWidth: Appearance.sizes.sidebarWidth
+            property real maxWidth: sidebarRoot.screen ? sidebarRoot.screen.width * 0.8 : 1500
+            property real sidebarWidth: Math.max(minWidth, Math.min(maxWidth, userWidth))
             property var contentParent: sidebarLeftBackground
 
             function hide() {
@@ -53,7 +56,7 @@ Scope { // Scope
             }
 
             exclusiveZone: 0
-            implicitWidth: Appearance.sizes.sidebarWidthExtended + Appearance.sizes.elevationMargin
+            implicitWidth: maxWidth + Appearance.sizes.elevationMargin
             WlrLayershell.namespace: "quickshell:sidebarLeft"
             // Hyprland 0.49: OnDemand is Exclusive, Exclusive just breaks click-outside-to-close
             // WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
@@ -109,12 +112,60 @@ Scope { // Scope
                     }
                     if (event.modifiers === Qt.ControlModifier) {
                         if (event.key === Qt.Key_O) {
-                            sidebarRoot.extend = !sidebarRoot.extend;
+                            // Toggle between min width and extended
+                            if (sidebarRoot.userWidth > sidebarRoot.minWidth + 20) {
+                                sidebarRoot.userWidth = sidebarRoot.minWidth;
+                            } else {
+                                sidebarRoot.userWidth = Appearance.sizes.sidebarWidthExtended;
+                            }
+                            Persistent.states.sidebar.leftWidth = sidebarRoot.userWidth;
                         }
                         else if (event.key === Qt.Key_P) {
                             root.detach = !root.detach;
                         }
                         event.accepted = true;
+                    }
+                }
+            }
+
+            // Resize handle on the right edge of the sidebar
+            Rectangle {
+                id: resizeHandle
+                anchors.top: sidebarLeftBackground.top
+                anchors.bottom: sidebarLeftBackground.bottom
+                x: sidebarLeftBackground.x + sidebarLeftBackground.width - 2
+                width: 6
+                color: resizeMouseArea.containsMouse || resizeMouseArea.pressed ? Appearance.colors.colPrimary : "transparent"
+                opacity: resizeMouseArea.containsMouse || resizeMouseArea.pressed ? 0.3 : 0
+                radius: 3
+
+                Behavior on opacity {
+                    NumberAnimation { duration: 150 }
+                }
+
+                MouseArea {
+                    id: resizeMouseArea
+                    anchors.fill: parent
+                    anchors.margins: -3
+                    hoverEnabled: true
+                    cursorShape: Qt.SplitHCursor
+                    property real startX: 0
+                    property real startWidth: 0
+
+                    onPressed: (mouse) => {
+                        startX = mouse.x + resizeHandle.x;
+                        startWidth = sidebarRoot.userWidth;
+                    }
+                    onPositionChanged: (mouse) => {
+                        if (pressed) {
+                            let delta = (mouse.x + resizeHandle.x) - startX;
+                            let newWidth = startWidth + delta;
+                            sidebarRoot.userWidth = Math.max(sidebarRoot.minWidth, Math.min(sidebarRoot.maxWidth, newWidth));
+                        }
+                    }
+                    onReleased: {
+                        // Persist the new width
+                        Persistent.states.sidebar.leftWidth = sidebarRoot.userWidth;
                     }
                 }
             }
