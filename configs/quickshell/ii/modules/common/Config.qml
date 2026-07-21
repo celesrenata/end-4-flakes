@@ -274,6 +274,18 @@ Singleton {
                 property bool transparency: true // Enable/disable terminal transparency
             }
 
+            property JsonObject dictation: JsonObject {
+                property bool enabled: true
+                property string activationKey: "Control_R"
+                property int doubleTapMs: 400
+                property int silenceTimeoutMs: 3000
+                property int maxDurationMs: 60000
+                property string provider: "openai"
+                property string model: "whisper-1"
+                property string streamingEndpoint: ""
+                property int chunkDurationMs: 3000
+            }
+
             property JsonObject blur: JsonObject {
                 property bool enabled: true
                 property bool xray: false

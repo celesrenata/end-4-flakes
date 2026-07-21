@@ -310,6 +310,21 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         }
     }
 
+    Connections {
+        target: DictationService
+        function onTranscriptionComplete(text) {
+            // Append transcribed text at cursor position (or end if no focus)
+            var existing = messageInputField.text
+            var pos = messageInputField.cursorPosition
+            var before = existing.substring(0, pos)
+            var after = existing.substring(pos)
+            var separator = (before.length > 0 && !before.endsWith(" ")) ? " " : ""
+            messageInputField.text = before + separator + text + after
+            messageInputField.cursorPosition = (before + separator + text).length
+            messageInputField.forceActiveFocus()
+        }
+    }
+
     component ContextIndicator: RowLayout {
         id: contextIndicator
         spacing: 4
@@ -1189,6 +1204,36 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                 event.accepted = true
                             }
                         }
+                    }
+                }
+
+                RippleButton { // Mic/dictation button
+                    id: micButton
+                    Layout.alignment: Qt.AlignTop
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    buttonRadius: Appearance.rounding.small
+                    visible: Config.options.dictation.enabled
+                    toggled: DictationService.state !== DictationService.State.Idle
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (DictationService.state === DictationService.State.Idle) {
+                                DictationService.activate()
+                            } else {
+                                DictationService.stopRecording()
+                            }
+                        }
+                    }
+
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        horizontalAlignment: Text.AlignHCenter
+                        iconSize: Appearance.font.pixelSize.larger
+                        color: micButton.toggled ? Appearance.m3colors.m3error : Appearance.colors.colOnLayer1
+                        text: micButton.toggled ? "stop" : "mic"
                     }
                 }
 

@@ -1046,6 +1046,7 @@ Singleton {
     function chatToJson() {
         return root.messageIDs.map(id => {
             const message = root.messageByID[id]
+            if (!message) return null
             return ({
                 "role": message.role,
                 "rawContent": message.rawContent,
@@ -1059,7 +1060,7 @@ Singleton {
                 "functionResponse": message.functionResponse,
                 "visibleToUser": message.visibleToUser,
             })
-        })
+        }).filter(m => m !== null)
     }
 
     FileView {
