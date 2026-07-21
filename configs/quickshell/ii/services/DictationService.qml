@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 
 import qs
 import qs.modules.common
+import qs.modules.common.functions as CF
 
 import Quickshell
 import Quickshell.Io
@@ -44,10 +45,403 @@ Singleton {
     // API key for remote transcription providers (populated by task 7.2 via KeyringStorage)
     property string _apiKey: ""
 
+    // STT fallback chain index: 0 = configured endpoint, 1 = localhost, 2 = OpenAI API
+    property int _fallbackIndex: 0
+
     // Signals
     signal activated()
     signal transcriptionComplete(string text)
     signal error(string message)
+
+    // Intent classification constants
+    readonly property var _commandVerbs: [
+        "open", "close", "launch", "set", "change", "toggle", "switch",
+        "move", "kill", "run", "show", "hide", "play", "pause", "stop",
+        "mute", "unmute", "find", "search", "check", "tell", "give", "list"
+    ]
+    readonly property var _questionWords: [
+        "what", "how", "when", "where", "who", "which",
+        "is", "are", "can", "do", "does", "will", "would", "should", "could"
+    ]
+
+    // Voice assistant response text — Floating Indicator binds to this
+    property string responseText: ""
+
+    // Manually dismiss the voice response indicator, stopping any active dismiss timers.
+    // Called by click-to-copy in DictationIndicator.
+    function dismissResponse() {
+        responseText = ""
+        responseClearTimer.stop()
+        errorDismissTimer.stop()
+        responseDismissTimer.stop()
+    }
+
+    // Shell.exec approval state — Floating Indicator shows approve/reject UI when true
+    property bool awaitingApproval: false
+    property string approvalCommand: ""
+    property int approvalActionIndex: -1
+
+    // Voice assistant system prompt — passed as extraSystemPrompt to submitQueryDirect
+    readonly property string _voiceAssistantPrompt:
+        "Respond concisely in natural spoken language. For simple lookups, one sentence max. " +
+        "For moderate queries, up to three short sentences. Only give detailed responses when " +
+        "explicitly asked. Use contractions and informal units. No markdown, no tables, no " +
+        "bullet points — plain spoken text."
+
+    // Intent classification: returns "command" or "dictation"
+    // When intentMode is "ai" and the text is ambiguous, this returns "ambiguous"
+    // to signal that _classifyIntentAi should be called for async LLM classification.
+    function _classifyIntent(text) {
+        var trimmed = text.trim()
+        if (!trimmed) return "command"
+
+        var words = trimmed.split(/\s+/)
+        var firstWord = words[0].toLowerCase()
+
+        // Imperative verb at start → command
+        if (_commandVerbs.indexOf(firstWord) !== -1) return "command"
+
+        // Question word at start → command
+        if (_questionWords.indexOf(firstWord) !== -1) return "command"
+
+        // Contains question mark → command
+        if (trimmed.indexOf("?") !== -1) return "command"
+
+        // Long text (>20 words) without command patterns → dictation
+        if (words.length > 20) return "dictation"
+
+        // Ambiguous short text: check if AI mode is enabled
+        if (Config.options.dictation.intentMode === "ai") return "ambiguous"
+
+        // Default to command (heuristic mode fallback)
+        return "command"
+    }
+
+    // AI-based intent classification for ambiguous cases.
+    // Sends a lightweight LLM request to classify text as "command" or "dictation".
+    // Uses the current model from Ai.qml with a 2-second timeout.
+    // Calls callback(result) with "command" or "dictation" when done.
+    property var _aiClassifyCallback: null
+    property string _aiClassifyBuffer: ""
+
+    function _classifyIntentAi(text, callback) {
+        root._aiClassifyCallback = callback
+        root._aiClassifyBuffer = ""
+
+        var model = Ai.models[Ai.currentModelId]
+        if (!model) {
+            console.warn("[DictationService] AI intent: no model available, defaulting to command")
+            callback("command")
+            return
+        }
+
+        // Policy: local-only mode — verify LLM endpoint is local before making the call
+        if (Config.options.policies.ai === 2) {
+            var endpoint = model.endpoint || ""
+            var isLocal = endpoint.startsWith("http://localhost") ||
+                          endpoint.startsWith("http://127.0.0.1") ||
+                          endpoint.startsWith("http://10.") ||
+                          endpoint.startsWith("http://192.168.")
+            if (!isLocal) {
+                console.warn("[DictationService] AI intent: policy requires local-only, endpoint '" + endpoint + "' is not local. Defaulting to command.")
+                callback("command")
+                return
+            }
+        }
+
+        // Build the classification prompt
+        var classifyPrompt = "Classify this as 'command' or 'dictation'. Reply with one word only: " + text
+
+        // Get API key
+        var apiKey = ""
+        if (model.requires_key && Ai.apiKeys) {
+            apiKey = Ai.apiKeys[model.key_id] || ""
+        }
+
+        // Set API key in environment for curl
+        if (apiKey) {
+            aiClassifyProcess.environment["API_KEY"] = apiKey
+        }
+
+        // Build request based on API format
+        var endpoint = ""
+        var data = {}
+        var authHeader = ""
+
+        if (model.api_format === "gemini") {
+            // Gemini: key in URL, generateContent (non-streaming)
+            endpoint = model.endpoint.replace(":streamGenerateContent", ":generateContent")
+                + "?key=${API_KEY}"
+            data = {
+                "contents": [{ "role": "user", "parts": [{ "text": classifyPrompt }] }],
+                "generationConfig": { "temperature": 0, "maxOutputTokens": 10 }
+            }
+            authHeader = ""
+        } else {
+            // OpenAI-compatible (openai, mistral, ollama, etc): non-streaming completions
+            endpoint = model.endpoint
+            data = {
+                "model": model.model,
+                "messages": [
+                    { "role": "user", "content": classifyPrompt }
+                ],
+                "stream": false,
+                "temperature": 0,
+                "max_tokens": 10
+            }
+            authHeader = '-H "Authorization: Bearer ${API_KEY}"'
+        }
+
+        var curlCmd = 'curl -s --max-time 2 "' + endpoint + '"'
+            + " -H 'Content-Type: application/json'"
+            + (authHeader ? " " + authHeader : "")
+            + " -d '" + CF.StringUtils.shellSingleQuoteEscape(JSON.stringify(data)) + "'"
+
+        aiClassifyProcess.command = ["bash", "-c", curlCmd]
+        aiClassifyTimeoutTimer.restart()
+        aiClassifyProcess.running = true
+    }
+
+    // Process for AI intent classification (lightweight, non-streaming)
+    Process {
+        id: aiClassifyProcess
+
+        stdout: SplitParser {
+            splitMarker: ""
+            onRead: data => {
+                root._aiClassifyBuffer += data
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            aiClassifyTimeoutTimer.stop()
+
+            if (exitCode !== 0 || !root._aiClassifyCallback) {
+                console.warn("[DictationService] AI intent classification failed (exit: " + exitCode + "), defaulting to command")
+                if (root._aiClassifyCallback) {
+                    var cb = root._aiClassifyCallback
+                    root._aiClassifyCallback = null
+                    cb("command")
+                }
+                return
+            }
+
+            // Parse response
+            var result = "command" // default on any parse failure
+            try {
+                var response = JSON.parse(root._aiClassifyBuffer)
+                var responseText = ""
+
+                // Handle Gemini format
+                if (response.candidates) {
+                    responseText = response.candidates[0]?.content?.parts[0]?.text || ""
+                }
+                // Handle OpenAI format
+                else if (response.choices) {
+                    responseText = response.choices[0]?.message?.content || ""
+                }
+
+                responseText = responseText.trim().toLowerCase()
+                if (responseText === "dictation") {
+                    result = "dictation"
+                }
+                // Any other response (including "command") → command
+            } catch (e) {
+                console.warn("[DictationService] AI intent: failed to parse response, defaulting to command")
+            }
+
+            var cb = root._aiClassifyCallback
+            root._aiClassifyCallback = null
+            cb(result)
+        }
+    }
+
+    // Whether a voice assistant request is currently in-flight (waiting for ActionPalette response)
+    property bool _voiceAssistantPending: false
+
+    // Timer to auto-clear responseText after showing "Captured" confirmation (2s)
+    Timer {
+        id: responseClearTimer
+        interval: 2000
+        repeat: false
+        onTriggered: {
+            root.responseText = ""
+        }
+    }
+
+    // Timer to auto-clear responseText after an error or response display (3s)
+    Timer {
+        id: errorDismissTimer
+        interval: 3000
+        repeat: false
+        onTriggered: {
+            root.responseText = ""
+        }
+    }
+
+    // 15-second timeout for voice assistant LLM requests.
+    // Fires when a voice assistant request is pending and no response has come back.
+    Timer {
+        id: voiceAssistantTimeoutTimer
+        interval: 15000
+        repeat: false
+        onTriggered: {
+            if (root._voiceAssistantPending) {
+                root._voiceAssistantPending = false
+                root.responseText = "Request timed out"
+                Ai.appendToFreeDictation("Error: Request timed out", "assistant")
+                errorDismissTimer.restart()
+                console.warn("[DictationService] Voice assistant request timed out (15s)")
+            }
+        }
+    }
+
+    // Connect to ActionPalette approval signal for shell.exec commands
+    Connections {
+        target: ActionPalette
+
+        function onApprovalRequired(command, actionIndex) {
+            if (!root._voiceAssistantPending) return
+            root.awaitingApproval = true
+            root.approvalCommand = command
+            root.approvalActionIndex = actionIndex
+        }
+
+        function onExecutionComplete() {
+            // Clear approval state when execution finishes (safe actions auto-completed)
+            root.awaitingApproval = false
+            root.approvalCommand = ""
+            root.approvalActionIndex = -1
+        }
+    }
+
+    // Connect to ActionPalette signals for voice assistant response handling
+    Connections {
+        target: ActionPalette
+
+        function onResponseSummary(text) {
+            if (!root._voiceAssistantPending) return
+            root._voiceAssistantPending = false
+            voiceAssistantTimeoutTimer.stop()
+
+            // Clear any pending approval state
+            root.awaitingApproval = false
+            root.approvalCommand = ""
+            root.approvalActionIndex = -1
+
+            root.responseText = text
+            Ai.appendToFreeDictation(text, "assistant")
+
+            // Talkback: speak the response if enabled
+            if (Config.options.dictation.talkback) {
+                TtsService.speak(text)
+                // Don't start dismiss timer — indicator stays until TTS finishes
+            } else {
+                // No TTS — start auto-dismiss timer (4s)
+                responseDismissTimer.restart()
+            }
+        }
+
+        function onExecutionFailed(actionType, index, reason) {
+            if (!root._voiceAssistantPending) return
+            root._voiceAssistantPending = false
+            voiceAssistantTimeoutTimer.stop()
+
+            // Clear any pending approval state
+            root.awaitingApproval = false
+            root.approvalCommand = ""
+            root.approvalActionIndex = -1
+
+            var errorMsg = "Action failed: " + reason
+            root.responseText = errorMsg
+            Ai.appendToFreeDictation("Error: " + errorMsg, "assistant")
+            errorDismissTimer.restart()
+            console.warn("[DictationService] ActionPalette execution failed: " + reason)
+        }
+    }
+
+    // Timer to auto-dismiss voice assistant response text (4s).
+    // Only starts when TTS is NOT playing; if talkback is on, the indicator
+    // stays visible until TTS finishes (see Connections on TtsService below).
+    Timer {
+        id: responseDismissTimer
+        interval: 4000
+        repeat: false
+        onTriggered: {
+            root.responseText = ""
+        }
+    }
+
+    // When TTS finishes playing, start the dismiss timer for the response indicator
+    Connections {
+        target: TtsService
+        function onPlayingChanged() {
+            if (!TtsService.playing && root.responseText !== "") {
+                responseDismissTimer.restart()
+            }
+        }
+    }
+
+    // 2-second timeout for AI classification — defaults to "command" on timeout
+    Timer {
+        id: aiClassifyTimeoutTimer
+        interval: 2000
+        repeat: false
+        onTriggered: {
+            if (aiClassifyProcess.running) {
+                aiClassifyProcess.running = false // kill the process
+            }
+            if (root._aiClassifyCallback) {
+                console.warn("[DictationService] AI intent classification timed out, defaulting to command")
+                var cb = root._aiClassifyCallback
+                root._aiClassifyCallback = null
+                cb("command")
+            }
+        }
+    }
+
+    // Voice assistant pipeline — processes transcribed text when sidebar is closed.
+    // Classifies intent, logs to Free Dictation, and routes to appropriate handler.
+    function _processVoiceAssistant(text) {
+        // Policy safety guard: AI completely disabled (already caught in activate(), but belt-and-suspenders)
+        if (Config.options.policies.ai === 0) return
+
+        var intent = _classifyIntent(text)
+
+        // Always log user input to Free Dictation session
+        Ai.appendToFreeDictation(text, "user")
+
+        if (intent === "dictation") {
+            // Pure dictation — show brief confirmation, no action execution
+            root.responseText = "Captured to Free Dictation"
+            responseClearTimer.restart()
+            return
+        }
+
+        if (intent === "command") {
+            // Direct command — invoke ActionPalette without opening overview
+            root._voiceAssistantPending = true
+            voiceAssistantTimeoutTimer.restart()
+            ActionPalette.submitQueryDirect(text, root._voiceAssistantPrompt)
+            return
+        }
+
+        if (intent === "ambiguous") {
+            // AI mode — async classification for ambiguous text
+            _classifyIntentAi(text, function(result) {
+                if (result === "dictation") {
+                    root.responseText = "Captured to Free Dictation"
+                    responseClearTimer.restart()
+                } else {
+                    // "command" or any other result → treat as command
+                    root._voiceAssistantPending = true
+                    voiceAssistantTimeoutTimer.restart()
+                    ActionPalette.submitQueryDirect(text, root._voiceAssistantPrompt)
+                }
+            })
+            return
+        }
+    }
 
     // Double-tap detection
     property bool _waitingForSecondTap: false
@@ -92,7 +486,12 @@ Singleton {
         // Command is set dynamically in startTranscription()
         onExited: (exitCode, exitStatus) => {
             if (exitCode !== 0) {
-                root.errorMessage = "Transcription failed (exit code: " + exitCode + ")"
+                // Transcription failed — attempt fallback to next endpoint
+                if (root._attemptFallbackTranscription(root._recordingPath, root._fallbackIndex + 1)) {
+                    return // Fallback in progress
+                }
+                // All fallbacks exhausted
+                root.errorMessage = "Transcription failed: all endpoints unreachable"
                 root.state = DictationService.State.Error
                 root.error(root.errorMessage)
                 return
@@ -264,6 +663,9 @@ Singleton {
     }
 
     function activate() {
+        // Stop any in-progress TTS playback before starting a new dictation session
+        TtsService.stop()
+
         // Policy gate: AI completely disabled
         if (Config.options.policies.ai === 0) {
             root.errorMessage = "Dictation disabled: AI is turned off in policies"
@@ -345,6 +747,9 @@ Singleton {
     }
 
     function startTranscription() {
+        // Reset fallback chain for a new transcription attempt
+        root._fallbackIndex = 0
+
         var knownLocalProviders = ["whisper-cpp", "faster-whisper", "local-whisper"]
 
         if (knownLocalProviders.indexOf(root.provider) !== -1 && !root.streamingEndpoint) {
@@ -383,7 +788,7 @@ Singleton {
             }
 
             var modelName = root.model || "whisper-1"
-            var curlCmd = ["curl", "-s",
+            var curlCmd = ["curl", "-s", "--fail",
                 "-F", "file=@" + root._recordingPath,
                 "-F", "model=" + modelName
             ]
@@ -398,15 +803,87 @@ Singleton {
         transcribeProcess.running = true
     }
 
+    // STT fallback chain: attempts the next available endpoint when the current one fails.
+    // Returns true if a fallback attempt was started, false if all options are exhausted.
+    // Chain: 0 = configured endpoint, 1 = localhost, 2 = OpenAI API (if policy allows)
+    function _attemptFallbackTranscription(recordingPath, fallbackIndex) {
+        root._fallbackIndex = fallbackIndex
+
+        if (fallbackIndex === 1) {
+            // Fallback 1: Try localhost equivalent
+            var configuredEndpoint = (root.streamingEndpoint || "").replace(/\/+$/, "")
+            if (!configuredEndpoint) {
+                if (root.provider === "openai") configuredEndpoint = "https://api.openai.com"
+                else configuredEndpoint = "http://localhost:8080"
+            }
+
+            // Skip localhost fallback if we're already targeting localhost
+            if (configuredEndpoint.indexOf("localhost") !== -1 || configuredEndpoint.indexOf("127.0.0.1") !== -1) {
+                // Already localhost — skip to next fallback
+                return _attemptFallbackTranscription(recordingPath, 2)
+            }
+
+            console.warn("[DictationService] Falling back to localhost STT endpoint")
+
+            var localhostUrl = "http://localhost:8080/v1/audio/transcriptions"
+            var modelName = root.model || "whisper-1"
+            var curlCmd = ["curl", "-s", "--fail",
+                "-F", "file=@" + recordingPath,
+                "-F", "model=" + modelName,
+                localhostUrl
+            ]
+            transcribeProcess.command = curlCmd
+            transcribeProcess.running = true
+            return true
+        }
+
+        if (fallbackIndex === 2) {
+            // Fallback 2: Try OpenAI API (only if policy allows remote)
+            if (Config.options.policies.ai === 2) {
+                // Policy is local-only — cannot fall back to OpenAI
+                console.warn("[DictationService] Cannot fall back to OpenAI: local-only policy")
+                return false
+            }
+
+            // Need an OpenAI API key
+            var apiKey = ""
+            if (KeyringStorage.keyringData && KeyringStorage.keyringData.apiKeys) {
+                apiKey = KeyringStorage.keyringData.apiKeys["openai"] || ""
+            }
+            if (!apiKey) {
+                console.warn("[DictationService] Cannot fall back to OpenAI: no API key configured")
+                return false
+            }
+
+            console.warn("[DictationService] Falling back to OpenAI STT API")
+
+            var openaiUrl = "https://api.openai.com/v1/audio/transcriptions"
+            var curlCmd = ["curl", "-s", "--fail",
+                "-F", "file=@" + recordingPath,
+                "-F", "model=whisper-1",
+                "-H", "Authorization: Bearer " + apiKey,
+                openaiUrl
+            ]
+            transcribeProcess.command = curlCmd
+            transcribeProcess.running = true
+            return true
+        }
+
+        // No more fallbacks available
+        return false
+    }
+
     function _handleTranscriptionResult(data) {
         var text = ""
         var knownLocalProviders = ["whisper-cpp", "faster-whisper", "local-whisper"]
 
-        if (knownLocalProviders.indexOf(root.provider) !== -1) {
-            // Local whisper outputs text directly
+        // When on a fallback endpoint (index > 0), response is always JSON from curl HTTP API.
+        // Only parse as plain text for the original local whisper CLI (index 0, no endpoint).
+        if (root._fallbackIndex === 0 && knownLocalProviders.indexOf(root.provider) !== -1 && !root.streamingEndpoint) {
+            // Local whisper CLI outputs text directly
             text = data.trim()
         } else {
-            // OpenAI API returns JSON: {"text": "..."}
+            // HTTP API (configured, localhost fallback, or OpenAI fallback) returns JSON: {"text": "..."}
             try {
                 var response = JSON.parse(data)
                 text = response.text || ""
@@ -430,9 +907,9 @@ Singleton {
             // Sidebar open — put text in input field for review/edit
             root.transcriptionComplete(text)
         } else {
-            // Sidebar closed — open overview with "? text" to trigger ActionPalette
-            var aiPrefix = Config.options.search.prefix.ai || "?"
-            Quickshell.execDetached(["quickshell", "ipc", "call", "overview", "setSearchingText", aiPrefix + " " + text])
+            // Sidebar closed — route through voice assistant pipeline
+            root._processVoiceAssistant(text)
+            root.transcriptionComplete(text)
         }
 
         // Clean up temp audio file
@@ -492,8 +969,15 @@ Singleton {
             return
         }
 
-        // Success — put text in input field for review/edit before sending
-        root.transcriptionComplete(text)
+        // Route based on sidebar state
+        if (GlobalStates.sidebarLeftOpen) {
+            // Sidebar open — put text in input field for review/edit
+            root.transcriptionComplete(text)
+        } else {
+            // Sidebar closed — route through voice assistant pipeline
+            root._processVoiceAssistant(text)
+            root.transcriptionComplete(text)
+        }
 
         // Clean up — no temp files in streaming mode
         root.partialText = ""

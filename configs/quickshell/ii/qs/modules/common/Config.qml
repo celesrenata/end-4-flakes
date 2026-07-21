@@ -154,7 +154,7 @@ Singleton {
                     property bool showPerformanceProfileToggle: false
                 }
                 property JsonObject tray: JsonObject {
-                    property bool monochromeIcons: false
+                    property bool monochromeIcons: true
                 }
                 property JsonObject workspaces: JsonObject {
                     property bool monochromeIcons: true

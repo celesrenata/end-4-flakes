@@ -178,22 +178,15 @@ Scope {
         function open() {
             GlobalStates.overviewOpen = true;
         }
+        function setSearchingText(text) {
+            GlobalStates.overviewOpen = true;
+            panelWindow.setSearchingText(text);
+        }
         function toggleReleaseInterrupt() {
             GlobalStates.superReleaseMightTrigger = false;
         }
         function clipboardToggle() {
             overviewScope.toggleClipboard();
-        }
-        function setSearchText(text) {
-            for (let i = 0; i < overviewVariants.instances.length; i++) {
-                let panelWindow = overviewVariants.instances[i];
-                if (panelWindow.modelData.name == Hyprland.focusedMonitor.name) {
-                    overviewScope.dontAutoCancelSearch = true;
-                    GlobalStates.overviewOpen = true;
-                    panelWindow.setSearchingText(text);
-                    return;
-                }
-            }
         }
     }
 

@@ -6,3 +6,4 @@ singleton Fuzzy 1.0 Fuzzy.qml
 singleton Levendist 1.0 Levendist.qml
 singleton ObjectUtils 1.0 ObjectUtils.qml
 singleton StringUtils 1.0 StringUtils.qml
+singleton NumberUtils 1.0 NumberUtils.qml

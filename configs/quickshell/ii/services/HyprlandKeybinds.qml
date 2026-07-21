@@ -10,82 +10,49 @@ import Quickshell.Hyprland
 
 /**
  * A service that provides access to Hyprland keybinds.
- * Uses the `get_keybinds.py` script to parse comments in config files in a certain format and convert to JSON.
+ * Uses `hyprctl binds -j` to get keybinds directly from the running Hyprland instance.
+ * Keybinds are grouped by category based on the "Category: Description" format in bind descriptions.
  */
 Singleton {
     id: root
-    property string keybindParserPath: FileUtils.trimFileProtocol(`${Directories.scriptPath}/hyprland/get_keybinds.py`)
-    property string defaultKeybindConfigPath: FileUtils.trimFileProtocol(`${Directories.config}/hypr/hyprland.conf`)
-    property string userKeybindConfigPath: FileUtils.trimFileProtocol(`${Directories.config}/hypr/custom/keybinds.conf`)
-    property var defaultKeybinds: {"children": []}
-    property var userKeybinds: {"children": []}
-    
-    function expandModifiers(mods) {
-        return mods.map(mod => 
-            mod.replace(/\$Primary/g, "Super")
-               .replace(/\$Secondary/g, "Control")
-               .replace(/\$Tertiary/g, "Shift")
-               .replace(/\$Alternate/g, "Alt")
-        )
-    }
-    
-    function expandKeybinds(kbs) {
-        return kbs.map(kb => {
-            var expanded = {}
-            for (var key in kb) {
-                expanded[key] = kb[key]
-            }
-            expanded.mods = expandModifiers(kb.mods)
-            return expanded
-        })
-    }
-    
-    property var keybinds: ({
-        children: [],
-        keybinds: expandKeybinds((defaultKeybinds.keybinds ?? []).concat(userKeybinds.keybinds ?? []))
-    })
+    property var keybinds: []
+    property var keybindCategories: []
 
     Connections {
         target: Hyprland
 
         function onRawEvent(event) {
             if (event.name == "configreloaded") {
-                getDefaultKeybinds.running = true
-                getUserKeybinds.running = true
+                getKeybinds.running = true
             }
         }
     }
 
     Process {
-        id: getDefaultKeybinds
+        id: getKeybinds
         running: true
-        command: ["bash", "-c", root.keybindParserPath + " --path \"$(readlink -f " + root.defaultKeybindConfigPath + ")\""]
-        
-        stdout: SplitParser {
-            onRead: data => {
-                try {
-                    root.defaultKeybinds = JSON.parse(data)
-                } catch (e) {
-                    console.error("[CheatsheetKeybinds] Error parsing keybinds:", e)
-                }
-            }
-        }
-    }
+        command: ["hyprctl", "binds", "-j"]
 
-    Process {
-        id: getUserKeybinds
-        running: true
-        command: [root.keybindParserPath, "--path", root.userKeybindConfigPath]
-        
-        stdout: SplitParser {
-            onRead: data => {
+        stdout: StdioCollector {
+            onStreamFinished: {
                 try {
-                    root.userKeybinds = JSON.parse(data)
+                    root.keybinds = JSON.parse(text)
+                    var groups = []
+                    for (var i = 0; i < root.keybinds.length; i++) {
+                        var bind = root.keybinds[i].description
+                        if (!bind) continue
+                        var colonIdx = bind.indexOf(":")
+                        if (colonIdx === -1) continue
+                        var group = bind.substring(0, colonIdx)
+                        if (!groups.includes(group) && group.length > 0) {
+                            groups.push(group)
+                        }
+                    }
+                    root.keybindCategories = groups
                 } catch (e) {
-                    console.error("[CheatsheetKeybinds] Error parsing keybinds:", e)
+                    console.error("[HyprlandKeybinds] Error parsing keybinds:", e)
                 }
             }
         }
     }
 }
-

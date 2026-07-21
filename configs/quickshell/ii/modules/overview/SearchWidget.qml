@@ -188,7 +188,9 @@ Item { // Wrapper
                     Layout.leftMargin: 15
                     iconSize: Appearance.font.pixelSize.huge
                     color: Appearance.m3colors.m3onSurface
-                    text: root.searchingText.startsWith(Config.options.search.prefix.clipboard) ? 'content_paste_search' : 'search'
+                    text: root.searchingText.startsWith(Config.options.search.prefix.ai) ? 'auto_awesome'
+                        : root.searchingText.startsWith(Config.options.search.prefix.clipboard) ? 'content_paste_search'
+                        : 'search'
                 }
                 TextField { // Search box
                     id: searchInput
@@ -276,6 +278,23 @@ Item { // Wrapper
                     }
                 }
 
+                Connections {
+                    target: root
+                    function onSearchingTextChanged() {
+                        const aiPrefix = Config.options.search.prefix.ai;
+                        if (root.searchingText.startsWith(aiPrefix)) {
+                            const afterPrefix = root.searchingText.slice(aiPrefix.length);
+                            if (afterPrefix.startsWith(" ") && afterPrefix.trim().length > 0) {
+                                ActionPalette.submitQuery(afterPrefix.trim());
+                            } else {
+                                ActionPalette.cancelRequest();
+                            }
+                        } else if (ActionPalette.state !== ActionPalette.Idle) {
+                            ActionPalette.cancelRequest();
+                        }
+                    }
+                }
+
                 model: ScriptModel {
                     id: model
                     onValuesChanged: {
@@ -286,6 +305,41 @@ Item { // Wrapper
                         ////////////////// Skip? //////////////////
                         if (root.searchingText == "")
                             return [];
+
+                        ///////////// AI Action Palette — highest priority prefix check ///////////////
+                        const aiPrefix = Config.options.search.prefix.ai;
+                        if (root.searchingText.startsWith(aiPrefix)) {
+                            const afterPrefix = root.searchingText.slice(aiPrefix.length);
+                            if (afterPrefix.length === 0 || afterPrefix.trim().length === 0) {
+                                // Show placeholder hint
+                                return [{
+                                    name: Translation.tr("Type a natural-language request..."),
+                                    type: Translation.tr("AI Action"),
+                                    materialSymbol: "auto_awesome",
+                                    execute: () => {}
+                                }];
+                            }
+                            if (afterPrefix.startsWith(" ") && afterPrefix.trim().length > 0) {
+                                // Map ActionPalette results with local execute closures
+                                var aiResults = ActionPalette.currentResults;
+                                var mapped = [];
+                                for (var ai = 0; ai < aiResults.length; ai++) {
+                                    var r = aiResults[ai];
+                                    var actionIdx = ai - 1; // First entry is summary (index -1)
+                                    mapped.push({
+                                        name: r.name || "",
+                                        type: r.type || "",
+                                        materialSymbol: r.materialSymbol || "",
+                                        clickActionName: r.clickActionName || "",
+                                        execute: actionIdx < 0
+                                            ? (function() { ActionPalette.applyPlan(); })
+                                            : (function(idx) { return function() { ActionPalette.executeSingleAction(idx); }; })(actionIdx),
+                                        actions: r.actions || []
+                                    });
+                                }
+                                return mapped;
+                            }
+                        }
 
                         ///////////// Special cases ///////////////
                         if (root.searchingText.startsWith(Config.options.search.prefix.clipboard)) {

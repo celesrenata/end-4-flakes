@@ -7,7 +7,7 @@ Item {
     z: 99
     required property Item target
     property real fadeSize: Appearance.m3colors.darkmode ? 40 : 20
-    property color color: Appearance.colors.colLayer1
+    property color color: Appearance.colors.colLayer1Base
     property bool vertical: true
 
     anchors.fill: target

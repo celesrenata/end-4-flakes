@@ -726,14 +726,14 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                     }
                                 }
 
-                                // Delete button (only for non-active sessions)
+                                // Delete button (only for non-active, non-protected sessions)
                                 RippleButton {
                                     implicitWidth: 22
                                     implicitHeight: 22
                                     buttonRadius: 11
                                     colBackground: "transparent"
                                     colBackgroundHover: Qt.alpha(Appearance.m3colors.m3error, 0.12)
-                                    visible: !sessionRow.isActive && !sessionRow.isRenaming
+                                    visible: !sessionRow.isActive && !sessionRow.isRenaming && sessionRow.modelData.name !== "Free Dictation"
 
                                     contentItem: MaterialSymbol {
                                         anchors.centerIn: parent

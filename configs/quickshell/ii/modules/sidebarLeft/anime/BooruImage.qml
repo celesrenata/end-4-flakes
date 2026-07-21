@@ -25,10 +25,12 @@ Button {
     property real imageRadius: Appearance.rounding.small
 
     property bool showActions: false
+    property string downloadUserAgent: Config.options?.networking?.userAgent ?? ""
+
     Process {
         id: downloadProcess
         running: false
-        command: ["bash", "-c", `[ -f ${root.filePath} ] || curl -sSL '${root.imageData.preview_url ?? root.imageData.sample_url}' -o '${root.filePath}'`]
+        command: ["bash", "-c", `[ -f ${root.filePath} ] || curl -sSL${root.downloadUserAgent ? " -H 'User-Agent: " + StringUtils.shellSingleQuoteEscape(root.downloadUserAgent) + "'" : ""} '${StringUtils.shellSingleQuoteEscape(root.imageData.preview_url ?? root.imageData.sample_url)}' -o '${root.filePath}'`]
         onExited: (exitCode, exitStatus) => {
             imageObject.source = `${previewDownloadPath}/${root.fileName}`
         }
@@ -176,9 +178,12 @@ Button {
                             Layout.fillWidth: true
                             buttonText: Translation.tr("Download")
                             onClicked: {
-                                root.showActions = false
+                                root.showActions = false;
+                                const userAgent = Config.options?.networking?.userAgent ?? ""
+                                const userAgentHeader = userAgent ? ` -H 'User-Agent: ${StringUtils.shellSingleQuoteEscape(userAgent)}'` : ""
+                                const targetPath = root.imageData.is_nsfw ? root.nsfwPath : root.downloadPath;
                                 Quickshell.execDetached(["bash", "-c", 
-                                    `curl '${root.imageData.file_url}' -o '${root.imageData.is_nsfw ? root.nsfwPath : root.downloadPath}/${root.fileName}' && notify-send '${Translation.tr("Download complete")}' '${root.downloadPath}/${root.fileName}' -a 'Shell'`
+                                    `mkdir -p '${targetPath}' && curl '${StringUtils.shellSingleQuoteEscape(root.imageData.file_url)}'${userAgentHeader} -o '${targetPath}/${root.fileName}' && notify-send '${Translation.tr("Download complete")}' '${root.downloadPath}/${root.fileName}' -a 'Shell'`
                                 ])
                             }
                         }

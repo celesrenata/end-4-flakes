@@ -29,6 +29,7 @@ RippleButton {
     property int buttonHorizontalPadding: 10
     property int buttonVerticalPadding: 5
     property bool keyboardDown: false
+    readonly property bool selected: (root.hovered || root.focus)
 
     implicitHeight: rowLayout.implicitHeight + root.buttonVerticalPadding * 2
     implicitWidth: rowLayout.implicitWidth + root.buttonHorizontalPadding * 2
@@ -197,7 +198,7 @@ RippleButton {
                     color: Appearance.m3colors.m3onSurface
                     horizontalAlignment: Text.AlignLeft
                     elide: Text.ElideRight
-                    text: `${root.displayContent}`
+                    text: root.selected ? StringUtils.escapeHtml(root.itemName) : root.displayContent
                 }
             }
             Loader { // Clipboard image preview

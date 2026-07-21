@@ -285,6 +285,11 @@ Singleton {
                 property string model: "whisper-1"
                 property string streamingEndpoint: ""
                 property int chunkDurationMs: 3000
+                property string ttsProvider: "none" // none, piper, espeak-ng, openai
+                property string ttsVoice: "" // Provider-specific voice ID
+                property bool talkback: false // Enable TTS playback
+                property string intentMode: "heuristic" // heuristic, ai
+                property string httpEndpoint: "" // HTTP batch endpoint for STT
             }
 
             property JsonObject blur: JsonObject {

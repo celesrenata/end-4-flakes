@@ -33,7 +33,6 @@ NestableObject {
         return root.getWorkspaceId(root.group, index);
     }
 
-    // Function to update workspaceOccupied
     function updateWorkspaceOccupied() {
         root.occupied = Array.from({
             length: root.shownCount
@@ -43,7 +42,6 @@ NestableObject {
         });
     }
 
-    // Occupied workspace updates
     Component.onCompleted: updateWorkspaceOccupied()
     Connections {
         target: Hyprland.workspaces

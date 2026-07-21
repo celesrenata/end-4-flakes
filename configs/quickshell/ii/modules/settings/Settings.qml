@@ -71,6 +71,23 @@ ApplicationWindow {
         }
         
         TabButton {
+            text: "Idle"
+            width: implicitWidth
+            
+            background: Rectangle {
+                color: parent.checked ? "#45475a" : "transparent"
+                radius: 4
+            }
+            
+            contentItem: Text {
+                text: parent.text
+                color: "#cdd6f4"
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+        
+        TabButton {
             text: "Keybinds"
             width: implicitWidth
             
@@ -119,6 +136,13 @@ ApplicationWindow {
                     color: "#a6adc8"
                     horizontalAlignment: Text.AlignHCenter
                 }
+            }
+        }
+        
+        // Idle Tab (Power management)
+        Item {
+            IdleConfig {
+                anchors.fill: parent
             }
         }
         
@@ -206,7 +230,7 @@ ApplicationWindow {
         }
         
         function showKeybinds() {
-            tabBar.currentIndex = 2
+            tabBar.currentIndex = 3
             settingsWindow.show()
             settingsWindow.raise()
             settingsWindow.requestActivate()

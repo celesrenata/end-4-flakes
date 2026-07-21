@@ -512,6 +512,7 @@ Singleton {
         setModel(currentModelId, false, false); // Do necessary setup for model
         // Restore session state on startup
         root.loadSessionsIndex();
+        root.ensureFreeDictationSession();
         const persistedSession = Persistent.states?.ai?.activeSession;
         if (persistedSession && persistedSession.length > 0) {
             try {
@@ -1391,6 +1392,86 @@ Singleton {
         root.saveChat(root.activeSessionName);
         if (root.sessionsIndex.sessions) {
             const entry = root.sessionsIndex.sessions.find(s => s.name === root.activeSessionName);
+            if (entry) {
+                entry.lastModified = Math.floor(Date.now() / 1000);
+                root.saveSessionsIndex();
+            }
+        }
+    }
+
+    // --- Free Dictation Session Management ---
+
+    FileView {
+        id: freeDictationFile
+        path: `${Directories.aiChats}/Free Dictation.json`
+        blockLoading: true
+    }
+
+    /**
+     * Creates the "Free Dictation" session if it doesn't already exist in the
+     * sessions index. Called on Component.onCompleted to guarantee the session
+     * is always available for the voice assistant pipeline.
+     */
+    function ensureFreeDictationSession() {
+        const sessions = root.sessionsIndex.sessions || [];
+        const exists = sessions.some(s => s.name === "Free Dictation");
+        if (exists) return;
+
+        // Add entry to sessions index
+        const now = Math.floor(Date.now() / 1000);
+        sessions.push({
+            "name": "Free Dictation",
+            "createdAt": now,
+            "lastModified": now,
+        });
+        root.sessionsIndex = { "sessions": sessions };
+        root.saveSessionsIndex();
+
+        // Create empty chat file
+        freeDictationFile.setText(JSON.stringify([]));
+    }
+
+    /**
+     * Appends a message to the "Free Dictation" session without switching the
+     * active session. Reads the current file, appends the new message, and
+     * writes it back.
+     * @param text The message content
+     * @param role The message role ("user" or "assistant")
+     */
+    function appendToFreeDictation(text, role) {
+        if (!text || text.trim().length === 0) return;
+
+        let messages = [];
+        try {
+            freeDictationFile.reload();
+            const content = freeDictationFile.text();
+            if (content && content.trim().length > 0) {
+                messages = JSON.parse(content);
+            }
+        } catch (e) {
+            console.log("[AI] Could not read Free Dictation session, starting fresh:", e);
+            messages = [];
+        }
+
+        messages.push({
+            "role": role,
+            "rawContent": text,
+            "model": role === "assistant" ? root.currentModelId : "",
+            "thinking": false,
+            "done": true,
+            "annotations": [],
+            "annotationSources": [],
+            "functionName": "",
+            "functionCall": null,
+            "functionResponse": "",
+            "visibleToUser": true,
+        });
+
+        freeDictationFile.setText(JSON.stringify(messages));
+
+        // Update lastModified in sessions index
+        if (root.sessionsIndex.sessions) {
+            const entry = root.sessionsIndex.sessions.find(s => s.name === "Free Dictation");
             if (entry) {
                 entry.lastModified = Math.floor(Date.now() / 1000);
                 root.saveSessionsIndex();

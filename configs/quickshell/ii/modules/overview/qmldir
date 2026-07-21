@@ -1,7 +1,10 @@
 module qs.modules.overview
 
+ActionApprovalDialog 1.0 ActionApprovalDialog.qml
+ActionPaletteResults 1.0 ActionPaletteResults.qml
 Overview 1.0 Overview.qml
 OverviewWidget 1.0 OverviewWidget.qml
 OverviewWindow 1.0 OverviewWindow.qml
+PreviewIndicator 1.0 PreviewIndicator.qml
 SearchItem 1.0 SearchItem.qml
 SearchWidget 1.0 SearchWidget.qml

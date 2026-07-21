@@ -22,6 +22,7 @@ KeyboardKey 1.0 KeyboardKey.qml
 LightDarkPreferenceButton 1.0 LightDarkPreferenceButton.qml
 MaterialSymbol 1.0 MaterialSymbol.qml
 MaterialTextField 1.0 MaterialTextField.qml
+MaterialTextArea 1.0 MaterialTextArea.qml
 MenuButton 1.0 MenuButton.qml
 NavigationRailButton 1.0 NavigationRailButton.qml
 NavigationRailExpandButton 1.0 NavigationRailExpandButton.qml
@@ -59,3 +60,16 @@ StyledText 1.0 StyledText.qml
 StyledToolTip 1.0 StyledToolTip.qml
 VerticalButtonGroup 1.0 VerticalButtonGroup.qml
 WaveVisualizer 1.0 WaveVisualizer.qml
+AppIcon 1.0 AppIcon.qml
+Box 1.0 Box.qml
+BoxLayout 1.0 BoxLayout.qml
+ButtonMouseArea 1.0 ButtonMouseArea.qml
+Circle 1.0 Circle.qml
+Colorizer 1.0 Colorizer.qml
+FadeLoader 1.0 FadeLoader.qml
+MaskMultiEffect 1.0 MaskMultiEffect.qml
+Pill 1.0 Pill.qml
+StateLayer 1.0 StateLayer.qml
+StateOverlay 1.0 StateOverlay.qml
+StyledRectangle 1.0 StyledRectangle.qml
+ScrollEdgeFade 1.0 ScrollEdgeFade.qml

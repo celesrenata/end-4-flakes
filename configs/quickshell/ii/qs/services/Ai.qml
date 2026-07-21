@@ -260,7 +260,6 @@ Singleton {
             "key_get_link": "https://aistudio.google.com/app/apikey",
             "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
             "api_format": "gemini",
-            "context_length": 1048576,
         }),
         "gemini-2.5-flash": aiModelComponent.createObject(this, {
             "name": "Gemini 2.5 Flash",
@@ -274,7 +273,6 @@ Singleton {
             "key_get_link": "https://aistudio.google.com/app/apikey",
             "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
             "api_format": "gemini",
-            "context_length": 1048576,
         }),
         "gemini-2.5-flash-pro": aiModelComponent.createObject(this, {
             "name": "Gemini 2.5 Pro",
@@ -288,7 +286,6 @@ Singleton {
             "key_get_link": "https://aistudio.google.com/app/apikey",
             "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
             "api_format": "gemini",
-            "context_length": 1048576,
         }),
         "gemini-2.5-flash-lite": aiModelComponent.createObject(this, {
             "name": "Gemini 2.5 Flash-Lite",
@@ -302,7 +299,6 @@ Singleton {
             "key_get_link": "https://aistudio.google.com/app/apikey",
             "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
             "api_format": "gemini",
-            "context_length": 1048576,
         }),
         "mistral-medium-3": aiModelComponent.createObject(this, {
             "name": "Mistral Medium 3",
@@ -316,7 +312,6 @@ Singleton {
             "key_get_link": "https://console.mistral.ai/api-keys",
             "key_get_description": Translation.tr("**Instructions**: Log into Mistral account, go to Keys on the sidebar, click Create new key"),
             "api_format": "mistral",
-            "context_length": 131072,
         }),
         "openrouter-deepseek-r1": aiModelComponent.createObject(this, {
             "name": "DeepSeek R1",
@@ -329,7 +324,6 @@ Singleton {
             "key_id": "openrouter",
             "key_get_link": "https://openrouter.ai/settings/keys",
             "key_get_description": Translation.tr("**Pricing**: free. Data use policy varies depending on your OpenRouter account settings.\n\n**Instructions**: Log into OpenRouter account, go to Keys on the topright menu, click Create API Key"),
-            "context_length": 65536,
         }),
     }
     property var modelList: Object.keys(root.models)

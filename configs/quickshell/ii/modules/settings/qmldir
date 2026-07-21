@@ -2,7 +2,6 @@ module qs.modules.settings
 
 About 1.0 About.qml
 AdvancedConfig 1.0 AdvancedConfig.qml
-IdleConfig 1.0 IdleConfig.qml
 InterfaceConfig 1.0 InterfaceConfig.qml
 ServicesConfig 1.0 ServicesConfig.qml
 Settings 1.0 Settings.qml

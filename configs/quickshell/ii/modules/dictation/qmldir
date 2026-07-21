@@ -1,0 +1,3 @@
+module qs.modules.dictation
+
+DictationIndicator 1.0 DictationIndicator.qml

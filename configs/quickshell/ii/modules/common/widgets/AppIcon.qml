@@ -5,7 +5,7 @@ import qs.modules.common
 
 Kirigami.Icon {
     id: root
-
+    
     property real implicitSize: 26
     implicitWidth: implicitSize
     implicitHeight: implicitSize

@@ -13,7 +13,6 @@ import QtQuick;
  * - key_get_description: Description of pricing and how to get an API key
  * - api_format: The API format of the model. Can be "openai" or "gemini". Default is "openai".
  * - extraParams: Extra parameters to be passed to the model. This is a JSON object.
- * - context_length: Maximum context window size in tokens. Default is 128000.
  */
 
 QtObject {
@@ -30,5 +29,4 @@ QtObject {
     property string api_format: "openai"
     property var tools
     property var extraParams: ({})
-    property int context_length: 128000
 }
