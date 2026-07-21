@@ -15,3 +15,5 @@ SysTrayItem 1.0 SysTrayItem.qml
 SysTray 1.0 SysTray.qml
 UtilButtons 1.0 UtilButtons.qml
 Workspaces 1.0 Workspaces.qml
+WorkspacesDefault 1.0 WorkspacesDefault.qml
+WorkspacesHefty 1.0 WorkspacesHefty.qml

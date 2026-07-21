@@ -118,8 +118,8 @@ apply_foot() {
   # This handles any edge cases where # prefixes weren't removed properly
   sed -i 's/=\s*#\([0-9A-Fa-f]\{6\}\)/=\1/g' "$STATE_DIR/user/generated/foot/foot.ini"
   
-  # Convert term_alpha percentage to decimal for foot (e.g., 70 -> 0.7)
-  foot_alpha=$(echo "scale=2; $term_alpha / 100" | bc)
+  # Convert term_alpha percentage to decimal for foot (e.g., 70 -> 0.70)
+  foot_alpha=$(printf "%.2f" "$(echo "scale=2; $term_alpha / 100" | bc)")
   # Use line number replacement to avoid sed pattern issues
   sed -i "/^alpha=/c\\alpha=$foot_alpha" "$STATE_DIR/user/generated/foot/foot.ini"
   
