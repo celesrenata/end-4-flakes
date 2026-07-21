@@ -101,7 +101,7 @@ Selective cherry-pick of ~11 months of upstream `end-4/dots-hyprland` changes in
 - [x] 5. Checkpoint — Structural cleanups verified
   - Ensure all structural changes are clean, ask the user if questions arise.
 
-- [ ] 6. Cherry-pick new features
+- [x] 6. Cherry-pick new features
   - [x] 6.1 Import hefty bar workspaces widget
     - Cherry-pick the new workspace widget QML files
     - Verify the widget renders with application icons per workspace

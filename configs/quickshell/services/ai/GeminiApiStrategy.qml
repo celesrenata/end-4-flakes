@@ -35,11 +35,13 @@ ApiStrategy {
                         }]
                     }
                 }
+                const textPart = { text: message.rawContent };
+                const parts = message.images && message.images.length > 0
+                    ? [textPart, ...message.images.map(img => ({ inlineData: { mimeType: "image/png", data: img } }))]
+                    : [textPart];
                 return {
                     "role": geminiApiRoleName,
-                    "parts": [{ 
-                        text: message.rawContent,
-                    }]
+                    "parts": parts
                 }
             }),
             "tools": tools,

@@ -135,6 +135,7 @@ Singleton {
     signal previewStarted()
     signal previewEnded()
     signal approvalRequired(string command, int actionIndex)
+    signal responseSummary(string text)
 
     // === Supported action types and their required parameters ===
     readonly property var supportedActionTypes: ({
@@ -143,6 +144,12 @@ Singleton {
         "hyprland.dispatch": ["dispatcher", "args"],
         "app.launch": ["id"]
     })
+
+    // === Internal: Extra system prompt for direct queries ===
+    property string _extraSystemPrompt: ""
+
+    // === Internal: Whether current request is a direct (voice assistant) invocation ===
+    property bool _isDirectMode: false
 
     // === Internal: Execution state (used by applyPlan, approveCommand) ===
     property int _executionIndex: 0
@@ -164,7 +171,13 @@ Singleton {
             // All actions completed successfully
             root.state = ActionPalette.Idle;
             root.executionComplete();
-            GlobalStates.overviewOpen = false;
+            if (root._isDirectMode) {
+                // In direct mode, emit responseSummary with the plan summary
+                root.responseSummary(root.actionPlan.summary);
+                root._isDirectMode = false;
+            } else {
+                GlobalStates.overviewOpen = false;
+            }
             return;
         }
 
@@ -257,6 +270,7 @@ Singleton {
         root.state = ActionPalette.Error;
         root.errorMessage = reason;
         root.canRetry = false;
+        root._isDirectMode = false;
         root.executionFailed(actionType, index, reason);
     }
 
@@ -314,6 +328,7 @@ Singleton {
             root.state = ActionPalette.Error;
             root.errorMessage = "Request timed out";
             root.canRetry = true;
+            root._isDirectMode = false;
         }
     }
 
@@ -420,6 +435,7 @@ Singleton {
                     root.state = ActionPalette.Error;
                     root.errorMessage = "Request failed — check your network connection";
                     root.canRetry = true;
+                    root._isDirectMode = false;
                     return;
                 }
                 root.parseResponse(text);
@@ -431,6 +447,7 @@ Singleton {
                 root.state = ActionPalette.Error;
                 root.errorMessage = "Request failed — check your network connection";
                 root.canRetry = true;
+                root._isDirectMode = false;
             }
         }
     }
@@ -440,6 +457,27 @@ Singleton {
         root.lastQuery = queryText;
         root.state = ActionPalette.Debouncing;
         debounceTimer.restart();
+    }
+
+    /**
+     * Submit a query directly to the LLM pipeline without requiring the
+     * overview to be open and without debouncing. Used by the voice assistant
+     * pipeline to process commands headlessly.
+     *
+     * @param queryText The natural-language query to process
+     * @param extraSystemPrompt Additional system prompt text appended to the
+     *        base system prompt for this request (e.g., concise-response instructions)
+     *
+     * Emits actionPlanReady when the plan is received and parsed.
+     * Emits responseSummary with the plan's summary text.
+     *
+     * Requirements: 1.1, 1.2, 2.1
+     */
+    function submitQueryDirect(queryText, extraSystemPrompt) {
+        root.lastQuery = queryText;
+        root._extraSystemPrompt = extraSystemPrompt || "";
+        root._isDirectMode = true;
+        root.sendRequest();
     }
 
     function cancelRequest() {
@@ -456,6 +494,8 @@ Singleton {
         root.actionPlan = null;
         root.errorMessage = "";
         root.canRetry = false;
+        root._extraSystemPrompt = "";
+        root._isDirectMode = false;
     }
 
     function retry() {
@@ -702,6 +742,7 @@ Singleton {
         root.state = ActionPalette.Error;
         root.errorMessage = Translation.tr("Execution cancelled by user");
         root.canRetry = false;
+        root._isDirectMode = false;
     }
 
     // === Internal: Build system prompt for LLM ===
@@ -830,6 +871,7 @@ Rules:
     // === Internal: Send request to LLM ===
     function sendRequest() {
         if (!root.checkPolicyGates()) {
+            root._isDirectMode = false;
             return;
         }
 
@@ -847,7 +889,12 @@ Rules:
         /* Build messages: system prompt + single user message (no chat history) */
         const context = root.buildActionContext();
         const userContent = root.lastQuery + "\n\nCurrent desktop context:\n" + JSON.stringify(context, null, 2);
-        const systemPrompt = root.buildSystemPrompt();
+        let systemPrompt = root.buildSystemPrompt();
+
+        /* Append extra system prompt if provided (used by submitQueryDirect) */
+        if (root._extraSystemPrompt.length > 0) {
+            systemPrompt += "\n\n" + root._extraSystemPrompt;
+        }
 
         /* Build request data via the strategy pattern */
         const fakeMessages = [{
@@ -948,6 +995,7 @@ Rules:
             root.state = ActionPalette.Error;
             root.errorMessage = "LLM returned malformed response";
             root.canRetry = true;
+            root._isDirectMode = false;
             return;
         }
 
@@ -956,6 +1004,7 @@ Rules:
             root.state = ActionPalette.Error;
             root.errorMessage = "Response doesn't match expected format (missing summary)";
             root.canRetry = true;
+            root._isDirectMode = false;
             return;
         }
 
@@ -969,6 +1018,7 @@ Rules:
             root.state = ActionPalette.Error;
             root.errorMessage = "Response doesn't match expected format (actions is not an array)";
             root.canRetry = true;
+            root._isDirectMode = false;
             return;
         }
 
@@ -983,6 +1033,27 @@ Rules:
         root.canRetry = false;
         root.errorMessage = "";
         root.actionPlanReady();
+
+        // Clear the extra system prompt after use
+        root._extraSystemPrompt = "";
+
+        // In direct mode (voice assistant), auto-execute safe actions
+        if (root._isDirectMode) {
+            // If there are no executable actions, just emit the summary and finish
+            if (root.actionPlan.actions.length === 0) {
+                root.responseSummary(root.actionPlan.summary);
+                root.executionComplete();
+                root._isDirectMode = false;
+                root.state = ActionPalette.Idle;
+            } else {
+                // Start sequential execution (safe actions auto-run, shell.exec pauses for approval)
+                root.state = ActionPalette.Executing;
+                root._executionIndex = 0;
+                root._executeNext();
+            }
+        } else {
+            root.responseSummary(root.actionPlan.summary);
+        }
     }
 
     /**

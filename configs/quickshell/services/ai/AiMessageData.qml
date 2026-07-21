@@ -7,6 +7,7 @@ QtObject {
     property string role
     property string content
     property string rawContent
+    property list<string> images: []
     property string model
     property bool thinking: true
     property bool done: false

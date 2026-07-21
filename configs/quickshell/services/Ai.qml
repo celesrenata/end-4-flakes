@@ -308,6 +308,34 @@ Singleton {
         root.models[modelName] = aiModelComponent.createObject(this, data);
     }
 
+    function isVisionCapable(modelId) {
+        var model = root.models[modelId];
+        if (!model) return false;
+        var name = (model.model || "").toLowerCase();
+        if (name.startsWith("gpt-4o")) return true;
+        if (name.startsWith("gpt-4-turbo")) return true;
+        if (name.startsWith("gpt-4.1")) return true;
+        if (name.startsWith("gemini-")) return true;
+        if (name.startsWith("claude-3-")) return true;
+        if (name.startsWith("claude-4-")) return true;
+        if (name.startsWith("llava")) return true;
+        if (name.startsWith("pixtral")) return true;
+        if (name.indexOf("vision") !== -1) return true;
+        return false;
+    }
+
+    property string bestVisionModel: {
+        for (var i = 0; i < root.modelList.length; i++) {
+            var id = root.modelList[i];
+            if (!root.isVisionCapable(id)) continue;
+            var model = root.models[id];
+            if (!model.requires_key || (root.apiKeys[model.key_id] && root.apiKeys[model.key_id].length > 0)) {
+                return id;
+            }
+        }
+        return "";
+    }
+
     Process {
         id: getDefaultPrompts
         running: true
@@ -815,6 +843,235 @@ Singleton {
             message.functionPending = true; // Use thinking to indicate the command is waiting for approval
         }
         else root.addMessage(Translation.tr("Unknown function call: %1").arg(name), "assistant");
+    }
+
+    // --- Vision request (standalone, does not affect chat history) ---
+
+    Process {
+        id: visionRequester
+        property list<string> baseCommand: ["bash", "-c"]
+        property var onChunk
+        property var onDone
+        property var onError
+        property ApiStrategy currentStrategy
+        property bool finished: false
+
+        stdout: SplitParser {
+            onRead: data => {
+                if (data.length === 0) return;
+                if (visionRequester.finished) return;
+                try {
+                    var result = visionRequester.currentStrategy.parseVisionLine
+                        ? visionRequester.currentStrategy.parseVisionLine(data)
+                        : visionRequester.parseResponseLine(data);
+                    if (result.text && result.text.length > 0) {
+                        if (visionRequester.onChunk) visionRequester.onChunk(result.text);
+                    }
+                    if (result.finished) {
+                        visionRequester.finished = true;
+                        if (visionRequester.onDone) visionRequester.onDone();
+                    }
+                } catch (e) {
+                    // Fallback: try to extract text from raw line
+                    var text = visionRequester.parseResponseLine(data);
+                    if (text.text && text.text.length > 0) {
+                        if (visionRequester.onChunk) visionRequester.onChunk(text.text);
+                    }
+                }
+            }
+        }
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (!visionRequester.finished && text.length > 0) {
+                    if (visionRequester.onError) visionRequester.onError(text);
+                }
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            if (!visionRequester.finished) {
+                visionRequester.finished = true;
+                if (exitCode !== 0) {
+                    if (visionRequester.onError) visionRequester.onError("Vision request failed with exit code " + exitCode);
+                } else {
+                    if (visionRequester.onDone) visionRequester.onDone();
+                }
+            }
+        }
+
+        function parseResponseLine(line) {
+            // Generic parser for OpenAI/Gemini/Mistral streaming formats
+            var cleanData = line.trim();
+            if (cleanData.startsWith("data:")) {
+                cleanData = cleanData.slice(5).trim();
+            }
+            if (!cleanData || cleanData.startsWith(":")) return {};
+            if (cleanData === "[DONE]") return { finished: true };
+
+            try {
+                var dataJson = JSON.parse(cleanData);
+                // OpenAI/Mistral format
+                var content = dataJson.choices
+                    ? (dataJson.choices[0]?.delta?.content || "")
+                    : "";
+                // Gemini format
+                if (!content && dataJson.candidates) {
+                    var parts = dataJson.candidates[0]?.content?.parts;
+                    if (parts && parts.length > 0) content = parts[0].text || "";
+                }
+                if (dataJson.done) return { text: content, finished: true };
+                return { text: content };
+            } catch (e) {
+                return {};
+            }
+        }
+    }
+
+    Process {
+        id: visionBedrockRequester
+        property var onChunk
+        property var onDone
+        property var onError
+        property bool finished: false
+
+        stdout: SplitParser {
+            onRead: data => {
+                if (data.length === 0) return;
+                if (visionBedrockRequester.finished) return;
+                try {
+                    var event = JSON.parse(data);
+                    if (event.contentBlockDelta !== undefined) {
+                        var delta = event.contentBlockDelta.delta || {};
+                        var text = delta.text || "";
+                        if (text && visionBedrockRequester.onChunk) {
+                            visionBedrockRequester.onChunk(text);
+                        }
+                    }
+                    if (event.messageStop !== undefined) {
+                        visionBedrockRequester.finished = true;
+                        if (visionBedrockRequester.onDone) visionBedrockRequester.onDone();
+                    }
+                } catch (e) {
+                    // ignore unparseable lines
+                }
+            }
+        }
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (!visionBedrockRequester.finished && text.length > 0) {
+                    if (visionBedrockRequester.onError) visionBedrockRequester.onError(text);
+                }
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            if (!visionBedrockRequester.finished) {
+                visionBedrockRequester.finished = true;
+                if (exitCode !== 0) {
+                    if (visionBedrockRequester.onError) visionBedrockRequester.onError("Bedrock vision request failed with exit code " + exitCode);
+                } else {
+                    if (visionBedrockRequester.onDone) visionBedrockRequester.onDone();
+                }
+            }
+        }
+    }
+
+    /**
+     * Sends a standalone vision request without affecting chat history.
+     * @param text The user prompt/question about the image
+     * @param images Array of base64-encoded PNG strings
+     * @param onChunk Callback receiving each streamed text fragment: onChunk(text)
+     * @param onDone Callback when the response is complete: onDone()
+     * @param onError Callback on failure: onError(errorMessage)
+     * @param modelId Optional model ID override (defaults to currentModelId)
+     */
+    function sendVisionMessage(text, images, onChunk, onDone, onError, modelId) {
+        var targetModelId = modelId || root.currentModelId;
+        var model = root.models[targetModelId];
+        if (!model) {
+            if (onError) onError("Model not found: " + targetModelId);
+            return;
+        }
+
+        var apiFormat = model.api_format || "openai";
+        var strategy = root.apiStrategies[apiFormat];
+        if (!strategy) {
+            if (onError) onError("No API strategy for format: " + apiFormat);
+            return;
+        }
+
+        var visionSystemPrompt = "You are a helpful vision assistant analyzing images.";
+
+        // Build a fake message object with images for the strategy
+        var visionMessage = root.aiMessageComponent.createObject(root, {
+            "role": "user",
+            "content": text,
+            "rawContent": text,
+            "images": images,
+            "thinking": false,
+            "done": true,
+        });
+
+        if (apiFormat === "bedrock") {
+            // Use AWS CLI converse-stream
+            var data = strategy.buildRequestData(model, [visionMessage], visionSystemPrompt, root.temperature, []);
+            var messagesJson = JSON.stringify(data.messages);
+            var systemJson = JSON.stringify(data.system);
+
+            var cmdArgs = "aws bedrock-runtime converse-stream"
+                + " --model-id " + model.model
+                + " --messages '" + CF.StringUtils.shellSingleQuoteEscape(messagesJson) + "'"
+                + " --region " + AwsCredentialReader.region
+                + " --profile " + AwsCredentialReader.profile
+                + " --output json";
+            if (data.system && data.system.length > 0) {
+                cmdArgs += " --system '" + CF.StringUtils.shellSingleQuoteEscape(systemJson) + "'";
+            }
+
+            visionBedrockRequester.onChunk = onChunk;
+            visionBedrockRequester.onDone = onDone;
+            visionBedrockRequester.onError = onError;
+            visionBedrockRequester.finished = false;
+            visionBedrockRequester.command = ["bash", "-c", cmdArgs];
+            visionBedrockRequester.running = true;
+        } else {
+            // Use curl for OpenAI/Gemini/Mistral formats
+            strategy.reset();
+            var endpoint = strategy.buildEndpoint(model);
+            var requestData = strategy.buildRequestData(model, [visionMessage], visionSystemPrompt, root.temperature, []);
+
+            var requestHeaders = { "Content-Type": "application/json" };
+            var headerString = Object.entries(requestHeaders)
+                .filter(function(entry) { return entry[1] && entry[1].length > 0; })
+                .map(function(entry) { return "-H '" + entry[0] + ": " + entry[1] + "'"; })
+                .join(' ');
+
+            var authHeader = strategy.buildAuthorizationHeader(root.apiKeyEnvVarName);
+
+            // Set API key in environment
+            if (model.requires_key) {
+                visionRequester.environment = {};
+                visionRequester.environment[root.apiKeyEnvVarName] = root.apiKeys ? (root.apiKeys[model.key_id] || "") : "";
+            }
+
+            var requestCommandString = 'curl --no-buffer "' + endpoint + '"'
+                + ' ' + headerString
+                + (authHeader ? ' ' + authHeader : "")
+                + " -d '" + CF.StringUtils.shellSingleQuoteEscape(JSON.stringify(requestData)) + "'";
+
+            visionRequester.onChunk = onChunk;
+            visionRequester.onDone = onDone;
+            visionRequester.onError = onError;
+            visionRequester.currentStrategy = strategy;
+            visionRequester.finished = false;
+            visionRequester.command = visionRequester.baseCommand.concat([requestCommandString]);
+            visionRequester.running = true;
+        }
+
+        // Clean up the temporary message object (not added to chat history)
+        visionMessage.destroy();
     }
 
     function chatToJson() {

@@ -289,6 +289,31 @@ Singleton {
             property JsonObject screenshotTool: JsonObject {
                 property bool showContentRegions: true
             }
+
+            property JsonObject contextLens: JsonObject {
+                property string defaultAction: "wheel"
+                property string preferredVisionModel: ""
+                property list<string> actions: ["explain", "extract_text", "translate", "summarize", "explain_error", "generate_command", "ask_question", "identify_ui"]
+                property int resultTimeout: 30
+                property string translateTargetLang: "English"
+            }
+
+            property JsonObject dictation: JsonObject {
+                property bool enabled: true
+                property string activationKey: "Control_R"
+                property int doubleTapMs: 400
+                property int silenceTimeoutMs: 3000
+                property int maxDurationMs: 60000
+                property string provider: ""
+                property string model: ""
+                property string streamingEndpoint: ""
+                property int chunkDurationMs: 3000
+                property string ttsProvider: "none" // none, piper, espeak-ng, openai
+                property string ttsVoice: "" // Provider-specific voice ID
+                property bool talkback: false // Enable TTS playback
+                property string intentMode: "heuristic" // heuristic, ai
+                property string httpEndpoint: "" // HTTP batch endpoint for STT
+            }
         }
     }
 }

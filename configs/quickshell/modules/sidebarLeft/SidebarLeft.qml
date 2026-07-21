@@ -163,6 +163,26 @@ Scope { // Scope
         }
     }
 
+    IpcHandler {
+        target: "contextLens"
+
+        function sendToChat(imageBase64, resultText, actionLabel) {
+            GlobalStates.sidebarLeftOpen = true;
+            var content = "[Context Lens: " + actionLabel + "]\n\n" + resultText;
+            var message = Ai.aiMessageComponent.createObject(Ai, {
+                "role": "user",
+                "content": content,
+                "rawContent": content,
+                "images": [imageBase64],
+                "thinking": false,
+                "done": true,
+            });
+            var id = Ai.idForMessage(message);
+            Ai.messageIDs = [...Ai.messageIDs, id];
+            Ai.messageByID[id] = message;
+        }
+    }
+
     GlobalShortcut {
         name: "sidebarLeftToggle"
         description: "Toggles left sidebar on press"

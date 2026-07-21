@@ -16,7 +16,15 @@ ApiStrategy {
                 ...messages.map(message => {
                     return {
                         "role": message.role,
-                        "content": message.rawContent,
+                        "content": message.images && message.images.length > 0
+                            ? [
+                                { type: "text", text: message.rawContent },
+                                ...message.images.map(img => ({
+                                    type: "image_url",
+                                    image_url: { url: "data:image/png;base64," + img }
+                                }))
+                            ]
+                            : message.rawContent,
                     }
                 }),
             ],

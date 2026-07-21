@@ -17,6 +17,7 @@ bindd = Super, Tab, Toggle overview, global, quickshell:overviewWorkspacesToggle
 bindd = Super, G, Toggle overlay, global, quickshell:overlayToggle # Toggle overlay
 bindd = Super, A, Toggle left sidebar, global, quickshell:sidebarLeftToggle # Toggle left sidebar
 bind = Super+Alt, A, global, quickshell:sidebarLeftToggleDetach # [hidden]
+bindrit = ,Control_R, global, quickshell:dictationTap # [hidden] Dictation double-tap detection
 bind = Super, B, global, quickshell:sidebarLeftToggle # [hidden]
 bind = Super, O, global, quickshell:sidebarLeftToggle # [hidden]
 bindd = Super, N, Toggle right sidebar, global, quickshell:sidebarRightToggle # Toggle right sidebar
@@ -55,9 +56,9 @@ bindd = Super+Shift, S, Screen snip, exec, @QUICKSHELL_BIN@ -p ~/.config/quicksh
 bindd = Super+Shift, X, Character recognition,exec,@GRIM_BIN@ -g "$(@SLURP_BIN@ $SLURP_ARGS)" "tmp.png" && @TESSERACT_BIN@ "tmp.png" - | @WL_COPY_BIN@ && rm "tmp.png" # [hidden]
 # Screen translate (uses freed Super+Shift+T)
 bindd = Super+Shift, T, Translate screen content, global, quickshell:screenTranslate # Translate screen content
-# Region search (Google Lens-like)
+# Region search (Context Lens — AI vision analysis)
 bindd = Super+Shift, A, Region search, global, quickshell:regionSearch # Region search
-bind = Super+Shift, A, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/hypr/scripts/snip_to_search.sh # [hidden] Region search (fallback)
+bind = Super+Shift, A, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || @QUICKSHELL_BIN@ -p ~/.config/quickshell/$qsConfig/contextlens.qml # [hidden] Region search (fallback)
 # Color picker
 bindd = Super+Shift, C, Color picker, exec, @HYPRPICKER_BIN@ -a # Pick color (Hex) >> clipboard
 # Fullscreen screenshot (per-monitor: active monitor only)
