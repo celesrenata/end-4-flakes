@@ -28,8 +28,8 @@ Singleton {
     property var configSnapshot: null    // Captured config state before preview
     property bool previewActive: false   // Whether preview mode is active
     property var currentResults: {
-        // Loading state
-        if (root.state === ActionPalette.Loading || root.state === ActionPalette.Debouncing) {
+        // Loading state — only show spinner when actually waiting for LLM response
+        if (root.state === ActionPalette.Loading) {
             return [{
                 name: Translation.tr("Thinking..."),
                 type: Translation.tr("AI Action"),
@@ -327,6 +327,54 @@ Singleton {
         }
     }
 
+    // === Fire-and-forget process spawner (creates fresh Process each time) ===
+    property Component _spawnComponent: Component {
+        Process {
+            id: spawnedProcess
+            onExited: (exitCode, exitStatus) => {
+                console.log("[ActionPalette] spawned process exited: " + exitCode);
+                Qt.callLater(() => spawnedProcess.destroy());
+            }
+        }
+    }
+
+    function _spawn(argv) {
+        console.log("[ActionPalette] _spawn: " + JSON.stringify(argv));
+        var p = _spawnComponent.createObject(root, { command: argv });
+        p.running = true;
+    }
+
+    // === Delayed command execution ===
+    property var _pendingCommands: []
+    Timer {
+        id: execDelayTimer
+        interval: 100
+        repeat: false
+        onTriggered: {
+            if (root._pendingCommands.length === 0) return;
+            var cmd = root._pendingCommands.shift();
+            console.log("[ActionPalette] timer exec: " + cmd);
+            root._spawn(["hyprctl", "dispatch", "exec", cmd]);
+            if (root._pendingCommands.length > 0) {
+                execDelayTimer2.start();
+            }
+        }
+    }
+    Timer {
+        id: execDelayTimer2
+        interval: 1500
+        repeat: false
+        onTriggered: {
+            if (root._pendingCommands.length === 0) return;
+            var cmd = root._pendingCommands.shift();
+            console.log("[ActionPalette] timer exec2: " + cmd);
+            root._spawn(["hyprctl", "dispatch", "exec", cmd]);
+            if (root._pendingCommands.length > 0) {
+                execDelayTimer2.start();
+            }
+        }
+    }
+
     // === Shell command execution process (for shell.exec actions) ===
     Process {
         id: shellExecProcess
@@ -424,6 +472,8 @@ Singleton {
         }
 
         // Execute all actions directly — user triggered from action palette (implicit approval)
+        // Collect all shell.exec commands to run as a single combined script
+        var shellCommands = [];
         for (var i = 0; i < root.actionPlan.actions.length; i++) {
             var action = root.actionPlan.actions[i];
             console.log("[ActionPalette] processing action " + i + ": type=" + (action ? action.type : "null") + " valid=" + (action ? action.valid : "n/a") + " command=" + (action ? action.command : ""));
@@ -434,10 +484,8 @@ Singleton {
                     try { Config.setNestedValue(action.key, action.value); } catch (e) { console.log("[ActionPalette] config.set error: " + e); }
                     break;
                 case "shell.exec":
-                    console.log("[ActionPalette] executing shell: " + action.command);
-                    // Run in a visible terminal so the user sees output
-                    var termCmd = "foot -e bash -c '" + action.command.replace(/'/g, "'\\''") + "; echo; echo Press Enter to close...; read'";
-                    Hyprland.dispatch("exec " + termCmd);
+                    console.log("[ActionPalette] queuing shell: " + action.command);
+                    shellCommands.push(action.command);
                     break;
                 case "hyprland.dispatch":
                     try { Hyprland.dispatch(action.dispatcher + " " + action.args); } catch (e) { console.log("[ActionPalette] dispatch error: " + e); }
@@ -450,6 +498,13 @@ Singleton {
                     console.log("[ActionPalette] unknown action type: " + action.type);
                     break;
             }
+        }
+
+        // Run shell commands via delayed Timer (ensures dispatch fires after click handler)
+        if (shellCommands.length > 0) {
+            console.log("[ActionPalette] queuing " + shellCommands.length + " commands for delayed dispatch");
+            root._pendingCommands = shellCommands;
+            execDelayTimer.start();
         }
 
         root.state = ActionPalette.Idle;
@@ -494,9 +549,18 @@ Singleton {
                 GlobalStates.overviewOpen = false;
                 break;
             case "shell.exec":
-                // Run in a visible terminal so the user sees output
-                var termCmd2 = "foot -e bash -c '" + action.command.replace(/'/g, "'\\''") + "; echo; echo Press Enter to close...; read'";
-                Hyprland.dispatch("exec " + termCmd2);
+                // Run single command via hyprctl dispatch exec (detached)
+                var cmd2 = action.command;
+                var isSilent2 = /^(pkill|kill|killall|systemctl|hyprctl|notify-send|xdg-open|nohup|sleep)\b/.test(cmd2)
+                    || /&\s*$/.test(cmd2)
+                    || />\s*\/dev\/null/.test(cmd2)
+                    || /^sleep\s/.test(cmd2);
+                if (isSilent2) {
+                    fireAndForgetProcess.command = ["hyprctl", "dispatch", "exec", cmd2];
+                } else {
+                    fireAndForgetProcess.command = ["hyprctl", "dispatch", "exec", "foot -e bash -c '" + cmd2.replace(/'/g, "'\\''") + "; echo; echo Press Enter to close...; read'"];
+                }
+                fireAndForgetProcess.running = true;
                 GlobalStates.overviewOpen = false;
                 break;
             case "hyprland.dispatch":
@@ -671,7 +735,13 @@ Rules:
 - Each action must have a "type" field and all required parameters for that type
 - Prefer config.set over shell.exec when possible (safer, reversible)
 - Use hyprland.dispatch for window/workspace management
-- Use app.launch for opening applications`;
+- Use app.launch for opening applications when you know the exact desktop entry ID
+- When unsure of the desktop entry ID, use shell.exec to launch apps by command name
+- For "restart X" requests, use TWO shell.exec actions: first "pkill -f X" then "sleep 1 && X"
+- ALWAYS use "pkill -f" instead of plain "pkill" — this is NixOS where binary names are wrapped
+- When launching an app after killing it, combine with a delay: "sleep 1 && appname"
+- Do NOT put & at the end of commands — Hyprland exec handles backgrounding
+- For shell.exec, prefer commands that produce useful visible output`;
     }
 
     // === Internal: Policy gates ===
