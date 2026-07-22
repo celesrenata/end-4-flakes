@@ -6,7 +6,7 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
 
 ## Tasks
 
-- [ ] 1. Python helper script — protocol layer and backend ABC
+- [x] 1. Python helper script — protocol layer and backend ABC
   - [x] 1.1 Create `voice-agent-stream.py` with CLI argument parsing, BaseVoiceBackend ABC, and async main loop
     - Create `configs/quickshell/ii/scripts/voice-agent-stream.py`
     - Implement argparse for `--backend`, `--audio-fifo`, `--sample-rate`, `--region`, `--profile`, `--api-key`, `--system-prompt`, `--context`, `--tools`
@@ -23,18 +23,18 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Validate required fields per event type
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7_
 
-  - [-] 1.3 Write property tests for protocol round-trip integrity
+  - [x] 1.3 Write property tests for protocol round-trip integrity
     - **Property 1: Protocol round-trip integrity**
     - Generate random valid events, serialize to JSON line, parse back, verify type and required fields present
     - **Validates: Requirements 12.1, 12.2, 12.5, 12.6, 12.7**
 
-  - [-] 1.4 Write property tests for audio format preservation
+  - [x] 1.4 Write property tests for audio format preservation
     - **Property 2: Audio format preservation**
     - Generate random PCM byte sequences (length multiple of 2), base64 encode, decode, verify length preserved and content identical
     - **Validates: Requirements 12.5, 13.1, 13.2, 13.3**
 
 - [ ] 2. Python helper — Nova Sonic backend
-  - [-] 2.1 Implement `NovaSonicBackend` class with Bedrock bidirectional streaming
+  - [x] 2.1 Implement `NovaSonicBackend` class with Bedrock bidirectional streaming
     - Implement `connect()` using boto3/botocore for `invoke-model-with-bidirectional-stream` on `amazon.nova-sonic-v1:0`
     - Implement `send_audio()` to forward PCM chunks per Nova Sonic input event schema
     - Implement event handler to parse Nova Sonic transcript/audio/tool-use events and emit protocol events
@@ -52,7 +52,7 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - _Requirements: 5.4, 5.5, 5.6, 5.7_
 
 - [ ] 3. Python helper — OpenAI Realtime backend
-  - [-] 3.1 Implement `OpenAIRealtimeBackend` class with WebSocket connection
+  - [x] 3.1 Implement `OpenAIRealtimeBackend` class with WebSocket connection
     - Implement `connect()` to establish WebSocket to `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview` with API key auth and `OpenAI-Beta: realtime=v1` header
     - Send `session.update` at connection start with server-side VAD enabled, system prompt, and tools
     - Implement `send_audio()` to send `input_audio_buffer.append` events with base64-encoded PCM
@@ -104,12 +104,12 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Remain in Idle state on credential failure
     - _Requirements: 1.3, 1.4, 1.5_
 
-  - [-] 6.3 Write property tests for policy enforcement gate
+  - [x] 6.3 Write property tests for policy enforcement gate
     - **Property 5: Policy enforcement gate**
     - Generate all combinations of policies.ai (0, 1, 2) × voiceBackend ("none", "nova-sonic", "openai-realtime"), verify activation gate decisions
     - **Validates: Requirements 14.1, 14.2, 14.3**
 
-  - [ ] 6.4 Write property tests for credential validation
+  - [-] 6.4 Write property tests for credential validation
     - **Property 6: Credential validation before connection**
     - Generate activation attempts with varying credential states, verify rejection with descriptive errors when credentials missing
     - **Validates: Requirements 1.3, 1.4, 1.5**

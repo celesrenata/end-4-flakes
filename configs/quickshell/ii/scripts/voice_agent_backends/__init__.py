@@ -1,5 +1,6 @@
 """Voice agent backend implementations and protocol helpers."""
 
+from voice_agent_backends.base import BaseVoiceBackend, VoiceAgentConfig
 from voice_agent_backends.protocol import (
     AudioResponseEvent,
     BargeInEvent,
@@ -23,6 +24,8 @@ from voice_agent_backends.protocol import (
 )
 
 __all__ = [
+    "BaseVoiceBackend",
+    "VoiceAgentConfig",
     "AudioResponseEvent",
     "BargeInEvent",
     "ErrorEvent",

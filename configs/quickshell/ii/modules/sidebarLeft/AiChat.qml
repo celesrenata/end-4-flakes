@@ -416,16 +416,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         function onTranscriptionComplete(text) {
             if (!text || text.trim().length === 0) return;
             if (Ai.activeSessionName === "Free Dictation") {
-                // Auto-submit to Free Dictation session
-                Ai.postResponseHook = function() {
-                    var lastId = Ai.messageIDs[Ai.messageIDs.length - 1];
-                    var lastMsg = Ai.messageByID[lastId];
-                    if (lastMsg && lastMsg.role === "assistant" && lastMsg.rawContent) {
-                        DictationService.responseText = lastMsg.rawContent;
-                        DictationService.responsePinned = false;
-                    }
-                };
-                Ai.sendUserMessage(text);
+                // Route through ActionPalette (has shell.exec + system tools)
+                ActionPalette.submitQueryDirect(text, DictationService._voiceAssistantPrompt)
             } else {
                 // Type at system cursor via wtype
                 Quickshell.execDetached(["wtype", text]);
