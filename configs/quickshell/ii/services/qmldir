@@ -32,5 +32,6 @@ singleton SystemInfo 1.0 SystemInfo.qml
 singleton TimerService 1.0 TimerService.qml
 singleton Todo 1.0 Todo.qml
 singleton TtsService 1.0 TtsService.qml
+singleton VoiceProviderCheckService 1.0 VoiceProviderCheckService.qml
 singleton Weather 1.0 Weather.qml
 singleton Ydotool 1.0 Ydotool.qml

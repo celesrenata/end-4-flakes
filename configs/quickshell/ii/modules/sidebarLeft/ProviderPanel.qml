@@ -13,6 +13,31 @@ Item {
     property bool showCustomForm: false
     property var editingCustomProvider: null
 
+    // Deselect non-local voice providers when policy changes to local-only (Requirement 7.3)
+    Connections {
+        target: Config.options.policies
+        function onAiChanged() {
+            if (Config.options.policies.ai === 2) {
+                // Deselect STT provider if it's not local
+                var sttProvider = Config.options.dictation.provider
+                if (sttProvider && sttProvider !== "") {
+                    var sttConfig = Config.options.dictation.sttProviders[sttProvider]
+                    if (sttConfig && sttConfig.endpoint && !VoiceProviderCheckService.isLocal(sttConfig.endpoint)) {
+                        Config.setNestedValue("dictation.provider", "")
+                    }
+                }
+                // Deselect TTS provider if it's not local
+                var ttsProvider = Config.options.dictation.ttsProvider
+                if (ttsProvider && ttsProvider !== "none" && ttsProvider !== "") {
+                    var ttsConfig = Config.options.dictation.ttsProviders[ttsProvider]
+                    if (ttsConfig && ttsConfig.endpoint && !VoiceProviderCheckService.isLocal(ttsConfig.endpoint)) {
+                        Config.setNestedValue("dictation.ttsProvider", "none")
+                    }
+                }
+            }
+        }
+    }
+
     // Compute the list of provider IDs based on policy and custom providers
     property var providerList: {
         var builtIn = [];
@@ -110,6 +135,27 @@ Item {
                     root.selectedProvider = providerId;
                 }
             }
+        }
+
+        // Voice Provider Sections — below AI providers
+        VoiceProviderSection {
+            id: sttSection
+            visible: root.selectedProvider === "" && !root.showCustomForm && Config.options.policies.ai !== 0
+            Layout.fillWidth: true
+            sectionTitle: "Voice: Speech-to-Text"
+            providerType: "stt"
+            providerData: Config.options.dictation.sttProviders
+            aiPolicy: Config.options.policies.ai
+        }
+
+        VoiceProviderSection {
+            id: ttsSection
+            visible: root.selectedProvider === "" && !root.showCustomForm && Config.options.policies.ai !== 0
+            Layout.fillWidth: true
+            sectionTitle: "Voice: Text-to-Speech"
+            providerType: "tts"
+            providerData: Config.options.dictation.ttsProviders
+            aiPolicy: Config.options.policies.ai
         }
     }
 }

@@ -10,6 +10,10 @@ ModelListItem 1.0 ModelListItem.qml
 ProviderDetailView 1.0 ProviderDetailView.qml
 ProviderListItem 1.0 ProviderListItem.qml
 ProviderPanel 1.0 ProviderPanel.qml
+SearchPanel 1.0 SearchPanel.qml
 SidebarLeftContent 1.0 SidebarLeftContent.qml
 SidebarLeft 1.0 SidebarLeft.qml
 Translator 1.0 Translator.qml
+VoiceProviderDetailView 1.0 VoiceProviderDetailView.qml
+VoiceProviderListItem 1.0 VoiceProviderListItem.qml
+VoiceProviderSection 1.0 VoiceProviderSection.qml

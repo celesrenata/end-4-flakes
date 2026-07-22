@@ -81,6 +81,23 @@ Singleton {
 
     readonly property bool contextFull: contextUsageRatio >= 1.0
 
+    readonly property string contextMeterText: {
+        var percentage = Math.round(root.contextUsageRatio * 100);
+        var limit = root.contextLimit;
+        var limitStr;
+        if (limit >= 1000000) {
+            limitStr = String(limit / 1000000) + "M";
+        } else if (limit >= 1000) {
+            limitStr = String(limit / 1000) + "k";
+        } else {
+            limitStr = String(limit);
+        }
+        return percentage + "% of " + limitStr;
+    }
+
+    // Rename validation error (for inline display in session drawer)
+    property string lastRenameError: ""
+
     // Auto-compact notification state (reset per session)
     property bool autoCompactShown: false
     property bool autoCompactDismissed: false
@@ -101,6 +118,11 @@ Singleton {
         root.previousContextUsageRatio = root.contextUsageRatio;
     }
 
+    function dismissAutoCompact() {
+        root.autoCompactShown = false;
+        root.autoCompactDismissed = true;
+    }
+
     // AI_Doctor: models with larger context windows than the current model
     readonly property var largerContextModels: {
         const currentLimit = root.contextLimit;
@@ -113,6 +135,11 @@ Singleton {
     // Session management
     property string activeSessionName: Persistent.states?.ai?.activeSession ?? "Chat 1"
     property var sessionsIndex: ({})
+
+    // Session switch signals and state
+    signal sessionSwitchStarted()
+    signal sessionSwitchCompleted()
+    property bool switching: false
 
     // Compact state
     property bool compacting: false
@@ -178,6 +205,9 @@ Singleton {
             "name": name,
             "createdAt": Math.floor(Date.now() / 1000),
             "lastModified": Math.floor(Date.now() / 1000),
+            "archived": false,
+            "group": "",
+            "subject": "",
         });
         root.sessionsIndex = { "sessions": sessions };
 
@@ -257,6 +287,55 @@ Singleton {
                         "required": ["command"]
                     }
                 },
+                {
+                    "name": "hypr_config_read",
+                    "description": "Read Quickshell or Hyprland configuration via HyprMCP. Returns current config state.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "namespace": {
+                                "type": "string",
+                                "description": "Dot-separated config namespace to read (e.g. 'bar.workspaces'). Empty string returns all config."
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "hypr_config_set",
+                    "description": "Set a Quickshell config value via HyprMCP with read-back verification. Use hypr_config_read first to see available keys.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "key": {
+                                "type": "string",
+                                "description": "The dot-separated config key to set (e.g. 'bar.borderless')"
+                            },
+                            "value": {
+                                "type": "string",
+                                "description": "The value to set"
+                            }
+                        },
+                        "required": ["key", "value"]
+                    }
+                },
+                {
+                    "name": "hypr_set_keyword",
+                    "description": "Set a Hyprland runtime keyword via HyprMCP with read-back verification. Used for Hyprland dynamic configuration.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "keyword": {
+                                "type": "string",
+                                "description": "The Hyprland keyword to set (e.g. 'general:gaps_in')"
+                            },
+                            "value": {
+                                "type": "string",
+                                "description": "The value to set"
+                            }
+                        },
+                        "required": ["keyword", "value"]
+                    }
+                },
             ]}],
             "search": [{
                 "google_search": {}
@@ -303,6 +382,40 @@ Singleton {
                             },
                         },
                         "required": ["command"]
+                    }
+                },
+                {
+                    "name": "hypr_config_read",
+                    "description": "Read Quickshell or Hyprland configuration via HyprMCP. Returns current config state.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "namespace": { "type": "string", "description": "Dot-separated config namespace to read. Empty for all." }
+                        }
+                    }
+                },
+                {
+                    "name": "hypr_config_set",
+                    "description": "Set a Quickshell config value via HyprMCP with read-back verification.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "key": { "type": "string", "description": "Config key to set" },
+                            "value": { "type": "string", "description": "Value to set" }
+                        },
+                        "required": ["key", "value"]
+                    }
+                },
+                {
+                    "name": "hypr_set_keyword",
+                    "description": "Set a Hyprland runtime keyword via HyprMCP with read-back verification.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "keyword": { "type": "string", "description": "Hyprland keyword" },
+                            "value": { "type": "string", "description": "Value to set" }
+                        },
+                        "required": ["keyword", "value"]
                     }
                 },
             ],
@@ -356,6 +469,49 @@ Singleton {
                             "required": ["command"]
                         }
                     },
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "hypr_config_read",
+                        "description": "Read Quickshell or Hyprland configuration via HyprMCP.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "namespace": { "type": "string", "description": "Config namespace to read" }
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "hypr_config_set",
+                        "description": "Set a Quickshell config value via HyprMCP with verification.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "key": { "type": "string", "description": "Config key" },
+                                "value": { "type": "string", "description": "Value to set" }
+                            },
+                            "required": ["key", "value"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "hypr_set_keyword",
+                        "description": "Set a Hyprland runtime keyword via HyprMCP with verification.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "keyword": { "type": "string", "description": "Hyprland keyword" },
+                                "value": { "type": "string", "description": "Value to set" }
+                            },
+                            "required": ["keyword", "value"]
+                        }
+                    }
                 },
             ],
             "search": [],
@@ -558,8 +714,61 @@ Singleton {
                     root.newSession();
                 }
             } catch (e) {
-                console.log("[AI] Startup: Could not load persisted session, creating default:", e);
-                root.newSession();
+                console.log("[AI] Startup: Could not load persisted session, trying fallback:", e);
+                // Fallback: try the most recently modified session
+                const sessions = root.sessionsIndex.sessions || [];
+                if (sessions.length > 0) {
+                    var sorted = [];
+                    for (var si = 0; si < sessions.length; si++) {
+                        sorted.push(sessions[si]);
+                    }
+                    sorted.sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+                    var loaded = false;
+                    for (var fi = 0; fi < sorted.length; fi++) {
+                        try {
+                            chatSaveFile.chatName = sorted[fi].name;
+                            chatSaveFile.reload();
+                            const fallbackContent = chatSaveFile.text();
+                            if (fallbackContent && fallbackContent.trim().length > 0) {
+                                const fallbackData = JSON.parse(fallbackContent);
+                                if (!Array.isArray(fallbackData)) continue;
+                                root.clearMessages();
+                                const fallbackMessageByID = ({});
+                                for (var fj = 0; fj < fallbackData.length; fj++) {
+                                    var fMsg = fallbackData[fj];
+                                    fallbackMessageByID[fj] = root.aiMessageComponent.createObject(root, {
+                                        "role": fMsg.role,
+                                        "rawContent": fMsg.rawContent,
+                                        "content": fMsg.rawContent,
+                                        "model": fMsg.model ?? "",
+                                        "thinking": fMsg.thinking ?? false,
+                                        "done": fMsg.done ?? true,
+                                        "annotations": fMsg.annotations ?? [],
+                                        "annotationSources": fMsg.annotationSources ?? [],
+                                        "functionName": fMsg.functionName ?? "",
+                                        "functionCall": fMsg.functionCall ?? null,
+                                        "functionResponse": fMsg.functionResponse ?? "",
+                                        "visibleToUser": fMsg.visibleToUser ?? true,
+                                    });
+                                }
+                                root.messageByID = fallbackMessageByID;
+                                root.messageIDs = fallbackData.map((_, k) => k);
+                                root.activeSessionName = sorted[fi].name;
+                                Persistent.states.ai.activeSession = sorted[fi].name;
+                                loaded = true;
+                                break;
+                            }
+                        } catch (inner) {
+                            continue; // Try next session
+                        }
+                    }
+                    if (!loaded) {
+                        root.newSession();
+                    }
+                } else {
+                    // No sessions exist — create default
+                    root.newSession();
+                }
             }
         } else {
             // No persisted session, create a new default
@@ -948,6 +1157,7 @@ Singleton {
 
     function sendUserMessage(message) {
         if (message.length === 0) return;
+        if (root.switching) return;
         if (root.contextFull) {
             root.addMessage(
                 Translation.tr("Context window is full. Please compact the conversation or switch to a model with a larger context window."),
@@ -1020,6 +1230,121 @@ Singleton {
         }
     }
 
+    Process {
+        id: hyprMcpProc
+        running: false
+        property string pendingTool: ""
+        property var pendingArgs: ({})
+        property string responseBuffer: ""
+
+        stdout: SplitParser {
+            onRead: data => {
+                hyprMcpProc.responseBuffer += data;
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            const response = hyprMcpProc.responseBuffer.trim();
+            hyprMcpProc.responseBuffer = "";
+
+            if (exitCode !== 0 || response.length === 0) {
+                root.addFunctionOutputMessage(hyprMcpProc.pendingTool,
+                    Translation.tr("HyprMCP error: service unreachable or returned empty response (exit code: %1)").arg(exitCode));
+                requester.makeRequest();
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(response);
+                const content = parsed.result?.content?.[0]?.text || JSON.stringify(parsed);
+
+                if (hyprMcpProc.pendingTool === "hypr_config_read") {
+                    // Return config state to model
+                    root.addFunctionOutputMessage("hypr_config_read", content);
+                    requester.makeRequest();
+                } else {
+                    // For write operations: trigger read-back verification
+                    const key = hyprMcpProc.pendingArgs.key || hyprMcpProc.pendingArgs.keyword || "";
+                    const value = String(hyprMcpProc.pendingArgs.value || "");
+                    const namespace = key.split(".").slice(0, -1).join(".") || key;
+
+                    hyprMcpVerifyProc.originalTool = hyprMcpProc.pendingTool;
+                    hyprMcpVerifyProc.expectedValue = value;
+                    hyprMcpVerifyProc.verifyKey = key;
+                    hyprMcpVerifyProc.responseBuffer = "";
+                    hyprMcpVerifyProc.command = ["bash", "-c",
+                        `curl -s -X POST http://localhost:7580/mcp -H 'Content-Type: application/json' -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify({
+                            method: "tools/call",
+                            params: { name: "config_read", arguments: { namespace: namespace } }
+                        }))}'`
+                    ];
+                    hyprMcpVerifyProc.running = true;
+                }
+            } catch (e) {
+                root.addFunctionOutputMessage(hyprMcpProc.pendingTool,
+                    Translation.tr("HyprMCP error: could not parse response: %1").arg(String(e)));
+                requester.makeRequest();
+            }
+        }
+    }
+
+    Process {
+        id: hyprMcpVerifyProc
+        running: false
+        property string expectedValue: ""
+        property string verifyKey: ""
+        property string originalTool: ""
+        property string responseBuffer: ""
+
+        stdout: SplitParser {
+            onRead: data => {
+                hyprMcpVerifyProc.responseBuffer += data;
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            const response = hyprMcpVerifyProc.responseBuffer.trim();
+            hyprMcpVerifyProc.responseBuffer = "";
+
+            if (exitCode !== 0 || response.length === 0) {
+                // Read-back failed — report error but don't claim success
+                root.addFunctionOutputMessage(hyprMcpVerifyProc.originalTool,
+                    Translation.tr("Write appeared to succeed but verification read-back failed (exit code: %1). Cannot confirm change was applied.").arg(exitCode));
+                requester.makeRequest();
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(response);
+                const content = parsed.result?.content?.[0]?.text || JSON.stringify(parsed);
+
+                // Check if the expected value appears in the read-back
+                const actualStr = String(content);
+                const expectedStr = String(hyprMcpVerifyProc.expectedValue);
+
+                if (actualStr.indexOf(expectedStr) !== -1) {
+                    // Match — report verified success
+                    root.addFunctionOutputMessage(hyprMcpVerifyProc.originalTool,
+                        Translation.tr("Verified: %1 = %2").arg(hyprMcpVerifyProc.verifyKey).arg(expectedStr));
+                } else {
+                    // Mismatch — report both expected and actual to model and user
+                    root.addFunctionOutputMessage(hyprMcpVerifyProc.originalTool,
+                        "Verification failed: expected " + expectedStr + ", got " + actualStr);
+                    root.addMessage(
+                        Translation.tr("⚠️ Config verification mismatch for \"%1\": expected \"%2\", actual value: %3")
+                            .arg(hyprMcpVerifyProc.verifyKey).arg(expectedStr).arg(actualStr),
+                        root.interfaceRole
+                    );
+                }
+            } catch (e) {
+                root.addFunctionOutputMessage(hyprMcpVerifyProc.originalTool,
+                    Translation.tr("Verification read-back parse error: %1").arg(String(e)));
+            }
+
+            requester.makeRequest();
+        }
+    }
+
     function handleFunctionCall(name, args: var, message: AiMessageData) {
         if (name === "switch_to_search_mode") {
             const modelId = root.currentModelId;
@@ -1048,6 +1373,45 @@ Singleton {
             message.rawContent += contentToAppend;
             message.content += contentToAppend;
             message.functionPending = true; // Use thinking to indicate the command is waiting for approval
+        } else if (name === "hypr_config_read") {
+            const namespace = args.namespace || "";
+            hyprMcpProc.pendingTool = "hypr_config_read";
+            hyprMcpProc.pendingArgs = { namespace: namespace };
+            hyprMcpProc.command = ["bash", "-c",
+                `curl -s -X POST http://localhost:7580/mcp -H 'Content-Type: application/json' -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify({
+                    method: "tools/call",
+                    params: { name: "config_read", arguments: { namespace: namespace } }
+                }))}'`
+            ];
+            hyprMcpProc.running = true;
+        } else if (name === "hypr_config_set") {
+            if (!args.key || !args.value) {
+                addFunctionOutputMessage(name, Translation.tr("Invalid arguments. Must provide `key` and `value`."));
+                return;
+            }
+            hyprMcpProc.pendingTool = "hypr_config_set";
+            hyprMcpProc.pendingArgs = { key: args.key, value: args.value };
+            hyprMcpProc.command = ["bash", "-c",
+                `curl -s -X POST http://localhost:7580/mcp -H 'Content-Type: application/json' -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify({
+                    method: "tools/call",
+                    params: { name: "config_set", arguments: { key: args.key, value: args.value } }
+                }))}'`
+            ];
+            hyprMcpProc.running = true;
+        } else if (name === "hypr_set_keyword") {
+            if (!args.keyword || !args.value) {
+                addFunctionOutputMessage(name, Translation.tr("Invalid arguments. Must provide `keyword` and `value`."));
+                return;
+            }
+            hyprMcpProc.pendingTool = "hypr_set_keyword";
+            hyprMcpProc.pendingArgs = { keyword: args.keyword, value: args.value };
+            hyprMcpProc.command = ["bash", "-c",
+                `curl -s -X POST http://localhost:7580/mcp -H 'Content-Type: application/json' -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify({
+                    method: "tools/call",
+                    params: { name: "set_keyword", arguments: { keyword: args.keyword, value: args.value } }
+                }))}'`
+            ];
+            hyprMcpProc.running = true;
         }
         else root.addMessage(Translation.tr("Unknown function call: %1").arg(name), "assistant");
     }
@@ -1097,7 +1461,10 @@ Singleton {
                     return {
                         "name": name,
                         "createdAt": now,
-                        "lastModified": now
+                        "lastModified": now,
+                        "archived": false,
+                        "group": "",
+                        "subject": "",
                     };
                 });
                 root.sessionsIndex = { "sessions": sessions };
@@ -1117,6 +1484,14 @@ Singleton {
             }
             const parsed = JSON.parse(content);
             if (parsed && Array.isArray(parsed.sessions)) {
+                // Migrate existing entries: add missing fields for backward compatibility
+                for (var i = 0; i < parsed.sessions.length; i++) {
+                    var s = parsed.sessions[i];
+                    if (s.archived === undefined) s.archived = false;
+                    if (s.group === undefined) s.group = "";
+                    if (s.subject === undefined) s.subject = "";
+                    // protected is optional — only set on special sessions like Free Dictation
+                }
                 root.sessionsIndex = parsed;
             } else {
                 // Invalid structure, rebuild
@@ -1131,6 +1506,49 @@ Singleton {
     function saveSessionsIndex() {
         const content = JSON.stringify(root.sessionsIndex, null, 2);
         sessionsIndexFile.setText(content);
+    }
+
+    /**
+     * Purges (clears all messages from) a session without removing it from the index.
+     * Preserves the session entry with all metadata; only the messages are removed.
+     * @param name The session name to purge
+     */
+    function purgeSession(name) {
+        const trimmedName = (name || "").trim();
+        if (trimmedName.length === 0) {
+            root.addMessage(Translation.tr("Please specify a session name to purge"), root.interfaceRole);
+            return;
+        }
+
+        // Verify session exists in index
+        const sessions = root.sessionsIndex.sessions || [];
+        const entry = sessions.find(s => s.name === trimmedName);
+        if (!entry) {
+            root.addMessage(
+                Translation.tr("Session \"%1\" not found in sessions index").arg(trimmedName),
+                root.interfaceRole
+            );
+            return;
+        }
+
+        // Write empty array to the session file
+        chatSaveFile.chatName = trimmedName;
+        chatSaveFile.setText(JSON.stringify([]));
+
+        // Update lastModified timestamp in index
+        entry.lastModified = Math.floor(Date.now() / 1000);
+        root.sessionsIndex = { "sessions": sessions };
+        root.saveSessionsIndex();
+
+        // If purging the active session, clear in-memory messages
+        if (trimmedName === root.activeSessionName) {
+            root.clearMessages();
+        }
+
+        root.addMessage(
+            Translation.tr("Purged all messages from session \"%1\"").arg(trimmedName),
+            root.interfaceRole
+        );
     }
 
     Process {
@@ -1169,23 +1587,66 @@ Singleton {
 
     /**
      * Renames a session (updates index, moves file, updates active name if needed).
+     * Validates: non-empty, no path separators, no duplicates, not "Free Dictation".
      * @param oldName current session name
-     * @param newName new session name (non-empty, no path separators)
+     * @param newName new session name
      */
     function renameSession(oldName, newName) {
         oldName = (oldName || "").trim();
         newName = (newName || "").trim();
-        if (!oldName || !newName || oldName === newName) return;
-        if (newName.indexOf("/") !== -1 || newName.indexOf("\\") !== -1) return;
+        root.lastRenameError = "";
 
-        // Update sessions index
+        // Validate: both names must be non-empty
+        if (!oldName || !newName) {
+            root.lastRenameError = Translation.tr("Session name cannot be empty");
+            root.addMessage(root.lastRenameError, root.interfaceRole);
+            return;
+        }
+
+        // Same name — no-op
+        if (oldName === newName) return;
+
+        // Validate: no path separator characters
+        if (newName.indexOf("/") !== -1 || newName.indexOf("\\") !== -1) {
+            root.lastRenameError = Translation.tr("Invalid name: must not contain '/' or '\\\\' characters");
+            root.addMessage(root.lastRenameError, root.interfaceRole);
+            return;
+        }
+
+        // Validate: cannot rename TO "Free Dictation" (protected name)
+        if (newName === "Free Dictation") {
+            root.lastRenameError = Translation.tr("Cannot rename to \"Free Dictation\" — that name is reserved");
+            root.addMessage(root.lastRenameError, root.interfaceRole);
+            return;
+        }
+
+        // Validate: check oldName exists and is not protected
         const sessions = root.sessionsIndex.sessions || [];
         const entry = sessions.find(s => s.name === oldName);
-        if (entry) {
-            entry.name = newName;
-            root.sessionsIndex = { "sessions": sessions };
-            root.saveSessionsIndex();
+        if (!entry) {
+            root.lastRenameError = Translation.tr("Session \"%1\" not found").arg(oldName);
+            root.addMessage(root.lastRenameError, root.interfaceRole);
+            return;
         }
+        if (entry.protected) {
+            root.lastRenameError = Translation.tr("Cannot rename the protected session \"%1\"").arg(oldName);
+            root.addMessage(root.lastRenameError, root.interfaceRole);
+            return;
+        }
+
+        // Validate: no duplicate
+        const duplicate = sessions.find(s => s.name === newName);
+        if (duplicate) {
+            root.lastRenameError = Translation.tr("A session named \"%1\" already exists").arg(newName);
+            root.addMessage(root.lastRenameError, root.interfaceRole);
+            return;
+        }
+
+        // Update sessions index
+        entry.name = newName;
+        entry.lastModified = Math.floor(Date.now() / 1000);
+        root.sessionsIndex = { "sessions": sessions };
+        root.saveSessionsIndex();
 
         // Move the file on disk
         renameSessionFileProc.oldPath = `${Directories.aiChats}/${oldName}.json`;
@@ -1197,6 +1658,121 @@ Singleton {
             root.activeSessionName = newName;
             Persistent.states.ai.activeSession = newName;
         }
+
+        root.addMessage(
+            Translation.tr("Renamed session \"%1\" → \"%2\"").arg(oldName).arg(newName),
+            root.interfaceRole
+        );
+    }
+
+    /**
+     * Archives a session (sets archived=true, removes from active list display).
+     * @param name The session name to archive
+     */
+    function archiveSession(name) {
+        const trimmedName = (name || "").trim();
+        if (trimmedName.length === 0) return;
+
+        const sessions = root.sessionsIndex.sessions || [];
+        const entry = sessions.find(s => s.name === trimmedName);
+        if (!entry) {
+            root.addMessage(Translation.tr("Session \"%1\" not found").arg(trimmedName), root.interfaceRole);
+            return;
+        }
+
+        entry.archived = true;
+        entry.lastModified = Math.floor(Date.now() / 1000);
+        root.sessionsIndex = { "sessions": sessions };
+        root.saveSessionsIndex();
+        root.addMessage(Translation.tr("Archived session \"%1\"").arg(trimmedName), root.interfaceRole);
+    }
+
+    /**
+     * Unarchives a session (sets archived=false, restores to active list).
+     * @param name The session name to unarchive
+     */
+    function unarchiveSession(name) {
+        const trimmedName = (name || "").trim();
+        if (trimmedName.length === 0) return;
+
+        const sessions = root.sessionsIndex.sessions || [];
+        const entry = sessions.find(s => s.name === trimmedName);
+        if (!entry) {
+            root.addMessage(Translation.tr("Session \"%1\" not found").arg(trimmedName), root.interfaceRole);
+            return;
+        }
+
+        entry.archived = false;
+        entry.lastModified = Math.floor(Date.now() / 1000);
+        root.sessionsIndex = { "sessions": sessions };
+        root.saveSessionsIndex();
+        root.addMessage(Translation.tr("Unarchived session \"%1\"").arg(trimmedName), root.interfaceRole);
+    }
+
+    /**
+     * Sets the group label for a session.
+     * Validates: 1-64 chars, not whitespace-only.
+     * @param name The session name
+     * @param group The group label to assign
+     */
+    function setSessionGroup(name, group) {
+        const trimmedName = (name || "").trim();
+        if (trimmedName.length === 0) return;
+
+        // Validate group: 1-64 chars, not whitespace-only
+        if (!group || group.length === 0 || group.trim().length === 0) {
+            root.addMessage(Translation.tr("Group label cannot be empty or whitespace-only"), root.interfaceRole);
+            return;
+        }
+        if (group.length > 64) {
+            root.addMessage(Translation.tr("Group label cannot exceed 64 characters"), root.interfaceRole);
+            return;
+        }
+
+        const sessions = root.sessionsIndex.sessions || [];
+        const entry = sessions.find(s => s.name === trimmedName);
+        if (!entry) {
+            root.addMessage(Translation.tr("Session \"%1\" not found").arg(trimmedName), root.interfaceRole);
+            return;
+        }
+
+        entry.group = group;
+        entry.lastModified = Math.floor(Date.now() / 1000);
+        root.sessionsIndex = { "sessions": sessions };
+        root.saveSessionsIndex();
+    }
+
+    /**
+     * Sets the subject for a session.
+     * Validates: 1-128 chars, not whitespace-only.
+     * @param name The session name
+     * @param subject The subject to assign
+     */
+    function setSessionSubject(name, subject) {
+        const trimmedName = (name || "").trim();
+        if (trimmedName.length === 0) return;
+
+        // Validate subject: 1-128 chars, not whitespace-only
+        if (!subject || subject.length === 0 || subject.trim().length === 0) {
+            root.addMessage(Translation.tr("Subject cannot be empty or whitespace-only"), root.interfaceRole);
+            return;
+        }
+        if (subject.length > 128) {
+            root.addMessage(Translation.tr("Subject cannot exceed 128 characters"), root.interfaceRole);
+            return;
+        }
+
+        const sessions = root.sessionsIndex.sessions || [];
+        const entry = sessions.find(s => s.name === trimmedName);
+        if (!entry) {
+            root.addMessage(Translation.tr("Session \"%1\" not found").arg(trimmedName), root.interfaceRole);
+            return;
+        }
+
+        entry.subject = subject;
+        entry.lastModified = Math.floor(Date.now() / 1000);
+        root.sessionsIndex = { "sessions": sessions };
+        root.saveSessionsIndex();
     }
 
     FileView {
@@ -1407,6 +1983,156 @@ Singleton {
         }
     }
 
+    // Summarize-to-new-chat process
+    Process {
+        id: summarizeRequester
+        property list<string> baseCommand: ["bash", "-c"]
+        property AiMessageData summarizeMessage
+        property ApiStrategy currentStrategy
+
+        stdout: SplitParser {
+            onRead: data => {
+                if (data.length === 0) return;
+                try {
+                    summarizeRequester.currentStrategy.parseResponseLine(data, summarizeRequester.summarizeMessage);
+                } catch (e) {
+                    summarizeRequester.summarizeMessage.rawContent += data;
+                    summarizeRequester.summarizeMessage.content += data;
+                }
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            summarizeRequester.currentStrategy.onRequestFinished(summarizeRequester.summarizeMessage);
+            const response = summarizeRequester.summarizeMessage.rawContent.trim();
+
+            if (exitCode !== 0 || response.length === 0) {
+                root.addMessage(
+                    Translation.tr("Failed to summarize conversation. Your messages have been preserved."),
+                    root.interfaceRole
+                );
+                return;
+            }
+
+            // Parse title and summary from response
+            // Expected format: first line is the title (max 50 chars), rest is summary
+            var lines = response.split("\n");
+            var title = lines[0].trim();
+            if (title.length > 50) title = title.substring(0, 50);
+            if (title.length === 0) title = "Summary";
+            var summary = lines.length > 1 ? lines.slice(1).join("\n").trim() : response;
+
+            // Save current session (original stays unchanged)
+            root.saveCurrentSession();
+
+            // Create new session with model-generated title
+            root.clearMessages();
+            root.activeSessionName = title;
+            Persistent.states.ai.activeSession = title;
+
+            // Add to sessions index
+            var sessions = root.sessionsIndex.sessions || [];
+            sessions.push({
+                "name": title,
+                "createdAt": Math.floor(Date.now() / 1000),
+                "lastModified": Math.floor(Date.now() / 1000),
+                "archived": false,
+                "group": "",
+                "subject": "",
+            });
+            root.sessionsIndex = { "sessions": sessions };
+            root.saveSessionsIndex();
+
+            // Add summary as system message
+            var aiMessage = root.aiMessageComponent.createObject(root, {
+                "role": "system",
+                "content": summary,
+                "rawContent": summary,
+                "thinking": false,
+                "done": true,
+            });
+            var id = root.idForMessage(aiMessage);
+            root.messageIDs = [id];
+            root.messageByID[id] = aiMessage;
+            root.saveCurrentSession();
+
+            root.addMessage(
+                Translation.tr("Created summary session: \"%1\"").arg(title),
+                root.interfaceRole
+            );
+        }
+    }
+
+    /**
+     * Creates a new session with a model-generated title and summary from the
+     * current conversation. The original session remains unchanged.
+     * @param focusInstruction Optional instruction to guide the summary
+     */
+    function summarizeToNewChat(focusInstruction) {
+        if (root.messageIDs.length === 0) {
+            root.addMessage(Translation.tr("Nothing to summarize — conversation is empty."), root.interfaceRole);
+            return;
+        }
+
+        var model = models[currentModelId];
+        var strategy = root.currentApiStrategy;
+        summarizeRequester.currentStrategy = strategy;
+        strategy.reset();
+
+        // Create temporary message for accumulating response
+        summarizeRequester.summarizeMessage = root.aiMessageComponent.createObject(root, {
+            "role": "assistant",
+            "content": "",
+            "rawContent": "",
+            "thinking": false,
+            "done": false,
+        });
+
+        // Build summarization prompt asking for title + summary
+        var summarizationPrompt = "Generate a title (first line, max 50 characters) and a concise summary (remaining lines) of the following conversation. The title should describe the topic.";
+        if (focusInstruction && focusInstruction.trim().length > 0) {
+            summarizationPrompt += " Focus on: " + focusInstruction.trim();
+        }
+
+        // Build conversation as single user message
+        var conversationText = root.messageIDs.map(function(id) {
+            var msg = root.messageByID[id];
+            if (!msg) return "";
+            return "[" + msg.role + "]: " + msg.rawContent;
+        }).filter(function(line) { return line.length > 0; }).join("\n\n");
+
+        var syntheticMessages = [root.aiMessageComponent.createObject(root, {
+            "role": "user",
+            "content": conversationText,
+            "rawContent": conversationText,
+            "thinking": false,
+            "done": true,
+        })];
+
+        var endpoint = strategy.buildEndpoint(model);
+        var data = strategy.buildRequestData(model, syntheticMessages, summarizationPrompt, root.temperature, []);
+
+        if (model.requires_key) {
+            summarizeRequester.environment[root.apiKeyEnvVarName] = root.apiKeys ? (root.apiKeys[model.key_id] ?? "") : "";
+        }
+
+        var requestHeaders = { "Content-Type": "application/json" };
+        var headerString = Object.entries(requestHeaders)
+            .filter(function(entry) { return entry[1] && entry[1].length > 0; })
+            .map(function(entry) { return "-H '" + entry[0] + ": " + entry[1] + "'"; })
+            .join(' ');
+
+        var authHeader = strategy.buildAuthorizationHeader(root.apiKeyEnvVarName);
+
+        var requestCommandString = 'curl --no-buffer "' + endpoint + '"'
+            + ' ' + headerString
+            + (authHeader ? ' ' + authHeader : '')
+            + " -d '" + CF.StringUtils.shellSingleQuoteEscape(JSON.stringify(data)) + "'";
+
+        summarizeRequester.command = summarizeRequester.baseCommand.concat([requestCommandString]);
+        summarizeRequester.running = true;
+    }
+
     // --- Free Dictation Session Management ---
 
     FileView {
@@ -1431,6 +2157,10 @@ Singleton {
             "name": "Free Dictation",
             "createdAt": now,
             "lastModified": now,
+            "archived": false,
+            "group": "",
+            "subject": "",
+            "protected": true,
         });
         root.sessionsIndex = { "sessions": sessions };
         root.saveSessionsIndex();
@@ -1487,6 +2217,10 @@ Singleton {
         }
     }
 
+    // Search state
+    property var searchResults: []
+    property int searchIndex: -1
+
     /**
      * Returns all sessions sorted by lastModified (newest first).
      * Each entry contains name and lastModified timestamp.
@@ -1494,6 +2228,94 @@ Singleton {
     function listSessions() {
         const sessions = root.sessionsIndex.sessions || [];
         return [...sessions].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+    }
+
+    /**
+     * Searches messages in the active session using filters.
+     * @param query Object with keyword, dateStart, dateEnd, subject, group fields
+     * @returns Array of SearchResult objects {messageIndex, matchStart, matchEnd}
+     */
+    function searchMessages(query) {
+        var results = [];
+        var keyword = (query.keyword || "").toLowerCase();
+        var dateStart = query.dateStart || null;
+        var dateEnd = query.dateEnd || null;
+
+        // Keyword must be at least 2 chars
+        if (keyword.length > 0 && keyword.length < 2) {
+            root.searchResults = [];
+            root.searchIndex = -1;
+            return [];
+        }
+
+        for (var i = 0; i < root.messageIDs.length; i++) {
+            var id = root.messageIDs[i];
+            var msg = root.messageByID[id];
+            if (!msg) continue;
+
+            var content = (msg.rawContent || "").toLowerCase();
+
+            // Keyword filter
+            if (keyword.length >= 2) {
+                var matchStart = content.indexOf(keyword);
+                if (matchStart === -1) continue;
+
+                // Date range filter (if timestamps available)
+                if (dateStart !== null && msg.timestamp && msg.timestamp < dateStart) continue;
+                if (dateEnd !== null && msg.timestamp && msg.timestamp > dateEnd) continue;
+
+                results.push({
+                    "messageIndex": i,
+                    "matchStart": matchStart,
+                    "matchEnd": matchStart + keyword.length,
+                });
+            } else {
+                // No keyword filter — only date range
+                if (dateStart !== null && msg.timestamp && msg.timestamp < dateStart) continue;
+                if (dateEnd !== null && msg.timestamp && msg.timestamp > dateEnd) continue;
+                results.push({
+                    "messageIndex": i,
+                    "matchStart": 0,
+                    "matchEnd": 0,
+                });
+            }
+        }
+
+        root.searchResults = results;
+        root.searchIndex = results.length > 0 ? 0 : -1;
+        return results;
+    }
+
+    /**
+     * Navigate to next search result (wraps at end).
+     */
+    function nextSearchResult() {
+        if (root.searchResults.length === 0) return;
+        if (root.searchIndex >= root.searchResults.length - 1) {
+            root.searchIndex = 0;
+        } else {
+            root.searchIndex = root.searchIndex + 1;
+        }
+    }
+
+    /**
+     * Navigate to previous search result (wraps at start).
+     */
+    function prevSearchResult() {
+        if (root.searchResults.length === 0) return;
+        if (root.searchIndex <= 0) {
+            root.searchIndex = root.searchResults.length - 1;
+        } else {
+            root.searchIndex = root.searchIndex - 1;
+        }
+    }
+
+    /**
+     * Clear search state.
+     */
+    function clearSearch() {
+        root.searchResults = [];
+        root.searchIndex = -1;
     }
 
     /**
@@ -1527,6 +2349,10 @@ Singleton {
         // Save current session before switching
         root.saveCurrentSession();
 
+        // Signal switch starting, disable input
+        root.switching = true;
+        root.sessionSwitchStarted();
+
         // Load the target session
         root.loadSession(trimmedName);
 
@@ -1538,10 +2364,15 @@ Singleton {
         // Update active session name and persist
         root.activeSessionName = trimmedName;
         Persistent.states.ai.activeSession = trimmedName;
+
+        // Signal switch completed, re-enable input
+        root.switching = false;
+        root.sessionSwitchCompleted();
     }
 
     /**
      * Loads a session's message history from its JSON file.
+     * On failure: preserves current state, displays error, stays on current session.
      * @param name The session name to load
      */
     function loadSession(name) {
@@ -1550,15 +2381,25 @@ Singleton {
             chatSaveFile.chatName = trimmedName;
             chatSaveFile.reload();
             const saveContent = chatSaveFile.text();
+            if (!saveContent || saveContent.trim().length === 0) {
+                // Empty file — treat as empty session (not a failure)
+                root.clearMessages();
+                return;
+            }
             const saveData = JSON.parse(saveContent);
+            if (!Array.isArray(saveData)) {
+                throw new Error("Session file does not contain a JSON array");
+            }
 
+            // Only clear messages AFTER successful parse — preserves state on failure
             root.clearMessages();
+
             // Populate messageByID before assigning messageIDs so that when
             // contextTokens and the message list view re-evaluate on
             // messageIDsChanged, all message objects are already present.
             const newMessageByID = ({});
-            for (let i = 0; i < saveData.length; i++) {
-                const message = saveData[i];
+            for (var i = 0; i < saveData.length; i++) {
+                var message = saveData[i];
                 newMessageByID[i] = root.aiMessageComponent.createObject(root, {
                     "role": message.role,
                     "rawContent": message.rawContent,
@@ -1578,9 +2419,9 @@ Singleton {
             root.messageIDs = saveData.map((_, i) => i);
         } catch (e) {
             console.log("[AI] Could not load session:", trimmedName, e);
-            const available = (root.sessionsIndex.sessions || []).map(s => s.name).join("\n- ");
+            // Preserve current state — do NOT clear messages on failure
             root.addMessage(
-                Translation.tr("Failed to load session \"%1\".\n\nAvailable sessions:\n- %2").arg(trimmedName).arg(available || Translation.tr("(none)")),
+                Translation.tr("Failed to load session \"%1\": %2").arg(trimmedName).arg(String(e)),
                 root.interfaceRole
             );
         }

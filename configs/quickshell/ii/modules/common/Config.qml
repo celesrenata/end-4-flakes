@@ -279,6 +279,7 @@ Singleton {
                 property bool enabled: true
                 property string activationKey: "Control_R"
                 property int doubleTapMs: 400
+                property int debounceMs: 500 // Debounce window (ms) after activation; 0-2000, 0 disables
                 property int silenceTimeoutMs: 3000
                 property int maxDurationMs: 60000
                 property string provider: "openai"
@@ -290,6 +291,7 @@ Singleton {
                 property bool talkback: false // Enable TTS playback
                 property string intentMode: "heuristic" // heuristic, ai
                 property string httpEndpoint: "" // HTTP batch endpoint for STT
+                property bool smartRouting: false // Smart Dictation Routing — route voice input by intent
 
                 // Local STT provider configurations
                 property JsonObject sttProviders: JsonObject {

@@ -38,12 +38,16 @@ Singleton {
     property string model: Config.options.dictation.model
     property string streamingEndpoint: Config.options.dictation.streamingEndpoint || ""
     property int chunkDurationMs: Config.options.dictation.chunkDurationMs || 3000
+    property int debounceMs: Config.options.dictation.debounceMs
 
     // Recording file path
     property string _recordingPath: ""
 
     // API key for remote transcription providers (populated by task 7.2 via KeyringStorage)
     property string _apiKey: ""
+
+    // Debounce guard state
+    property bool _debounceActive: false
 
     // STT fallback chain index: 0 = configured endpoint, 1 = localhost, 2 = OpenAI API
     property int _fallbackIndex: 0
@@ -57,11 +61,13 @@ Singleton {
     readonly property var _commandVerbs: [
         "open", "close", "launch", "set", "change", "toggle", "switch",
         "move", "kill", "run", "show", "hide", "play", "pause", "stop",
-        "mute", "unmute", "find", "search", "check", "tell", "give", "list"
+        "mute", "unmute", "find", "search", "check", "tell", "give", "list",
+        "maximize", "minimize", "resize", "start", "increase", "decrease", "adjust"
     ]
     readonly property var _questionWords: [
         "what", "how", "when", "where", "who", "which",
-        "is", "are", "can", "do", "does", "will", "would", "should", "could"
+        "why", "can", "could", "would", "should",
+        "is", "are", "do", "does", "did", "will"
     ]
 
     // Voice assistant response text — Floating Indicator binds to this
@@ -100,35 +106,43 @@ Singleton {
         var oldState = root.state
         root.state = newState
         _logTransition(oldState, newState, context)
+        // Reset debounce guard when returning to Idle (Requirement 4.5)
+        if (newState === DictationService.State.Idle) {
+            root._debounceActive = false
+            debounceTimer.stop()
+        }
     }
 
-    // Intent classification: returns "command" or "dictation"
-    // When intentMode is "ai" and the text is ambiguous, this returns "ambiguous"
-    // to signal that _classifyIntentAi should be called for async LLM classification.
+    // Intent classification: returns "command" | "dictation" | "ambiguous"
+    // Heuristic mode: imperative verb prefix → "command", question patterns → "dictation",
+    // everything else → "ambiguous".
+    // When intentMode is "ai" and the text is ambiguous, _classifyIntentAi can be called
+    // for async LLM classification with a 5-second timeout fallback.
     function _classifyIntent(text) {
+        if (!text || text.trim().length === 0) return "ambiguous"
+
         var trimmed = text.trim()
-        if (!trimmed) return "command"
+        var lowerTrimmed = trimmed.toLowerCase()
+        var firstWord = lowerTrimmed.split(" ")[0]
 
-        var words = trimmed.split(/\s+/)
-        var firstWord = words[0].toLowerCase()
-
-        // Imperative verb at start → command
+        // Imperative verb prefixes → "command"
         if (_commandVerbs.indexOf(firstWord) !== -1) return "command"
 
-        // Question word at start → command
-        if (_questionWords.indexOf(firstWord) !== -1) return "command"
+        // Question patterns → "dictation"
+        if (_questionWords.indexOf(firstWord) !== -1) return "dictation"
 
-        // Contains question mark → command
-        if (trimmed.indexOf("?") !== -1) return "command"
+        // Contains question mark → "dictation"
+        if (trimmed.indexOf("?") !== -1) return "dictation"
 
-        // Long text (>20 words) without command patterns → dictation
+        // Long text (>20 words) without heuristic match → "dictation"
+        var words = trimmed.split(/\s+/)
         if (words.length > 20) return "dictation"
 
-        // Ambiguous short text: check if AI mode is enabled
+        // Ambiguous short text: if AI mode, return "ambiguous" for async classification
         if (Config.options.dictation.intentMode === "ai") return "ambiguous"
 
-        // Default to command (heuristic mode fallback)
-        return "command"
+        // Default heuristic fallback → "ambiguous"
+        return "ambiguous"
     }
 
     // AI-based intent classification for ambiguous cases.
@@ -418,6 +432,48 @@ Singleton {
         }
     }
 
+    // Smart routing pipeline — routes dictation text based on intent when sidebar is open.
+    // When smartRouting is enabled AND active session is "Free Dictation":
+    //   - "command" → route to ActionPalette (skip chat submission)
+    //   - "dictation" / "ambiguous" → normal transcriptionComplete for AiChat
+    // When smartRouting is disabled or session is not "Free Dictation": normal behavior.
+    // Requirements: 8.2, 8.3
+    function _smartRoute(text) {
+        if (!text || text.trim().length === 0) return
+
+        // If smart routing is disabled or not Free Dictation, emit normally
+        if (!Config.options.dictation.smartRouting || Ai.activeSessionName !== "Free Dictation") {
+            root.transcriptionComplete(text)
+            return
+        }
+
+        var intent = root._classifyIntent(text)
+
+        if (intent === "command") {
+            // Route to ActionPalette — trivial command, skip chat
+            ActionPalette.submitQueryDirect(text)
+            return
+        }
+
+        if (intent === "ambiguous" && Config.options.dictation.intentMode === "ai") {
+            // AI classification for ambiguous text with 5-second timeout fallback
+            // On timeout or failure, defaults to normal message send
+            _classifyIntentAi(text, function(result) {
+                if (result === "command") {
+                    ActionPalette.submitQueryDirect(text)
+                } else {
+                    // "dictation" or fallback → send as normal message
+                    root.transcriptionComplete(text)
+                }
+            })
+            return
+        }
+
+        // Non-trivial or ambiguous (heuristic mode): send as normal message to Free Dictation
+        // AiChat handles auto-submit via transcriptionComplete
+        root.transcriptionComplete(text)
+    }
+
     // Voice assistant pipeline — processes transcribed text when sidebar is closed.
     // Classifies intent, logs to Free Dictation, and routes to appropriate handler.
     function _processVoiceAssistant(text) {
@@ -429,15 +485,19 @@ Singleton {
         // Always log user input to Free Dictation session
         Ai.appendToFreeDictation(text, "user")
 
-        if (intent === "dictation") {
-            // Pure dictation — show brief confirmation, no action execution
+        // In voice assistant mode (sidebar closed), both "command" and "dictation" (questions)
+        // route to ActionPalette — the user is speaking to the AI either way.
+        // Only long-form text (classified as "dictation" due to >20 words) gets captured without action.
+        var words = text.trim().split(/\s+/)
+        if (intent === "dictation" && words.length > 20) {
+            // Pure long-form dictation — show brief confirmation, no action execution
             root.responseText = "Captured to Free Dictation"
             responseClearTimer.restart()
             return
         }
 
-        if (intent === "command") {
-            // Direct command — invoke ActionPalette without opening overview
+        if (intent === "command" || intent === "dictation") {
+            // Direct command or question — invoke ActionPalette without opening overview
             root._voiceAssistantPending = true
             voiceAssistantTimeoutTimer.restart()
             ActionPalette.submitQueryDirect(text, root._voiceAssistantPrompt)
@@ -458,6 +518,16 @@ Singleton {
                 }
             })
             return
+        }
+    }
+
+    // Debounce guard timer — suppresses rapid re-activation after initial tap
+    Timer {
+        id: debounceTimer
+        interval: root.debounceMs
+        repeat: false
+        onTriggered: {
+            root._debounceActive = false
         }
     }
 
@@ -622,9 +692,17 @@ Singleton {
 
     // Called when dictation trigger fires (F20 from keyd double-tap, or hyprctl dispatch)
     function onKeyTap() {
-        console.log("[DictationService] onKeyTap: state=" + root.state + " _waitingForSecondTap=" + root._waitingForSecondTap)
+        console.log("[DictationService] onKeyTap: state=" + root.state + " _debounceActive=" + root._debounceActive)
+
+        // Debounce guard: suppress rapid re-activation within the debounce window.
+        // Only gates activation from Idle — stop-recording taps pass through after window expires.
+        if (root._debounceActive) {
+            console.log("[DictationService] GATE_REJECT | reason=debounce")
+            return
+        }
+
         if (root.state === DictationService.State.Listening || root.state === DictationService.State.StreamingActive) {
-            // Already recording — tap stops recording
+            // Already recording — tap stops recording (not gated by debounce)
             console.log("[DictationService] Already recording, stopping")
             stopRecording()
             return
@@ -633,6 +711,13 @@ Singleton {
         // keyd handles double-tap detection at kernel level, so F20 only fires
         // on confirmed double-tap. Activate directly.
         console.log("[DictationService] Activating directly (keyd double-tap confirmed)")
+
+        // Start debounce window if configured (Requirement 4.1, 5.3)
+        if (root.debounceMs > 0) {
+            root._debounceActive = true
+            debounceTimer.restart()
+        }
+
         activate()
     }
 
@@ -942,8 +1027,8 @@ Singleton {
 
         // Route based on sidebar state
         if (GlobalStates.sidebarLeftOpen) {
-            // Sidebar open — put text in input field for review/edit
-            root.transcriptionComplete(text)
+            // Sidebar open — route through smart routing (checks intent when enabled)
+            root._smartRoute(text)
         } else {
             // Sidebar closed — route through voice assistant pipeline
             root._processVoiceAssistant(text)
@@ -1009,8 +1094,8 @@ Singleton {
 
         // Route based on sidebar state
         if (GlobalStates.sidebarLeftOpen) {
-            // Sidebar open — put text in input field for review/edit
-            root.transcriptionComplete(text)
+            // Sidebar open — route through smart routing (checks intent when enabled)
+            root._smartRoute(text)
         } else {
             // Sidebar closed — route through voice assistant pipeline
             root._processVoiceAssistant(text)
