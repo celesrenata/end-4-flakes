@@ -140,6 +140,7 @@ Singleton {
     signal sessionSwitchStarted()
     signal sessionSwitchCompleted()
     property bool switching: false
+    property int messageVersion: 0  // Incremented on session switch to force view refresh
 
     // Compact state
     property bool compacting: false
@@ -679,9 +680,12 @@ Singleton {
         const persistedSession = Persistent.states?.ai?.activeSession;
         if (persistedSession && persistedSession.length > 0) {
             try {
+                const persistedPath = Directories.aiChats + "/" + persistedSession + ".json";
+                sessionReader.path = persistedPath;
+                sessionReader.reload();
+                const content = sessionReader.text();
+                // Sync chatSaveFile so saves target the correct file
                 chatSaveFile.chatName = persistedSession;
-                chatSaveFile.reload();
-                const content = chatSaveFile.text();
                 if (content && content.trim().length > 0) {
                     const saveData = JSON.parse(content);
                     root.clearMessages();
@@ -726,9 +730,11 @@ Singleton {
                     var loaded = false;
                     for (var fi = 0; fi < sorted.length; fi++) {
                         try {
+                            const fallbackPath = Directories.aiChats + "/" + sorted[fi].name + ".json";
+                            sessionReader.path = fallbackPath;
+                            sessionReader.reload();
+                            const fallbackContent = sessionReader.text();
                             chatSaveFile.chatName = sorted[fi].name;
-                            chatSaveFile.reload();
-                            const fallbackContent = chatSaveFile.text();
                             if (fallbackContent && fallbackContent.trim().length > 0) {
                                 const fallbackData = JSON.parse(fallbackContent);
                                 if (!Array.isArray(fallbackData)) continue;
@@ -1049,6 +1055,7 @@ Singleton {
                 root.postResponseHook();
                 root.postResponseHook = null; // Reset hook after use
             }
+            root.saveCurrentSession();
             root.saveChat("lastSession")
         }
 
@@ -1572,8 +1579,14 @@ Singleton {
         }
         name = name.trim();
         if (name === root.activeSessionName) {
-            root.addMessage(Translation.tr("Cannot delete the active session \"%1\". Switch to another session first.").arg(name), root.interfaceRole);
-            return;
+            // Switch to another session before deleting the active one
+            const sessions = (root.sessionsIndex.sessions || []).filter(s => s.name !== name && !s.archived);
+            if (sessions.length === 0) {
+                // No other sessions — create a new one first
+                root.newSession("");
+            } else {
+                root.switchSession(sessions[0].name);
+            }
         }
         // Remove session JSON file from filesystem
         deleteSessionFileProc.sessionFilePath = `${Directories.aiChats}/${name}.json`;
@@ -1786,6 +1799,12 @@ Singleton {
         id: chatSaveFile
         property string chatName: "chat"
         path: `${Directories.aiChats}/${chatName}.json`
+        blockLoading: true
+    }
+
+    // Dedicated reader for session loading — path is set imperatively, never bound
+    FileView {
+        id: sessionReader
         blockLoading: true
     }
 
@@ -2704,13 +2723,14 @@ Singleton {
         const trimmedName = (name || "").trim();
         console.log("[AI] loadSession called for:", trimmedName);
         try {
+            // Use dedicated sessionReader (not chatSaveFile) to avoid binding issues
+            const targetPath = Directories.aiChats + "/" + trimmedName + ".json";
+            sessionReader.path = targetPath;
+            sessionReader.reload();
+            const saveContent = sessionReader.text();
+            // Keep chatSaveFile in sync so subsequent saves target the correct file
             chatSaveFile.chatName = trimmedName;
-            // Force path update before reload (binding may not evaluate immediately)
-            chatSaveFile.path = Directories.aiChats + "/" + trimmedName + ".json";
-            console.log("[AI] loadSession path set to:", chatSaveFile.path);
-            chatSaveFile.reload();
-            const saveContent = chatSaveFile.text();
-            console.log("[AI] loadSession file content length:", saveContent ? saveContent.length : 0);
+            console.log("[AI] loadSession path:", targetPath, "content length:", saveContent ? saveContent.length : 0);
             if (!saveContent || saveContent.trim().length === 0) {
                 // Empty file — treat as empty session (not a failure)
                 console.log("[AI] loadSession: empty file, clearing messages");
@@ -2751,6 +2771,7 @@ Singleton {
             }
             root.messageByID = newMessageByID;
             root.messageIDs = saveData.map((_, i) => i);
+            root.messageVersion++;
             console.log("[AI] loadSession DONE: messageIDs.length =", root.messageIDs.length);
         } catch (e) {
             console.log("[AI] Could not load session:", trimmedName, e);

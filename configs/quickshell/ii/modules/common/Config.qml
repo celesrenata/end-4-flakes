@@ -292,7 +292,9 @@ Singleton {
                 property string verbosity: "concise" // concise, normal, detailed
                 property string intentMode: "heuristic" // heuristic, ai
                 property string httpEndpoint: "" // HTTP batch endpoint for STT
+                property string ttsHttpEndpoint: "" // HTTP endpoint for OpenAI-compatible TTS
                 property bool smartRouting: false // Smart Dictation Routing — route voice input by intent
+                property string voiceBackend: "none" // "none" | "nova-sonic" | "openai-realtime"
 
                 // Local STT provider configurations
                 property JsonObject sttProviders: JsonObject {

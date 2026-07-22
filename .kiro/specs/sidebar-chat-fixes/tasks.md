@@ -36,17 +36,17 @@
   - `systemctl --user restart quickshell`
   - _Requirements: 2.1, 2.2, 2.6_
 
-- [ ] 5.2 Verify Fix 1 (invisible chat): Open sidebar → messages visible immediately without clicking
+- [x] 5.2 Verify Fix 1 (invisible chat): Open sidebar → messages visible immediately without clicking
   - _Requirements: 2.1_
 
-- [ ] 5.3 Verify Fix 2 (session switching): Open session drawer → click different session → messages change
+- [x] 5.3 Verify Fix 2 (session switching): Open session drawer → click different session → messages change
   - _Requirements: 2.2_
 
-- [ ] 5.4 Verify Fix 3 (select all + delete): Type text in input → Ctrl+A → Delete → text cleared
+- [x] 5.4 Verify Fix 3 (select all + delete): Type text in input → Ctrl+A → Delete → text cleared
   - _Requirements: 2.3_
 
-- [ ] 5.5 Verify Fix 4 (dictation routing): Dictate with sidebar open on non-Free-Dictation session → text types at system cursor via wtype
+- [x] 5.5 Verify Fix 4 (dictation routing): Dictate with sidebar open on non-Free-Dictation session → text types at system cursor via wtype
   - _Requirements: 2.4_
 
-- [ ] 5.6 Verify Fix 5 (monitor resolution): Ask voice assistant "What's my resolution?" → correct answer returned
+- [x] 5.6 Verify Fix 5 (monitor resolution): Ask voice assistant "What's my resolution?" → correct answer returned
   - _Requirements: 2.5_

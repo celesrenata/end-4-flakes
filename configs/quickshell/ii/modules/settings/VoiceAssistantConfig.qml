@@ -180,6 +180,16 @@ ContentPage {
                 }
             }
 
+            MaterialTextField {
+                Layout.fillWidth: true
+                placeholderText: Translation.tr("Custom TTS endpoint (OpenAI-compatible)")
+                text: Config.options.dictation.ttsHttpEndpoint
+                wrapMode: TextEdit.Wrap
+                onTextChanged: {
+                    Config.options.dictation.ttsHttpEndpoint = text;
+                }
+            }
+
             ConfigSwitch {
                 text: Translation.tr("Talkback")
                 checked: Config.options.dictation.talkback

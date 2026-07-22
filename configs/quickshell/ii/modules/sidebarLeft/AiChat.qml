@@ -80,23 +80,22 @@ Item {
         }
     }
 
+    property bool _needsInitialScroll: false
+
     onVisibleChanged: {
         if (visible) {
-            // Use a timer to ensure layout is complete before scrolling to bottom
-            scrollToBottomTimer.restart()
-        }
-    }
-
-    Timer {
-        id: scrollToBottomTimer
-        interval: 50
-        repeat: false
-        onTriggered: {
             if (root._scrollToMatchActive) {
                 root._scrollToMatchActive = false
                 return
             }
-            messageListView.positionViewAtBeginning()
+            // If layout is ready, snap immediately; otherwise flag for onContentHeightChanged
+            if (messageListView.height > 0 && messageListView.contentHeight > 0) {
+                scrollBehavior.enabled = false
+                messageListView.contentY = 0
+                scrollBehavior.enabled = true
+            } else {
+                root._needsInitialScroll = true
+            }
         }
     }
 
@@ -444,11 +443,17 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         }
     }
 
-    // Scroll to bottom on session switch completion
+    // Suppress animations and prepare for session switch
     Connections {
         target: Ai
+        function onSessionSwitchStarted() {
+            root._needsInitialScroll = true
+        }
         function onSessionSwitchCompleted() {
-            messageListView.contentY = 0;
+            // Snap to bottom immediately without animation
+            scrollBehavior.enabled = false
+            messageListView.contentY = 0
+            scrollBehavior.enabled = true
         }
     }
 
@@ -706,13 +711,17 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             for (var i = 0; i < sessions.length; i++) {
                                 if (!sessions[i].archived) active.push(sessions[i]);
                             }
-                            // Sort by group (alphabetical, case-insensitive), then by lastModified desc
+                            // Sort by group (alphabetical, case-insensitive), then by name asc
                             active.sort(function(a, b) {
                                 var ga = (a.group || "").toLowerCase();
                                 var gb = (b.group || "").toLowerCase();
                                 if (ga < gb) return -1;
                                 if (ga > gb) return 1;
-                                return (b.lastModified || 0) - (a.lastModified || 0);
+                                var na = (a.name || "").toLowerCase();
+                                var nb = (b.name || "").toLowerCase();
+                                if (na < nb) return -1;
+                                if (na > nb) return 1;
+                                return 0;
                             });
                             return active;
                         }
@@ -1100,14 +1109,14 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                         onClicked: Ai.archiveSession(sessionDelegate.modelData.name)
                                     }
 
-                                    // Delete button (only for non-active, non-protected sessions)
+                                    // Delete button (not for protected sessions)
                                     RippleButton {
                                         implicitWidth: 22
                                         implicitHeight: 22
                                         buttonRadius: 11
                                         colBackground: "transparent"
                                         colBackgroundHover: Qt.alpha(Appearance.m3colors.m3error, 0.12)
-                                        visible: !sessionRow.isActive && !sessionRow.isRenaming && !sessionRow.isProtected
+                                        visible: !sessionRow.isRenaming && !sessionRow.isProtected
 
                                         contentItem: MaterialSymbol {
                                             anchors.centerIn: parent
@@ -1558,6 +1567,16 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 readonly property bool isNearBottom: contentY <= scrollThreshold
                 property bool userScrolling: false
 
+                // Snap to bottom when content first loads after becoming visible
+                onContentHeightChanged: {
+                    if (root._needsInitialScroll && height > 0 && contentHeight > 0) {
+                        root._needsInitialScroll = false
+                        scrollBehavior.enabled = false
+                        contentY = 0
+                        scrollBehavior.enabled = true
+                    }
+                }
+
                 onMovementStarted: {
                     messageListView.userScrolling = true;
                     scrollAnim.stop();
@@ -1577,8 +1596,12 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 // }
 
                 add: null // Prevent function calls from being janky
+                remove: null // Prevent old messages flying away on session switch
+                removeDisplaced: null // Prevent displacement animation on model change
+                addDisplaced: null // Prevent add displacement animation
 
                 Behavior on contentY {
+                    id: scrollBehavior
                     NumberAnimation {
                         id: scrollAnim
                         duration: Appearance.animation.scroll.duration
@@ -1588,10 +1611,14 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 }
 
                 model: ScriptModel {
-                    values: Ai.messageIDs.filter(id => {
-                        const message = Ai.messageByID[id];
-                        return message?.visibleToUser ?? true;
-                    }).slice().reverse()
+                    values: {
+                        // messageVersion forces re-evaluation on session switch
+                        void(Ai.messageVersion);
+                        return Ai.messageIDs.filter(id => {
+                            const message = Ai.messageByID[id];
+                            return message?.visibleToUser ?? true;
+                        }).slice().reverse();
+                    }
                 }
                 delegate: Rectangle {
                     required property var modelData

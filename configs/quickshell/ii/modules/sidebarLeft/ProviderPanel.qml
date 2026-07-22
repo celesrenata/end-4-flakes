@@ -34,6 +34,11 @@ Item {
                         Config.setNestedValue("dictation.ttsProvider", "none")
                     }
                 }
+                // Deselect voice agent backend (all streaming backends require remote API)
+                var voiceBackend = Config.options.dictation.voiceBackend
+                if (voiceBackend && voiceBackend !== "none") {
+                    Config.setNestedValue("dictation.voiceBackend", "none")
+                }
             }
         }
     }
@@ -330,6 +335,97 @@ Item {
                 }
             }
 
+            // Response verbosity selector
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 4
+
+                StyledText {
+                    text: Translation.tr("Response Verbosity")
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: ["concise", "normal", "detailed"]
+                        delegate: RippleButton {
+                            required property string modelData
+                            required property int index
+                            implicitHeight: 24
+                            implicitWidth: verbChipText.implicitWidth + 12
+                            buttonRadius: 12
+                            colBackground: Config.options.dictation.verbosity === modelData
+                                ? Appearance.m3colors.m3secondaryContainer
+                                : Qt.alpha(Appearance.colors.colLayer2, 0.6)
+                            colBackgroundHover: Config.options.dictation.verbosity === modelData
+                                ? Appearance.m3colors.m3secondaryContainer
+                                : Appearance.colors.colLayer2Hover
+
+                            contentItem: StyledText {
+                                id: verbChipText
+                                anchors.centerIn: parent
+                                text: modelData === "concise" ? Translation.tr("Concise")
+                                    : modelData === "normal" ? Translation.tr("Normal")
+                                    : Translation.tr("Detailed")
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Config.options.dictation.verbosity === modelData
+                                    ? Appearance.m3colors.m3onSecondaryContainer
+                                    : Appearance.colors.colOnLayer2
+                            }
+                            onClicked: Config.setNestedValue("dictation.verbosity", modelData)
+                        }
+                    }
+                }
+            }
+
+            // Voice Agent backend selector (hidden in local-only mode since backends require remote API)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 4
+                visible: Config.options.policies.ai !== 2
+
+                StyledText {
+                    text: Translation.tr("Voice Agent")
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: ["none", "nova-sonic", "openai-realtime"]
+                        delegate: RippleButton {
+                            required property string modelData
+                            required property int index
+                            implicitHeight: 26
+                            implicitWidth: vaChipText.implicitWidth + 14
+                            buttonRadius: 13
+                            colBackground: Config.options.dictation.voiceBackend === modelData
+                                ? Appearance.m3colors.m3primaryContainer
+                                : Appearance.colors.colLayer2
+                            colBackgroundHover: Config.options.dictation.voiceBackend === modelData
+                                ? Appearance.m3colors.m3primaryContainer
+                                : Appearance.colors.colLayer2Hover
+
+                            contentItem: StyledText {
+                                id: vaChipText
+                                anchors.centerIn: parent
+                                text: modelData === "none" ? Translation.tr("Off") : modelData
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Config.options.dictation.voiceBackend === modelData
+                                    ? Appearance.m3colors.m3onPrimaryContainer
+                                    : Appearance.colors.colOnLayer2
+                            }
+                            onClicked: Config.setNestedValue("dictation.voiceBackend", modelData)
+                        }
+                    }
+                }
+            }
+
             // Override endpoint (optional, collapsed by default)
             ColumnLayout {
                 Layout.fillWidth: true
@@ -356,6 +452,33 @@ Item {
                             anchors.fill: parent
                             verticalAlignment: Text.AlignVCenter
                             text: Translation.tr("Custom STT endpoint")
+                            color: Appearance.m3colors.m3outline
+                            font: parent.font
+                            visible: !parent.text && !parent.activeFocus
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 32
+                    color: Appearance.colors.colLayer2
+                    radius: Appearance.rounding.small
+
+                    StyledTextInput {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        verticalAlignment: TextInput.AlignVCenter
+                        color: Appearance.m3colors.m3onSurface
+                        clip: true
+                        text: Config.options.dictation.ttsHttpEndpoint
+                        onEditingFinished: Config.setNestedValue("dictation.ttsHttpEndpoint", text)
+
+                        Text {
+                            anchors.fill: parent
+                            verticalAlignment: Text.AlignVCenter
+                            text: Translation.tr("Custom TTS endpoint")
                             color: Appearance.m3colors.m3outline
                             font: parent.font
                             visible: !parent.text && !parent.activeFocus
