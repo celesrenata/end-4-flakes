@@ -44,7 +44,7 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Implement `disconnect()` for graceful stream closure
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 13.1_
 
-  - [ ] 2.2 Write unit tests for Nova Sonic backend event mapping
+  - [-] 2.2 Write unit tests for Nova Sonic backend event mapping
     - Test transcript event → PARTIAL_TRANSCRIPT mapping
     - Test audio response event → AUDIO_RESPONSE mapping
     - Test tool-use event → TOOL_CALL mapping
@@ -61,7 +61,7 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Implement `disconnect()` for graceful WebSocket close
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 13.2_
 
-  - [ ] 3.2 Write unit tests for OpenAI Realtime backend event mapping
+  - [-] 3.2 Write unit tests for OpenAI Realtime backend event mapping
     - Test `response.audio_transcript.delta` → PARTIAL_TRANSCRIPT
     - Test `response.audio.delta` → AUDIO_RESPONSE
     - Test `response.function_call_arguments.done` → TOOL_CALL
@@ -69,7 +69,7 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - _Requirements: 6.4, 6.5, 6.6, 6.7, 6.8_
 
 - [ ] 4. Python helper — tool call handling and session context
-  - [ ] 4.1 Implement tool call pairing logic and session context loading
+  - [-] 4.1 Implement tool call pairing logic and session context loading
     - Track pending tool call IDs (enforce single pending call invariant)
     - Pause audio forwarding on TOOL_CALL, resume on TOOL_RESULT
     - Load session context from `--context` JSON file path
@@ -90,7 +90,7 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
 - [ ] 5. Checkpoint — Helper protocol complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. QML — Config and backend selection
+- [x] 6. QML — Config and backend selection
   - [x] 6.1 Add `voiceBackend` property to Config.qml and ProviderPanel backend selector
     - Add `property string voiceBackend: "none"` to `configs/quickshell/ii/modules/common/Config.qml` dictation JsonObject
     - Add backend selector (ComboBox or similar) to `configs/quickshell/ii/modules/sidebarLeft/ProviderPanel.qml` with options: "none", "nova-sonic", "openai-realtime"
@@ -109,13 +109,13 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Generate all combinations of policies.ai (0, 1, 2) × voiceBackend ("none", "nova-sonic", "openai-realtime"), verify activation gate decisions
     - **Validates: Requirements 14.1, 14.2, 14.3**
 
-  - [-] 6.4 Write property tests for credential validation
+  - [x] 6.4 Write property tests for credential validation
     - **Property 6: Credential validation before connection**
     - Generate activation attempts with varying credential states, verify rejection with descriptive errors when credentials missing
     - **Validates: Requirements 1.3, 1.4, 1.5**
 
 - [ ] 7. QML — VoiceAgentService core state machine
-  - [ ] 7.1 Create `VoiceAgentService.qml` singleton with state machine and process management
+  - [-] 7.1 Create `VoiceAgentService.qml` singleton with state machine and process management
     - Create `configs/quickshell/ii/services/VoiceAgentService.qml`
     - Define State enum: Idle, Connecting, Listening, Thinking, Speaking, ToolExecuting, Error
     - Implement `activate()`: validate credentials/policy, create FIFO, launch pw-cat → FIFO, launch helper with args

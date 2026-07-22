@@ -416,7 +416,9 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         function onTranscriptionComplete(text) {
             if (!text || text.trim().length === 0) return;
             if (Ai.activeSessionName === "Free Dictation") {
-                // Route through ActionPalette (has shell.exec + system tools)
+                // Route through ActionPalette with voice assistant pending flag
+                DictationService._voiceAssistantPending = true
+                Ai.appendToFreeDictation(text, "user")
                 ActionPalette.submitQueryDirect(text, DictationService._voiceAssistantPrompt)
             } else {
                 // Type at system cursor via wtype

@@ -38,6 +38,13 @@ import sys
 from typing import Any
 
 from voice_agent_backends.base import BaseVoiceBackend, VoiceAgentConfig
+from voice_agent_backends.tool_manager import (
+    ConcurrentToolCallError,
+    NoToolCallPendingError,
+    ToolCallManager,
+    ToolResultMismatchError,
+    load_session_context,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -214,12 +221,19 @@ def parse_input_event(line: str) -> dict[str, Any] | None:
 _AUDIO_READ_CHUNK_SIZE = 4096
 
 
-async def _read_audio_fifo(fifo_path: str, backend: BaseVoiceBackend, stop_event: asyncio.Event) -> None:
+async def _read_audio_fifo(
+    fifo_path: str,
+    backend: BaseVoiceBackend,
+    stop_event: asyncio.Event,
+    tool_manager: ToolCallManager,
+) -> None:
     """Async task: read raw PCM from the named FIFO and forward to backend.
 
     Opens the FIFO for reading and continuously reads chunks of audio data,
-    forwarding each to the backend. Stops when the stop_event is set or the
-    FIFO is closed (EOF).
+    forwarding each to the backend. Audio is silently dropped when the
+    tool_manager indicates audio is paused (tool call in progress).
+
+    Stops when the stop_event is set or the FIFO is closed (EOF).
     """
     try:
         # Open FIFO — this will block until the writer (pw-cat) opens it
@@ -242,6 +256,10 @@ async def _read_audio_fifo(fifo_path: str, backend: BaseVoiceBackend, stop_event
                 # EOF — writer closed the FIFO
                 break
 
+            # Pause audio forwarding while a tool call is pending
+            if tool_manager.audio_paused:
+                continue
+
             try:
                 await backend.send_audio(data)
             except Exception as exc:
@@ -252,10 +270,15 @@ async def _read_audio_fifo(fifo_path: str, backend: BaseVoiceBackend, stop_event
         os.close(fd)
 
 
-async def _read_stdin_events(backend: BaseVoiceBackend, stop_event: asyncio.Event) -> None:
+async def _read_stdin_events(
+    backend: BaseVoiceBackend,
+    stop_event: asyncio.Event,
+    tool_manager: ToolCallManager,
+) -> None:
     """Async task: read JSON-line control events from stdin.
 
     Handles TOOL_RESULT, STOP, and BARGE_IN events from the QML service.
+    Uses ToolCallManager to validate tool result pairing and track state.
     """
     loop = asyncio.get_event_loop()
     reader = asyncio.StreamReader()
@@ -295,6 +318,18 @@ async def _read_stdin_events(backend: BaseVoiceBackend, stop_event: asyncio.Even
             name: str = event.get("name", "")
             result: str = event.get("result", "")
             is_error: bool = event.get("is_error", False)
+
+            # Validate tool result pairing via the tool manager
+            try:
+                tool_manager.on_tool_result(call_id)
+            except NoToolCallPendingError as exc:
+                emit_error(f"Unexpected TOOL_RESULT: {exc}", fatal=False)
+                continue
+            except ToolResultMismatchError as exc:
+                emit_error(f"TOOL_RESULT ID mismatch: {exc}", fatal=False)
+                continue
+
+            # Forward the result to the backend
             try:
                 await backend.send_tool_result(call_id, name, result, is_error)
             except Exception as exc:
@@ -306,6 +341,22 @@ async def _read_stdin_events(backend: BaseVoiceBackend, stop_event: asyncio.Even
 
 async def run(config: VoiceAgentConfig) -> None:
     """Main async loop: connect backend, start audio/stdin readers, handle shutdown."""
+    # Validate and load session context if provided
+    if config.context:
+        try:
+            # Validate the context file exists and is valid JSON
+            _context_messages = load_session_context(config.context)
+            print(
+                f"[voice-agent] Loaded session context: {len(_context_messages)} messages",
+                file=sys.stderr,
+            )
+        except FileNotFoundError as exc:
+            emit_error(f"Session context file not found: {exc}", fatal=True)
+            return
+        except ValueError as exc:
+            emit_error(f"Invalid session context: {exc}", fatal=True)
+            return
+
     # Import backend implementations (deferred to avoid import errors when
     # optional dependencies are missing for the other backend)
     backend: BaseVoiceBackend
@@ -339,15 +390,18 @@ async def run(config: VoiceAgentConfig) -> None:
     # Emit READY — connection established
     emit_ready(config.backend)
 
+    # Create the tool call manager for shared pairing logic
+    tool_manager = ToolCallManager()
+
     # Coordinate shutdown
     stop_event = asyncio.Event()
 
     # Launch concurrent tasks
     audio_task = asyncio.create_task(
-        _read_audio_fifo(config.audio_fifo, backend, stop_event)
+        _read_audio_fifo(config.audio_fifo, backend, stop_event, tool_manager)
     )
     stdin_task = asyncio.create_task(
-        _read_stdin_events(backend, stop_event)
+        _read_stdin_events(backend, stop_event, tool_manager)
     )
 
     # Wait for stop signal (from STOP event, EOF, or error)
@@ -362,12 +416,16 @@ async def run(config: VoiceAgentConfig) -> None:
         except asyncio.CancelledError:
             pass
 
-    # Graceful disconnect
+    # Reset tool manager state for clean shutdown
+    tool_manager.reset()
+
+    # Graceful disconnect: finalize the backend stream
     try:
         await backend.disconnect()
     except Exception as exc:
         print(f"[voice-agent] Disconnect error: {exc}", file=sys.stderr)
 
+    # Emit SESSION_END after stream finalization
     emit_session_end("user_stop")
 
 
