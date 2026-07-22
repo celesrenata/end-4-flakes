@@ -393,12 +393,36 @@ async def run(config: VoiceAgentConfig) -> None:
                 f"[voice-agent] Loaded session context: {len(_context_messages)} messages",
                 file=sys.stderr,
             )
-        except FileNotFoundError as exc:
-            emit_error(f"Session context file not found: {exc}", fatal=True)
-            return
+        except FileNotFoundError:
+            # Context file missing is non-fatal — just skip context
+            print(
+                f"[voice-agent] Session context file not found, continuing without context",
+                file=sys.stderr,
+            )
+            config = VoiceAgentConfig(
+                backend=config.backend,
+                audio_fifo=config.audio_fifo,
+                sample_rate=config.sample_rate,
+                region=config.region,
+                profile=config.profile,
+                api_key=config.api_key,
+                system_prompt=config.system_prompt,
+                context="",
+                tools=config.tools,
+            )
         except ValueError as exc:
-            emit_error(f"Invalid session context: {exc}", fatal=True)
-            return
+            emit_error(f"Invalid session context: {exc}", fatal=False)
+            config = VoiceAgentConfig(
+                backend=config.backend,
+                audio_fifo=config.audio_fifo,
+                sample_rate=config.sample_rate,
+                region=config.region,
+                profile=config.profile,
+                api_key=config.api_key,
+                system_prompt=config.system_prompt,
+                context="",
+                tools=config.tools,
+            )
 
     # Import backend implementations (deferred to avoid import errors when
     # optional dependencies are missing for the other backend)
