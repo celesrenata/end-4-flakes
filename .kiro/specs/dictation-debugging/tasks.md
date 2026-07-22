@@ -43,7 +43,7 @@ Fix the dictation pipeline's silent failure modes by adding structured logging a
   - Mark task complete when tests are written, run, and passing on unfixed code
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7_
 
-- [ ] 3. Fix: Dictation pipeline debugging instrumentation and deployment regression
+- [x] 3. Fix: Dictation pipeline debugging instrumentation and deployment regression
 
   - [x] 3.1 Replace keyd inline command with wrapper script reference
     - **Repo**: `nix-flakes-refactored`
