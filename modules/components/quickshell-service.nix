@@ -225,7 +225,7 @@ in
         PrivateNetwork = false;
         ProtectSystem = "strict";
         ProtectHome = false; # Need access to home directory
-        NoNewPrivileges = true;
+        NoNewPrivileges = false; # Must be false so terminals spawned from quickshell can use sudo
         
         # Resource limits
         MemoryMax = "2G";
