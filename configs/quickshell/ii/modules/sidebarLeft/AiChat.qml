@@ -415,7 +415,10 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         target: DictationService
         function onTranscriptionComplete(text) {
             if (!text || text.trim().length === 0) return;
-            // Always route to voice assistant (ActionPalette) for all dictation
+            // Only route to ActionPalette if DictationService hasn't already done so
+            // (DictationService._voiceAssistantPending is set by _processVoiceAssistant)
+            if (DictationService._voiceAssistantPending) return;
+            // Sidebar-open dictation: route to voice assistant
             DictationService._voiceAssistantPending = true
             Ai.appendToFreeDictation(text, "user")
             ActionPalette.submitQueryDirect(text, DictationService._voiceAssistantPrompt)
