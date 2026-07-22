@@ -134,6 +134,17 @@ Singleton {
         }
     }
 
+    // Auto-discover Bedrock models when AWS credentials become available
+    Connections {
+        target: AwsCredentialReader
+        function onCredentialsDetectedChanged() {
+            if (AwsCredentialReader.credentialsDetected) {
+                console.log("[ModelDiscovery] AWS credentials detected, auto-discovering Bedrock models...")
+                root.discoverBedrockModels()
+            }
+        }
+    }
+
     // --- Pure functions (testable) ---
 
     function getEffectiveProviderConfig(providerId) {
