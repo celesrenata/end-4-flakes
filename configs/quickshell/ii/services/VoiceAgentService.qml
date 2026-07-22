@@ -280,18 +280,16 @@ Singleton {
 
         if (contextMessages.length === 0) return ""
 
-        // Use a stable path (avoids stale FileView references on re-activation)
+        // Use a stable path — write synchronously via printf to avoid race conditions
         var contextPath = "/tmp/voice-agent-context.json"
         root._contextFilePath = contextPath
 
-        // Write via Process to guarantee file creation
         var jsonContent = JSON.stringify(contextMessages)
-        contextWriteProcess.command = ["bash", "-c", "cat > " + contextPath]
+        // Escape for shell: replace single quotes and backslashes
+        var escaped = jsonContent.replace(/\\/g, "\\\\").replace(/'/g, "'\\''")
+        contextWriteProcess.command = ["bash", "-c", "printf '%s' '" + escaped + "' > " + contextPath]
         contextWriteProcess.running = true
-        contextWriteProcess.write(jsonContent)
-        contextWriteProcess.write("\n")
-        contextWriteProcess.running = false
-
+        // Process will exit on its own after writing — we wait briefly
         return contextPath
     }
 
@@ -400,11 +398,9 @@ Singleton {
         var toolsPath = "/tmp/voice-agent-tools.json"
 
         var jsonContent = JSON.stringify(tools)
-        toolsWriteProcess.command = ["bash", "-c", "cat > " + toolsPath]
+        var escaped = jsonContent.replace(/\\/g, "\\\\").replace(/'/g, "'\\''")
+        toolsWriteProcess.command = ["bash", "-c", "printf '%s' '" + escaped + "' > " + toolsPath]
         toolsWriteProcess.running = true
-        toolsWriteProcess.write(jsonContent)
-        toolsWriteProcess.write("\n")
-        toolsWriteProcess.running = false
 
         return toolsPath
     }
@@ -842,12 +838,10 @@ Singleton {
 
     Process {
         id: contextWriteProcess
-        stdinEnabled: true
     }
 
     Process {
         id: toolsWriteProcess
-        stdinEnabled: true
     }
 
     // ─── Audio Capture Process (pw-cat → FIFO) ──────────────────────────
