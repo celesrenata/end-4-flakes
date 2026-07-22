@@ -500,6 +500,9 @@ def main() -> None:
     """Entry point: parse args and run the async main loop."""
     config = parse_args()
 
+    # Debug: log parsed config to stderr
+    print(f"[voice-agent] Config: backend={config.backend} tools={config.tools!r} system_prompt={config.system_prompt[:50]!r}...", file=sys.stderr)
+
     try:
         asyncio.run(run(config))
     except KeyboardInterrupt:

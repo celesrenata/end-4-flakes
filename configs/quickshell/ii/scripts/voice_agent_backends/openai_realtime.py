@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 # Constants
 # ---------------------------------------------------------------------------
 
-_OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03"
+_OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
 _OPENAI_BETA_HEADER = "realtime=v1"
 
 
@@ -101,6 +101,7 @@ class VoiceAgentConfig:
     api_key: str = ""
     system_prompt: str = ""
     context: str = ""
+    tools: str = ""
     tools: str = ""
 
 
