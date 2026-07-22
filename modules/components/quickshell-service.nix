@@ -258,5 +258,18 @@ in
         After = [ "graphical-session-pre.target" ];
       };
     };
+
+    # Always sync quickshell config from staging on rebuild
+    # This ensures nixos-rebuild/home-manager switch deploys the latest configs
+    # without requiring manual rsync or re-running the initial setup script.
+    home.activation.syncQuickshellConfig = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      STAGING="$HOME/${mainCfg.writable-mode.stagingDir}/quickshell"
+      TARGET="$HOME/.config/quickshell"
+
+      if [[ -d "$STAGING" ]]; then
+        $DRY_RUN_CMD mkdir -p "$TARGET"
+        $DRY_RUN_CMD ${pkgs.rsync}/bin/rsync -a --delete "$STAGING/" "$TARGET/"
+      fi
+    '';
   };
 }
