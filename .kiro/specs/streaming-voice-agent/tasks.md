@@ -33,7 +33,7 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Generate random PCM byte sequences (length multiple of 2), base64 encode, decode, verify length preserved and content identical
     - **Validates: Requirements 12.5, 13.1, 13.2, 13.3**
 
-- [ ] 2. Python helper — Nova Sonic backend
+- [x] 2. Python helper — Nova Sonic backend
   - [x] 2.1 Implement `NovaSonicBackend` class with Bedrock bidirectional streaming
     - Implement `connect()` using boto3/botocore for `invoke-model-with-bidirectional-stream` on `amazon.nova-sonic-v1:0`
     - Implement `send_audio()` to forward PCM chunks per Nova Sonic input event schema
@@ -44,14 +44,14 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Implement `disconnect()` for graceful stream closure
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 13.1_
 
-  - [-] 2.2 Write unit tests for Nova Sonic backend event mapping
+  - [x] 2.2 Write unit tests for Nova Sonic backend event mapping
     - Test transcript event → PARTIAL_TRANSCRIPT mapping
     - Test audio response event → AUDIO_RESPONSE mapping
     - Test tool-use event → TOOL_CALL mapping
     - Test system prompt injection
     - _Requirements: 5.4, 5.5, 5.6, 5.7_
 
-- [ ] 3. Python helper — OpenAI Realtime backend
+- [x] 3. Python helper — OpenAI Realtime backend
   - [x] 3.1 Implement `OpenAIRealtimeBackend` class with WebSocket connection
     - Implement `connect()` to establish WebSocket to `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview` with API key auth and `OpenAI-Beta: realtime=v1` header
     - Send `session.update` at connection start with server-side VAD enabled, system prompt, and tools
@@ -61,15 +61,15 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Implement `disconnect()` for graceful WebSocket close
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 13.2_
 
-  - [-] 3.2 Write unit tests for OpenAI Realtime backend event mapping
+  - [x] 3.2 Write unit tests for OpenAI Realtime backend event mapping
     - Test `response.audio_transcript.delta` → PARTIAL_TRANSCRIPT
     - Test `response.audio.delta` → AUDIO_RESPONSE
     - Test `response.function_call_arguments.done` → TOOL_CALL
     - Test session.update message formation
     - _Requirements: 6.4, 6.5, 6.6, 6.7, 6.8_
 
-- [ ] 4. Python helper — tool call handling and session context
-  - [-] 4.1 Implement tool call pairing logic and session context loading
+- [x] 4. Python helper — tool call handling and session context
+  - [x] 4.1 Implement tool call pairing logic and session context loading
     - Track pending tool call IDs (enforce single pending call invariant)
     - Pause audio forwarding on TOOL_CALL, resume on TOOL_RESULT
     - Load session context from `--context` JSON file path
@@ -77,17 +77,17 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Implement graceful shutdown: STOP → finalize stream → SESSION_END
     - _Requirements: 8.3, 8.4, 9.2, 9.3, 12.3, 12.4_
 
-  - [ ] 4.2 Write property tests for tool call / result pairing
+  - [x] 4.2 Write property tests for tool call / result pairing
     - **Property 3: Tool call / result pairing**
     - Generate random sequences of tool calls with unique IDs, verify pairing invariants (no duplicate IDs, no concurrent pending calls)
     - **Validates: Requirements 8.1, 8.2, 8.3, 8.4, 12.3, 12.4, 12.7**
 
-  - [ ] 4.3 Write property tests for session context serialization round-trip
+  - [x] 4.3 Write property tests for session context serialization round-trip
     - **Property 8: Session context serialization round-trip**
     - Generate random message histories (role + content), serialize to JSON, parse back, verify order and field equality
     - **Validates: Requirements 9.1, 9.2, 9.3**
 
-- [ ] 5. Checkpoint — Helper protocol complete
+- [x] 5. Checkpoint — Helper protocol complete
   - Ensure all tests pass, ask the user if questions arise.
 
 - [x] 6. QML — Config and backend selection
@@ -114,8 +114,8 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Generate activation attempts with varying credential states, verify rejection with descriptive errors when credentials missing
     - **Validates: Requirements 1.3, 1.4, 1.5**
 
-- [ ] 7. QML — VoiceAgentService core state machine
-  - [-] 7.1 Create `VoiceAgentService.qml` singleton with state machine and process management
+- [x] 7. QML — VoiceAgentService core state machine
+  - [x] 7.1 Create `VoiceAgentService.qml` singleton with state machine and process management
     - Create `configs/quickshell/ii/services/VoiceAgentService.qml`
     - Define State enum: Idle, Connecting, Listening, Thinking, Speaking, ToolExecuting, Error
     - Implement `activate()`: validate credentials/policy, create FIFO, launch pw-cat → FIFO, launch helper with args
@@ -125,35 +125,35 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Implement `bargeIn()`: kill pw-play, send BARGE_IN, transition to Listening
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 10.1, 14.1, 14.2_
 
-  - [ ] 7.2 Register VoiceAgentService in qmldir
+  - [x] 7.2 Register VoiceAgentService in qmldir
     - Add `singleton VoiceAgentService 1.0 VoiceAgentService.qml` to `configs/quickshell/ii/services/qmldir`
     - _Requirements: 2.1_
 
-  - [ ] 7.3 Write property tests for state machine valid transitions
+  - [x] 7.3 Write property tests for state machine valid transitions
     - **Property 4: State machine valid transitions**
     - Generate random sequences of helper events, verify state machine only follows valid edges and Connecting never exceeds 5s without transition
     - **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 10.1**
 
-- [ ] 8. QML — Audio pipeline and playback
-  - [ ] 8.1 Implement audio capture (pw-cat → FIFO) and playback (AUDIO_RESPONSE → pw-play)
+- [x] 8. QML — Audio pipeline and playback
+  - [x] 8.1 Implement audio capture (pw-cat → FIFO) and playback (AUDIO_RESPONSE → pw-play)
     - Launch `pw-cat --record --format=s16 --rate={16000|24000} --channels=1` writing to named FIFO
     - Decode base64 from AUDIO_RESPONSE events, pipe to `pw-play` process stdin
     - Handle pw-cat/pw-play unexpected exit (send STOP, transition to Error)
     - Configure sample rate based on backend (16kHz Nova Sonic, 24kHz OpenAI)
     - _Requirements: 13.1, 13.2, 13.3, 13.5, 4.1, 4.4_
 
-  - [ ] 8.2 Implement RMS audio level calculation for waveform indicator
+  - [x] 8.2 Implement RMS audio level calculation for waveform indicator
     - Compute running RMS amplitude from captured audio for `audioLevel` property (0.0–1.0)
     - Update at ~10Hz for smooth waveform display
     - _Requirements: 13.4, 11.1_
 
-  - [ ] 8.3 Write property tests for barge-in interrupts playback
+  - [x] 8.3 Write property tests for barge-in interrupts playback
     - **Property 7: Barge-in interrupts playback**
     - Generate states where Speaking is active, simulate activation key tap, verify pw-play terminated, BARGE_IN sent, transition to Listening within 200ms
     - **Validates: Requirements 4.5, 7.5**
 
-- [ ] 9. QML — Tool call routing through ActionPalette
-  - [ ] 9.1 Add `executeToolDirect` function to ActionPalette and wire tool call flow
+- [x] 9. QML — Tool call routing through ActionPalette
+  - [x] 9.1 Add `executeToolDirect` function to ActionPalette and wire tool call flow
     - Add `function executeToolDirect(toolName, arguments, callback)` to `configs/quickshell/ii/services/ActionPalette.qml`
     - Map tool names from backend to existing action execution logic
     - Handle 15s timeout → error TOOL_RESULT
@@ -162,8 +162,8 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Transition to ToolExecuting state during execution
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-- [ ] 10. QML — Session context injection and transcript logging
-  - [ ] 10.1 Implement session context retrieval and transcript append
+- [x] 10. QML — Session context injection and transcript logging
+  - [x] 10.1 Implement session context retrieval and transcript append
     - On activate: read recent messages from `Ai.getCurrentSessionMessages` (last 20)
     - Serialize to temp JSON file, pass path to helper via `--context`
     - On SESSION_END: append user utterances and AI responses to active sidebar session
@@ -171,11 +171,11 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Clean up temp context file on session end
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-- [ ] 11. Checkpoint — QML service complete
+- [x] 11. Checkpoint — QML service complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 12. QML — DictationIndicator streaming states
-  - [ ] 12.1 Extend DictationIndicator with streaming voice agent state display
+- [x] 12. QML — DictationIndicator streaming states
+  - [x] 12.1 Extend DictationIndicator with streaming voice agent state display
     - Modify `configs/quickshell/ii/modules/dictation/DictationIndicator.qml`
     - Bind to `VoiceAgentService.voiceAgentState`, `partialText`, `responseText`, `audioLevel`, `currentToolName`
     - Implement state-specific displays: Connecting (spinner), Listening (waveform + partial text), Thinking (pulsing), Speaking (speaker icon + response text), ToolExecuting (gear icon + tool name), Error (auto-dismiss 5s)
@@ -184,8 +184,8 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Show "Ready..." with muted mic when listening but no speech
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
-- [ ] 13. QML — Fallback logic and error handling
-  - [ ] 13.1 Implement graceful fallback to batch mode and error state handling
+- [x] 13. QML — Fallback logic and error handling
+  - [x] 13.1 Implement graceful fallback to batch mode and error state handling
     - On 5-second timeout without READY: kill helper, activate DictationService batch pipeline
     - On FALLBACK event: save buffered audio, submit through batch pipeline
     - On `voiceBackend == "none"`: activate batch pipeline directly
@@ -194,11 +194,11 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Update DictationIndicator to show standard recording UI when falling back
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 2.6_
 
-- [ ] 14. Checkpoint — UI integration complete
+- [x] 14. Checkpoint — UI integration complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 15. Integration wiring and turn-taking
-  - [ ] 15.1 Wire automatic turn-taking and activation key toggle
+- [x] 15. Integration wiring and turn-taking
+  - [x] 15.1 Wire automatic turn-taking and activation key toggle
     - Rely on backend VAD for turn boundaries (no manual end-of-turn required)
     - On TURN_END event: transition DictationIndicator to "Thinking..."
     - On manual activation key during turn: send explicit end-of-turn signal to helper (which forwards `input_audio_buffer.commit` or equivalent)
@@ -206,14 +206,14 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Toggle behavior: first tap activates session, second tap deactivates
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 2.3, 2.4_
 
-  - [ ] 15.2 Wire live transcription display flow end-to-end
+  - [x] 15.2 Wire live transcription display flow end-to-end
     - PARTIAL_TRANSCRIPT → update `partialText` → DictationIndicator displays
     - TURN_COMPLETE → clear `partialText`, show finalized utterance briefly, then response
     - Audio level → waveform animation
     - Response text alongside audio playback
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 4.2, 4.3_
 
-  - [ ] 15.3 Implement policy enforcement in activation path
+  - [x] 15.3 Implement policy enforcement in activation path
     - Check `policies.ai` before any activation
     - Block activation when policy = 0
     - Block remote backends when policy = 2
@@ -222,8 +222,15 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Persist only text transcript to chat session
     - _Requirements: 14.1, 14.2, 14.3, 14.4_
 
-- [ ] 16. Deployment and final integration
-  - [ ] 16.1 Deploy all files and verify Quickshell restart
+- [x] 16. Deployment and final integration
+  - [x] 16.0 Add Python dependencies to Nix-managed venv
+    - Add `websockets` and `boto3` (with `botocore`) to `modules/python-environment.nix` pip install list
+    - These are required by `voice_agent_backends/openai_realtime.py` (websockets) and `voice_agent_backends/nova_sonic.py` (boto3)
+    - After editing, run: `setup-dots-hyprland-venv` or `home-manager switch` to rebuild the venv
+    - Verify imports work: `source ~/.local/state/quickshell/.venv/bin/activate && python -c "import websockets; import boto3"`
+    - _Requirements: 5.1, 6.1_
+
+  - [x] 16.1 Deploy all files and verify Quickshell restart
     - rsync `configs/quickshell/ii/` to `~/.config/quickshell/ii/`
     - Restart quickshell: `systemctl --user restart quickshell`
     - Verify no QML errors in journal logs
@@ -231,7 +238,7 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     - Verify Config.voiceBackend property works
     - _Requirements: 1.1, 1.2, 2.1_
 
-- [ ] 17. Final checkpoint — End-to-end verification
+- [x] 17. Final checkpoint — End-to-end verification
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
@@ -240,9 +247,11 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
 - Each task references specific requirements for traceability
 - Checkpoints ensure incremental validation after helper protocol, QML service, UI integration, and end-to-end
 - Property tests validate universal correctness properties using `hypothesis` (already in project)
-- Python tests go in a `tests/` directory adjacent to `voice-agent-stream.py` or project root
+- Python tests go in `tests/` at the flake repo root (alongside existing test_*.py files)
+- Python dependencies (`websockets`, `boto3`) must be added to `modules/python-environment.nix` venv setup
 - The FIFO-based audio/control separation is the critical architectural pattern — audio flows through a named pipe, JSON control through stdin/stdout
-- Deploy workflow: edit repo → rsync to `~/.config/quickshell/ii/` → restart quickshell
+- Deploy workflow: edit repo → rsync to `~/.config/quickshell/ii/` → restart quickshell (or `home-manager switch` for venv/service changes)
+- The flake structure: `end-4-flakes` provides the quickshell config/modules, consumed by `nix-flakes-refactored` as the system flake
 
 ## Task Dependency Graph
 
@@ -258,7 +267,8 @@ Replace the batch voice pipeline with bidirectional streaming voice conversation
     { "id": 6, "tasks": ["8.2", "8.3", "12.1"] },
     { "id": 7, "tasks": ["13.1", "15.1"] },
     { "id": 8, "tasks": ["15.2", "15.3"] },
-    { "id": 9, "tasks": ["16.1"] }
+    { "id": 9, "tasks": ["16.0"] },
+    { "id": 10, "tasks": ["16.1"] }
   ]
 }
 ```

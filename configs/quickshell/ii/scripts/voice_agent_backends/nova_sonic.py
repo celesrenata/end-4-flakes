@@ -392,6 +392,53 @@ class NovaSonicBackend(BaseVoiceBackend):
         pass
 
     # ------------------------------------------------------------------
+    # send_end_turn()
+    # ------------------------------------------------------------------
+
+    async def send_end_turn(self) -> None:
+        """Signal explicit end-of-turn to Nova Sonic.
+
+        Nova Sonic uses server-side VAD, so explicit end-of-turn is handled
+        by ending the current audio content and starting a new one. This
+        forces the model to process whatever audio has been received so far.
+
+        Requirement: 7.4
+        """
+        # Nova Sonic relies on server-side VAD for turn boundaries.
+        # Sending a brief pause in audio (by not sending frames) combined
+        # with the VAD will trigger turn detection. For an explicit commit,
+        # we end the audio content and immediately start a new one.
+        if self._stream is None or not self._is_active:
+            return
+
+        try:
+            # End current audio content
+            await self._send_event_dict({
+                "event": {
+                    "contentEnd": {
+                        "promptName": self._prompt_name,
+                        "contentName": self._audio_content_name,
+                    }
+                }
+            })
+
+            # Start new audio content to continue accepting audio
+            self._audio_content_name = f"audio-input-{int(asyncio.get_event_loop().time() * 1000)}"
+            await self._send_event_dict({
+                "event": {
+                    "contentStart": {
+                        "promptName": self._prompt_name,
+                        "contentName": self._audio_content_name,
+                        "type": "AUDIO",
+                        "interactive": True,
+                        "role": "USER",
+                    }
+                }
+            })
+        except Exception as exc:
+            print(f"[nova-sonic] send_end_turn error: {exc}", file=sys.stderr)
+
+    # ------------------------------------------------------------------
     # disconnect()
     # ------------------------------------------------------------------
 

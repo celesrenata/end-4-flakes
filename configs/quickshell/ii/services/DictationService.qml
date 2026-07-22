@@ -4,6 +4,7 @@ pragma ComponentBehavior: Bound
 import qs
 import qs.modules.common
 import qs.modules.common.functions as CF
+import qs.services
 
 import Quickshell
 import Quickshell.Io
@@ -378,7 +379,7 @@ Singleton {
     // Fires when a voice assistant request is pending and no response has come back.
     Timer {
         id: voiceAssistantTimeoutTimer
-        interval: 15000
+        interval: 35000
         repeat: false
         onTriggered: {
             if (root._voiceAssistantPending) {
@@ -762,6 +763,43 @@ Singleton {
     function onKeyTap() {
         console.log("[DictationService] onKeyTap: state=" + root.state + " _debounceActive=" + root._debounceActive)
 
+        // ─── Voice Agent routing ─────────────────────────────────────
+        // When a streaming voice backend is configured, route activation
+        // key through VoiceAgentService instead of the batch pipeline.
+        // Toggle behavior: first tap activates, second tap deactivates.
+        // Exception: tap during Speaking → bargeIn (interrupt, don't exit).
+        // Requirement: 7.1, 7.2, 7.3, 7.4, 7.5, 2.3, 2.4
+        if (VoiceAgentService.voiceBackend && VoiceAgentService.voiceBackend !== "none") {
+            var vasState = VoiceAgentService.voiceAgentState
+
+            if (vasState === VoiceAgentService.State.Idle) {
+                // First tap: activate voice agent session
+                console.log("[DictationService] Routing to VoiceAgentService.activate()")
+                VoiceAgentService.activate()
+                return
+            } else if (vasState === VoiceAgentService.State.Speaking) {
+                // Tap during playback: barge-in (interrupt audio, resume listening)
+                // Requirement: 7.5
+                console.log("[DictationService] Routing to VoiceAgentService.bargeIn()")
+                VoiceAgentService.bargeIn()
+                return
+            } else if (vasState === VoiceAgentService.State.Listening) {
+                // Tap during listening: send end-of-turn signal then deactivate
+                // Sends explicit commit to backend so any buffered audio is processed
+                // Requirement: 7.4, 2.4
+                console.log("[DictationService] Routing to VoiceAgentService.deactivate() from Listening")
+                VoiceAgentService.sendEndTurn()
+                VoiceAgentService.deactivate()
+                return
+            } else {
+                // Tap during Connecting, Thinking, ToolExecuting, Error: deactivate
+                console.log("[DictationService] Routing to VoiceAgentService.deactivate()")
+                VoiceAgentService.deactivate()
+                return
+            }
+        }
+
+        // ─── Batch pipeline (existing behavior) ──────────────────────
         // Debounce guard: suppress rapid re-activation within the debounce window.
         // Only gates activation from Idle — stop-recording taps pass through after window expires.
         if (root._debounceActive) {

@@ -89,6 +89,18 @@ class BaseVoiceBackend(ABC):
         ...
 
     @abstractmethod
+    async def send_end_turn(self) -> None:
+        """Signal explicit end-of-turn to the backend.
+
+        Forces the backend to commit any buffered audio and begin generating
+        a response, without waiting for VAD silence detection. Used when the
+        user manually triggers end-of-turn via the activation key.
+
+        Requirement: 7.4
+        """
+        ...
+
+    @abstractmethod
     async def disconnect(self) -> None:
         """Gracefully close the backend connection."""
         ...

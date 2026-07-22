@@ -26,6 +26,7 @@ Input Events (stdin ← QML):
     TOOL_RESULT        - Tool execution result
     STOP               - User requested session end
     BARGE_IN           - User interrupted playback
+    END_TURN           - User manually triggered end-of-turn (commit audio)
 """
 
 from __future__ import annotations
@@ -33,8 +34,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import os
+import struct
 import sys
+import time
 from typing import Any
 
 from voice_agent_backends.base import BaseVoiceBackend, VoiceAgentConfig
@@ -104,6 +108,11 @@ def emit_session_end(reason: str = "user_stop") -> None:
 def emit_error(message: str, fatal: bool = False) -> None:
     """Emit ERROR event."""
     emit_event({"type": "ERROR", "message": message, "fatal": fatal})
+
+
+def emit_amplitude(level: float) -> None:
+    """Emit AMPLITUDE with normalized RMS level (0.0–1.0)."""
+    emit_event({"type": "AMPLITUDE", "level": round(level, 4)})
 
 
 def emit_fallback(reason: str) -> None:
@@ -233,6 +242,9 @@ async def _read_audio_fifo(
     forwarding each to the backend. Audio is silently dropped when the
     tool_manager indicates audio is paused (tool call in progress).
 
+    Computes running RMS amplitude and emits AMPLITUDE events at ~10Hz
+    for the QML waveform indicator (Requirement 13.4).
+
     Stops when the stop_event is set or the FIFO is closed (EOF).
     """
     try:
@@ -245,6 +257,11 @@ async def _read_audio_fifo(
 
     loop = asyncio.get_event_loop()
 
+    # RMS tracking for ~10Hz amplitude emission
+    _last_amplitude_time = time.monotonic()
+    _amplitude_interval = 0.1  # 100ms → 10Hz
+    _rms_accumulator: list[float] = []  # Squared sample values for running RMS
+
     try:
         while not stop_event.is_set():
             try:
@@ -255,6 +272,26 @@ async def _read_audio_fifo(
             if not data:
                 # EOF — writer closed the FIFO
                 break
+
+            # Compute RMS from PCM s16le samples for amplitude indicator
+            # Each sample is 2 bytes (signed 16-bit little-endian)
+            num_samples = len(data) // 2
+            if num_samples > 0:
+                samples = struct.unpack(f"<{num_samples}h", data[:num_samples * 2])
+                sum_sq = sum(s * s for s in samples)
+                _rms_accumulator.append(sum_sq / num_samples)
+
+                # Emit at ~10Hz
+                now = time.monotonic()
+                if now - _last_amplitude_time >= _amplitude_interval:
+                    # Average the accumulated RMS values, then sqrt
+                    avg_sq = sum(_rms_accumulator) / len(_rms_accumulator)
+                    rms = math.sqrt(avg_sq)
+                    # Normalize to 0.0–1.0 (s16 max is 32767)
+                    level = min(rms / 32767.0, 1.0)
+                    emit_amplitude(level)
+                    _rms_accumulator.clear()
+                    _last_amplitude_time = now
 
             # Pause audio forwarding while a tool call is pending
             if tool_manager.audio_paused:
@@ -277,7 +314,7 @@ async def _read_stdin_events(
 ) -> None:
     """Async task: read JSON-line control events from stdin.
 
-    Handles TOOL_RESULT, STOP, and BARGE_IN events from the QML service.
+    Handles TOOL_RESULT, STOP, BARGE_IN, and END_TURN events from the QML service.
     Uses ToolCallManager to validate tool result pairing and track state.
     """
     loop = asyncio.get_event_loop()
@@ -312,6 +349,12 @@ async def _read_stdin_events(
                 await backend.send_barge_in()
             except Exception as exc:
                 print(f"[voice-agent] Barge-in send failed: {exc}", file=sys.stderr)
+
+        elif event_type == "END_TURN":
+            try:
+                await backend.send_end_turn()
+            except Exception as exc:
+                print(f"[voice-agent] End-turn send failed: {exc}", file=sys.stderr)
 
         elif event_type == "TOOL_RESULT":
             call_id: str = event.get("id", "")

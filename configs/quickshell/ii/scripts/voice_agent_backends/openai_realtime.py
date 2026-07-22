@@ -131,6 +131,9 @@ class BaseVoiceBackend(ABC):
     async def send_barge_in(self) -> None: ...
 
     @abstractmethod
+    async def send_end_turn(self) -> None: ...
+
+    @abstractmethod
     async def disconnect(self) -> None: ...
 
 
@@ -265,6 +268,21 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
         # Clear audio buffer
         clear_event = {"type": "input_audio_buffer.clear"}
         await self._ws.send(json.dumps(clear_event))
+
+    async def send_end_turn(self) -> None:
+        """Commit the input audio buffer to force end-of-turn.
+
+        Sends input_audio_buffer.commit to tell the backend to process
+        all buffered audio and begin generating a response immediately,
+        without waiting for VAD silence detection.
+
+        Requirement: 7.4
+        """
+        if self._ws is None:
+            return
+
+        commit_event = {"type": "input_audio_buffer.commit"}
+        await self._ws.send(json.dumps(commit_event))
 
     async def disconnect(self) -> None:
         """Gracefully close the WebSocket connection.

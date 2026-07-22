@@ -88,7 +88,9 @@ let
       setuptools==80.9.0 \
       setuptools-scm==8.1.0 \
       wheel==0.45.1 \
-      pywayland==0.4.18
+      pywayland==0.4.18 \
+      "websockets>=12.0" \
+      boto3
     
     # Test critical imports
     echo "🧪 Testing critical package imports..."
@@ -104,7 +106,9 @@ tests = [
     ('PIL', 'PIL'),
     ('pywayland.client', 'pywayland.client'),
     ('psutil', 'psutil'),
-    ('setproctitle', 'setproctitle')
+    ('setproctitle', 'setproctitle'),
+    ('websockets', 'websockets'),
+    ('boto3', 'boto3'),
 ]
 
 working = 0

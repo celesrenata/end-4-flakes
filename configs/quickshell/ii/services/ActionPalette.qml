@@ -313,10 +313,10 @@ Singleton {
         }
     }
 
-    // === 30-second request timeout timer ===
+    // === 45-second request timeout timer ===
     Timer {
         id: requestTimeoutTimer
-        interval: 30000
+        interval: 45000
         repeat: false
         onTriggered: () => {
             llmProcess.running = false;  // Kill process
@@ -394,11 +394,13 @@ Singleton {
         property list<string> baseCommand: ["bash", "-c"]
         stdout: StdioCollector {
             onStreamFinished: {
+                console.log("[ActionPalette] shellExecProcess stdout finished, length=" + text.length);
                 shellExecTimeout.stop();
                 root._shellOutput = text;
             }
         }
         onExited: (exitCode, exitStatus) => {
+            console.log("[ActionPalette] shellExecProcess exited: code=" + exitCode + " _directModeCapture=" + root._directModeCapture + " outputLen=" + root._shellOutput.length);
             shellExecTimeout.stop();
             if (exitCode !== 0) {
                 root._executionFailed("shell.exec", root._executionIndex,
@@ -406,6 +408,7 @@ Singleton {
             } else {
                 // If in direct-mode capture and we have output, summarize it
                 if (root._directModeCapture && root._shellOutput.trim().length > 0) {
+                    console.log("[ActionPalette] calling _summarizeShellOutput");
                     root._summarizeShellOutput(root._shellOutput);
                 } else {
                     // Success — advance to next action
@@ -1273,6 +1276,207 @@ Rules:
             obj = obj[part];
         }
         return obj;
+    }
+
+    // ═══ Tool Direct Execution (for streaming voice agent) ═══════════════
+
+    // Callback for the current executeToolDirect invocation
+    property var _toolDirectCallback: null
+    property string _toolDirectOutput: ""
+
+    /**
+     * Execute a named tool directly, bypassing LLM reasoning.
+     * Used by VoiceAgentService for streaming tool calls where the backend
+     * has already decided which tool to invoke.
+     *
+     * @param toolName  Tool identifier from backend (e.g., "shell_exec", "config_set")
+     * @param arguments Object with tool-specific parameters
+     * @param callback  Function receiving {result: string, isError: bool}
+     *
+     * Requirements: 8.1, 8.2, 8.3, 8.5, 8.6
+     */
+    function executeToolDirect(toolName, arguments, callback) {
+        // Clear any previous state
+        root._toolDirectCallback = callback;
+        root._toolDirectOutput = "";
+
+        // Start 15s timeout
+        toolDirectTimeout.restart();
+
+        switch (toolName) {
+            case "shell_exec":
+                root._executeToolDirectShell(
+                    (typeof arguments === "object" ? arguments.command : arguments) || "", callback);
+                break;
+            case "config_set":
+                root._executeToolDirectConfigSet(arguments, callback);
+                break;
+            case "config_get":
+                root._executeToolDirectConfigGet(arguments, callback);
+                break;
+            case "hyprland_dispatch":
+                root._executeToolDirectHyprlandDispatch(arguments, callback);
+                break;
+            case "app_launch":
+                root._executeToolDirectAppLaunch(arguments, callback);
+                break;
+            case "system_info":
+                root._executeToolDirectShell("uname -srm && free -h | head -2 && df -h / | tail -1", callback);
+                break;
+            default:
+                toolDirectTimeout.stop();
+                root._toolDirectCallback = null;
+                callback({ result: "Unknown tool: " + toolName, isError: true });
+                break;
+        }
+    }
+
+    /**
+     * Internal: Execute a shell command for tool-direct and return output via callback.
+     */
+    function _executeToolDirectShell(command, callback) {
+        if (!command || command.length === 0) {
+            toolDirectTimeout.stop();
+            root._toolDirectCallback = null;
+            callback({ result: "No command provided", isError: true });
+            return;
+        }
+        toolDirectProcess.command = ["bash", "-c", command];
+        toolDirectProcess.running = true;
+    }
+
+    /**
+     * Internal: Execute a config.set for tool-direct.
+     */
+    function _executeToolDirectConfigSet(args, callback) {
+        toolDirectTimeout.stop();
+        root._toolDirectCallback = null;
+
+        var key = args.key || "";
+        var value = args.value;
+        if (!key) {
+            callback({ result: "Missing 'key' parameter", isError: true });
+            return;
+        }
+        try {
+            Config.setNestedValue(key, value);
+            callback({ result: "Set " + key + " = " + JSON.stringify(value), isError: false });
+        } catch (e) {
+            callback({ result: "Failed to set " + key + ": " + e, isError: true });
+        }
+    }
+
+    /**
+     * Internal: Execute a config.get for tool-direct (read a config value).
+     */
+    function _executeToolDirectConfigGet(args, callback) {
+        toolDirectTimeout.stop();
+        root._toolDirectCallback = null;
+
+        var key = args.key || "";
+        if (!key) {
+            callback({ result: "Missing 'key' parameter", isError: true });
+            return;
+        }
+        var value = root.getNestedValue(key);
+        if (value === undefined) {
+            callback({ result: "Key not found: " + key, isError: true });
+        } else {
+            callback({ result: JSON.stringify(value), isError: false });
+        }
+    }
+
+    /**
+     * Internal: Execute a hyprland.dispatch for tool-direct.
+     */
+    function _executeToolDirectHyprlandDispatch(args, callback) {
+        toolDirectTimeout.stop();
+        root._toolDirectCallback = null;
+
+        var dispatcher = args.dispatcher || "";
+        var dispatchArgs = args.args || "";
+        if (!dispatcher) {
+            callback({ result: "Missing 'dispatcher' parameter", isError: true });
+            return;
+        }
+        try {
+            Hyprland.dispatch(dispatcher + " " + dispatchArgs);
+            callback({ result: "Dispatched: " + dispatcher + " " + dispatchArgs, isError: false });
+        } catch (e) {
+            callback({ result: "Dispatch failed: " + e, isError: true });
+        }
+    }
+
+    /**
+     * Internal: Execute an app.launch for tool-direct.
+     */
+    function _executeToolDirectAppLaunch(args, callback) {
+        toolDirectTimeout.stop();
+        root._toolDirectCallback = null;
+
+        var appId = args.id || "";
+        if (!appId) {
+            callback({ result: "Missing 'id' parameter", isError: true });
+            return;
+        }
+        var entry = DesktopEntries.byId(appId);
+        if (!entry) {
+            callback({ result: "Application not found: " + appId, isError: true });
+            return;
+        }
+        try {
+            entry.execute();
+            callback({ result: "Launched: " + appId, isError: false });
+        } catch (e) {
+            callback({ result: "Failed to launch " + appId + ": " + e, isError: true });
+        }
+    }
+
+    // === Tool Direct Process (separate from shellExecProcess to avoid conflicts) ===
+    Process {
+        id: toolDirectProcess
+        property list<string> baseCommand: ["bash", "-c"]
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root._toolDirectOutput = text;
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            toolDirectTimeout.stop();
+            var cb = root._toolDirectCallback;
+            root._toolDirectCallback = null;
+
+            if (!cb) return;
+
+            if (exitCode !== 0) {
+                var errMsg = root._toolDirectOutput.trim() || ("Command exited with code " + exitCode);
+                cb({ result: errMsg, isError: true });
+            } else {
+                var output = root._toolDirectOutput.trim() || "(no output)";
+                // Truncate to 4000 chars to avoid overwhelming the backend
+                if (output.length > 4000) {
+                    output = output.substring(0, 4000) + "\n[...truncated]";
+                }
+                cb({ result: output, isError: false });
+            }
+        }
+    }
+
+    // === 15-second tool-direct execution timeout ===
+    Timer {
+        id: toolDirectTimeout
+        interval: 15000
+        repeat: false
+        onTriggered: () => {
+            toolDirectProcess.running = false;
+            var cb = root._toolDirectCallback;
+            root._toolDirectCallback = null;
+            if (cb) {
+                cb({ result: "Tool execution timed out (15s)", isError: true });
+            }
+        }
     }
 
     /**

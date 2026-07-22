@@ -44,8 +44,14 @@ Singleton {
 
     // Internal properties
     property string _fifoPath: ""
+    property string _contextFilePath: ""  // Temp JSON file for session context
+    property var _sessionTranscript: []   // Accumulated turns [{role, text}] during session
     property int _previousState: VoiceAgentService.State.Idle  // For ToolExecuting return
     property int _sampleRate: root.voiceBackend === "openai-realtime" ? 24000 : 16000
+    property string _pendingToolCallId: ""  // Track tool call ID for TOOL_RESULT pairing
+    property bool _shuttingDown: false  // Guards exit handlers during intentional shutdown
+    property bool _bargeInActive: false  // Guards playback exit during barge-in
+    property string _helperStderr: ""  // Buffered stderr output for error reporting
 
     // Signals
     signal sessionStarted()
@@ -124,9 +130,11 @@ Singleton {
             }
         }
 
-        // Backend gate: no voice backend configured
+        // Backend gate: no voice backend configured → activate batch pipeline directly
+        // Requirement 10.4: when voiceBackend is "none", use batch pipeline without streaming attempt
         if (root.voiceBackend === "none" || !root.voiceBackend) {
-            console.warn("[VoiceAgentService] GATE_REJECT | reason=no_backend")
+            console.log("[VoiceAgentService] FALLBACK | reason=no_voice_backend_configured — activating batch pipeline")
+            DictationService.activate()
             return
         }
 
@@ -147,6 +155,8 @@ Singleton {
         root.responseText = ""
         root.currentToolName = ""
         root.audioLevel = 0.0
+        root._sessionTranscript = []  // Reset transcript for new session
+        root._helperStderr = ""  // Clear stderr buffer for new session
 
         // Transition to Connecting
         _setState(VoiceAgentService.State.Connecting, "activate()")
@@ -176,11 +186,13 @@ Singleton {
     function _launchProcesses() {
         var rate = root._sampleRate
 
-        // Launch pw-cat writing to the FIFO
+        // Launch pw-cat recording to the FIFO (Requirement 13.1, 13.2)
+        // pw-cat --record writes captured audio to the output file (our FIFO).
+        // Omit --target to use the default PipeWire source.
         captureProcess.command = [
             "pw-cat", "--record", "--format=s16",
             "--rate=" + rate, "--channels=1",
-            "--target=-", root._fifoPath
+            root._fifoPath
         ]
         captureProcess.running = true
 
@@ -228,12 +240,44 @@ Singleton {
 
     /**
      * Writes active session context to a temp JSON file for the helper.
+     * Serializes the last 20 messages from the active sidebar chat session.
      * Returns the file path, or empty string if no context available.
+     * Requirements: 9.1, 9.2, 9.3
      */
     function _writeSessionContext(): string {
-        // Delegate to Ai service for session context if available
-        // For now, return empty — context injection is extended in task 9
-        return ""
+        // Read recent messages from the active Ai session
+        var messageIDs = Ai.messageIDs || []
+        if (messageIDs.length === 0) return ""
+
+        // Take last 20 messages
+        var startIdx = Math.max(0, messageIDs.length - 20)
+        var contextMessages = []
+
+        for (var i = startIdx; i < messageIDs.length; i++) {
+            var id = messageIDs[i]
+            var msg = Ai.messageByID[id]
+            if (!msg) continue
+            // Skip interface messages — they're not real conversation
+            if (msg.role === Ai.interfaceRole) continue
+            contextMessages.push({
+                "role": msg.role,
+                "content": msg.rawContent || ""
+            })
+        }
+
+        if (contextMessages.length === 0) return ""
+
+        // Generate unique temp file path
+        var timestamp = Date.now()
+        var contextPath = "/tmp/voice-agent-context-" + timestamp + ".json"
+        root._contextFilePath = contextPath
+
+        // Write context JSON to temp file using FileView
+        var jsonContent = JSON.stringify(contextMessages)
+        contextFileView.path = contextPath
+        contextFileView.setText(jsonContent)
+
+        return contextPath
     }
 
     // ─── Deactivate ──────────────────────────────────────────────────────
@@ -244,6 +288,9 @@ Singleton {
      */
     function deactivate() {
         console.log("[VoiceAgentService] deactivate() called | state=" + root._stateNames[root.voiceAgentState])
+
+        // Guard exit handlers from triggering error transitions during intentional shutdown
+        root._shuttingDown = true
 
         // Send STOP to helper if it's running
         if (helperProcess.running) {
@@ -260,8 +307,9 @@ Singleton {
         helperProcess.running = false
         playbackProcess.running = false
 
-        // Clean up FIFO
+        // Clean up FIFO and context file
         _cleanupFifo()
+        _cleanupContextFile()
 
         // Reset state
         root.partialText = ""
@@ -272,6 +320,8 @@ Singleton {
         root.errorMessage = ""
 
         _setState(VoiceAgentService.State.Idle, "deactivate()")
+        root._shuttingDown = false
+        root._helperStderr = ""
         root.sessionEnded()
     }
 
@@ -296,7 +346,8 @@ Singleton {
 
         console.log("[VoiceAgentService] bargeIn()")
 
-        // Kill playback
+        // Kill playback — set _bargeInActive to suppress playback exit error handler
+        root._bargeInActive = true
         playbackProcess.running = false
 
         // Send BARGE_IN to helper
@@ -312,6 +363,21 @@ Singleton {
     // ─── Send Tool Result ────────────────────────────────────────────────
 
     /**
+     * Sends an END_TURN event to the helper stdin, triggering explicit
+     * end-of-turn (input_audio_buffer.commit for OpenAI, content end/restart
+     * for Nova Sonic). Used when user taps activation key during Listening
+     * to force the backend to begin responding immediately.
+     * Requirement: 7.4
+     */
+    function sendEndTurn() {
+        if (!helperProcess.running) return
+
+        console.log("[VoiceAgentService] sendEndTurn()")
+        var event = JSON.stringify({"type": "END_TURN"})
+        helperProcess.write(event + "\n")
+    }
+
+    /**
      * Sends a TOOL_RESULT event to the helper stdin and transitions back
      * to the previous state (before ToolExecuting).
      */
@@ -320,12 +386,14 @@ Singleton {
 
         var event = JSON.stringify({
             "type": "TOOL_RESULT",
+            "id": root._pendingToolCallId,
             "name": name,
             "result": result,
             "is_error": isError || false
         })
         helperProcess.write(event + "\n")
 
+        root._pendingToolCallId = ""
         root.currentToolName = ""
         _setState(root._previousState, "sendToolResult(" + name + ")")
     }
@@ -376,6 +444,9 @@ Singleton {
             case "FALLBACK":
                 _onFallback(event)
                 break
+            case "AMPLITUDE":
+                _onAmplitude(event)
+                break
             default:
                 console.warn("[VoiceAgentService] Unknown event type: " + eventType)
         }
@@ -403,7 +474,18 @@ Singleton {
     function _onTurnComplete(event) {
         // Turn complete — clear partial, prepare for next turn
         root.partialText = ""
+
+        // Capture AI response text from this turn before overwriting (Requirement 9.4)
+        if (root.responseText && root.responseText.length > 0) {
+            root._sessionTranscript.push({"role": "assistant", "content": root.responseText})
+        }
+
         root.responseText = event.text || ""
+
+        // TURN_COMPLETE carries the finalized user utterance
+        if (event.text) {
+            root._sessionTranscript.push({"role": "user", "content": event.text})
+        }
 
         if (root.voiceAgentState === VoiceAgentService.State.Speaking ||
             root.voiceAgentState === VoiceAgentService.State.Thinking) {
@@ -417,20 +499,16 @@ Singleton {
             _setState(VoiceAgentService.State.Speaking, "AUDIO_RESPONSE")
         }
 
-        // Decode base64 audio and pipe to pw-play
+        // Decode base64 audio and pipe to the playback pipeline (Requirement 13.3)
+        // The playbackProcess is a persistent pipeline that accepts base64 lines on stdin,
+        // decodes them, and feeds the raw PCM to pw-play.
         var audioData = event.audio || ""
-        if (audioData && playbackProcess.running) {
-            // Write raw decoded base64 to pw-play stdin
-            // The helper sends base64-encoded PCM; we decode and write
-            playbackDecodeProcess.command = ["bash", "-c",
-                "echo '" + audioData + "' | base64 -d"
-            ]
-            playbackDecodeProcess.running = true
-        } else if (audioData && !playbackProcess.running) {
-            // Start pw-play if not running yet
-            _startPlayback()
-            // Queue the audio — will be handled on next event after pw-play starts
-            root._pendingAudio = audioData
+        if (audioData) {
+            if (!playbackProcess.running) {
+                _startPlayback()
+            }
+            // Write base64 chunk as a line — the pipeline decodes + plays
+            playbackProcess.write(audioData + "\n")
         }
 
         // Update response text if provided
@@ -439,14 +517,20 @@ Singleton {
         }
     }
 
-    property string _pendingAudio: ""
-
     function _startPlayback() {
         var rate = root._sampleRate
-        playbackProcess.command = [
-            "pw-play", "--format=s16",
-            "--rate=" + rate, "--channels=1",
-            "-"
+        // Persistent playback pipeline: reads base64 lines from stdin,
+        // decodes each line to raw PCM, feeds into pw-play.
+        // Uses Python for reliable streaming base64 decode (handles partial lines, flush).
+        playbackProcess.command = ["bash", "-c",
+            "python3 -c \""
+            + "import sys, base64\\n"
+            + "for line in sys.stdin:\\n"
+            + "    chunk = line.strip()\\n"
+            + "    if chunk:\\n"
+            + "        sys.stdout.buffer.write(base64.b64decode(chunk))\\n"
+            + "        sys.stdout.buffer.flush()\\n"
+            + "\" | pw-play --format=s16 --rate=" + rate + " --channels=1 -"
         ]
         playbackProcess.stdinEnabled = true
         playbackProcess.running = true
@@ -454,13 +538,45 @@ Singleton {
 
     function _onToolCall(event) {
         root._previousState = root.voiceAgentState
+        root._pendingToolCallId = event.id || ""
         root.currentToolName = event.name || ""
         _setState(VoiceAgentService.State.ToolExecuting, "TOOL_CALL: " + root.currentToolName)
         root.toolCallReceived(event.name || "", JSON.stringify(event.arguments || {}))
+
+        // Parse arguments and execute via ActionPalette
+        var toolName = event.name || ""
+        var toolArgs = event.arguments || {}
+
+        // If arguments came as a JSON string, parse it
+        if (typeof toolArgs === "string") {
+            try {
+                toolArgs = JSON.parse(toolArgs)
+            } catch (e) {
+                toolArgs = { command: toolArgs }
+            }
+        }
+
+        // Execute through ActionPalette's direct tool execution
+        ActionPalette.executeToolDirect(toolName, toolArgs, function(result) {
+            // Send TOOL_RESULT back to helper stdin
+            root.sendToolResult(toolName, result.result, result.isError)
+        })
     }
 
     function _onSessionEnd(event) {
         console.log("[VoiceAgentService] SESSION_END received")
+
+        // Capture any final AI response text that hasn't been logged yet
+        if (root.responseText && root.responseText.length > 0) {
+            root._sessionTranscript.push({"role": "assistant", "content": root.responseText})
+        }
+
+        // Append accumulated transcript to sidebar session (Requirements 9.4, 9.5)
+        _appendTranscriptToSession()
+
+        // Clean up context file
+        _cleanupContextFile()
+
         deactivate()
     }
 
@@ -478,6 +594,7 @@ Singleton {
             helperProcess.running = false
             playbackProcess.running = false
             _cleanupFifo()
+            _cleanupContextFile()
             // Auto-dismiss after 5s
             errorDismissTimer.restart()
         } else {
@@ -488,7 +605,7 @@ Singleton {
 
     function _onFallback(event) {
         var reason = event.reason || "connection failed"
-        console.warn("[VoiceAgentService] FALLBACK: " + reason + " — delegating to batch pipeline")
+        console.log("[VoiceAgentService] FALLBACK | reason=" + reason + " — delegating to batch pipeline")
 
         // Kill our processes
         captureProcess.running = false
@@ -496,11 +613,67 @@ Singleton {
         playbackProcess.running = false
         connectionTimeoutTimer.stop()
         _cleanupFifo()
+        _cleanupContextFile()
 
         _setState(VoiceAgentService.State.Idle, "FALLBACK → batch")
 
-        // Delegate to DictationService batch pipeline (Requirement 10.1)
+        // Requirement 10.2: Delegate to DictationService batch pipeline.
+        // If the helper saved buffered audio to a temp file (audio_file field),
+        // DictationService could process it — but currently it starts fresh recording.
+        // The helper handles its own audio buffer cleanup.
         DictationService.activate()
+    }
+
+    function _onAmplitude(event) {
+        // Update audioLevel from helper's RMS calculation (Requirement 13.4)
+        // The level is already normalized to 0.0–1.0 by the Python helper
+        var level = event.level
+        if (typeof level === "number" && isFinite(level)) {
+            root.audioLevel = Math.max(0.0, Math.min(1.0, level))
+        }
+    }
+
+    // ─── Session Context and Transcript ──────────────────────────────────
+
+    /**
+     * Appends accumulated transcript turns to the active sidebar session.
+     * Falls back to "Free Dictation" session if no active session exists.
+     * Requirements: 9.4, 9.5
+     */
+    function _appendTranscriptToSession() {
+        if (root._sessionTranscript.length === 0) return
+
+        console.log("[VoiceAgentService] Appending " + root._sessionTranscript.length + " transcript entries to session")
+
+        // Determine target: use active session if available, fall back to Free Dictation
+        var activeSession = Ai.activeSessionName || ""
+        var useFreeDictation = (!activeSession || activeSession.length === 0)
+
+        for (var i = 0; i < root._sessionTranscript.length; i++) {
+            var entry = root._sessionTranscript[i]
+            if (!entry.content || entry.content.trim().length === 0) continue
+
+            if (useFreeDictation) {
+                // Requirement 9.5: Fall back to "Free Dictation" session
+                Ai.appendToFreeDictation(entry.content, entry.role)
+            } else {
+                // Append to the active session's in-memory messages
+                Ai.addMessage(entry.content, entry.role)
+            }
+        }
+
+        // Clear transcript after appending
+        root._sessionTranscript = []
+    }
+
+    /**
+     * Removes the temporary context JSON file if it exists.
+     */
+    function _cleanupContextFile() {
+        if (root._contextFilePath) {
+            Quickshell.execDetached(["rm", "-f", root._contextFilePath])
+            root._contextFilePath = ""
+        }
     }
 
     // ─── FIFO Creation Process ───────────────────────────────────────────
@@ -526,13 +699,22 @@ Singleton {
         }
     }
 
+    // ─── Context File View (for writing session context) ────────────────
+
+    FileView {
+        id: contextFileView
+        blockLoading: true
+    }
+
     // ─── Audio Capture Process (pw-cat → FIFO) ──────────────────────────
 
     Process {
         id: captureProcess
 
         onExited: (exitCode, exitStatus) => {
-            if (root.voiceAgentState !== VoiceAgentService.State.Idle) {
+            if (root._shuttingDown) return  // Intentional shutdown — ignore
+            if (root.voiceAgentState !== VoiceAgentService.State.Idle &&
+                root.voiceAgentState !== VoiceAgentService.State.Error) {
                 console.warn("[VoiceAgentService] pw-cat exited unexpectedly (exit " + exitCode + ")")
                 // Requirement 13.5: send STOP and transition to Error
                 if (helperProcess.running) {
@@ -564,80 +746,67 @@ Singleton {
         stderr: SplitParser {
             splitMarker: ""
             onRead: data => {
-                console.warn("[VoiceAgentService] helper stderr: " + data.trim())
+                var line = data.trim()
+                if (line) {
+                    console.warn("[VoiceAgentService] helper stderr: " + line)
+                    // Buffer last stderr line for error display on unexpected exit
+                    root._helperStderr = line
+                }
             }
         }
 
         onExited: (exitCode, exitStatus) => {
-            if (root.voiceAgentState !== VoiceAgentService.State.Idle) {
-                console.warn("[VoiceAgentService] Helper exited unexpectedly (exit " + exitCode + ")")
-                // Requirement 2.6: transition to Error with exit reason
+            if (root._shuttingDown) return  // Intentional shutdown — ignore
+            if (root.voiceAgentState !== VoiceAgentService.State.Idle &&
+                root.voiceAgentState !== VoiceAgentService.State.Error) {
+                // Requirement 2.6, 10.4: unexpected helper exit → capture exit code + stderr, Error state
+                var stderrInfo = root._helperStderr ? " (" + root._helperStderr + ")" : ""
+                console.warn("[VoiceAgentService] ERROR | helper_exit_code=" + exitCode + " stderr=" + root._helperStderr)
                 captureProcess.running = false
                 playbackProcess.running = false
                 connectionTimeoutTimer.stop()
                 root._cleanupFifo()
+                root._cleanupContextFile()
 
-                root.errorMessage = "Voice agent helper exited (code " + exitCode + ")"
+                root.errorMessage = "Voice agent helper exited (code " + exitCode + ")" + stderrInfo
                 root._setState(VoiceAgentService.State.Error, "helper exit " + exitCode)
+                root._helperStderr = ""
                 errorDismissTimer.restart()
             }
         }
     }
 
-    // ─── Playback Process (pw-play) ─────────────────────────────────────
+    // ─── Playback Process (base64 decode → pw-play pipeline) ────────────
 
     Process {
         id: playbackProcess
         stdinEnabled: true
 
-        onRunningChanged: {
-            if (playbackProcess.running) {
-                // If there's pending audio from before playback started, write it now
-                if (root._pendingAudio) {
-                    playbackDecodeForPipe.command = ["bash", "-c",
-                        "echo '" + root._pendingAudio + "' | base64 -d"
-                    ]
-                    root._pendingAudio = ""
-                    playbackDecodeForPipe.running = true
-                }
-            }
-        }
-
         onExited: (exitCode, exitStatus) => {
-            // pw-play exiting during Speaking is normal (audio finished)
+            if (root._shuttingDown || root._bargeInActive) {
+                // Intentional kill (deactivate or barge-in) — reset flag, ignore
+                root._bargeInActive = false
+                return
+            }
             if (root.voiceAgentState === VoiceAgentService.State.Speaking) {
-                // Playback finished naturally — stay in Speaking until TURN_COMPLETE
-                console.log("[VoiceAgentService] pw-play finished (exit " + exitCode + ")")
-            }
-        }
-    }
-
-    // ─── Audio decode helper processes ───────────────────────────────────
-
-    // Decodes base64 audio and writes to pw-play stdin
-    Process {
-        id: playbackDecodeProcess
-
-        stdout: SplitParser {
-            splitMarker: ""
-            onRead: data => {
-                if (playbackProcess.running) {
-                    playbackProcess.write(data)
+                // Playback finished naturally — audio stream exhausted.
+                // Stay in Speaking until TURN_COMPLETE arrives from the helper.
+                console.log("[VoiceAgentService] Playback pipeline finished (exit " + exitCode + ")")
+            } else if (root.voiceAgentState !== VoiceAgentService.State.Idle &&
+                       root.voiceAgentState !== VoiceAgentService.State.Error) {
+                // Unexpected exit in non-terminal state — send STOP, transition to Error
+                // (Requirement 13.5: handle pw-play unexpected exit)
+                console.warn("[VoiceAgentService] Playback pipeline exited unexpectedly (exit " + exitCode + ")")
+                if (helperProcess.running) {
+                    var stopEvent = JSON.stringify({"type": "STOP"})
+                    helperProcess.write(stopEvent + "\n")
                 }
-            }
-        }
-    }
-
-    // Decodes pending audio when pw-play first starts
-    Process {
-        id: playbackDecodeForPipe
-
-        stdout: SplitParser {
-            splitMarker: ""
-            onRead: data => {
-                if (playbackProcess.running) {
-                    playbackProcess.write(data)
-                }
+                root.errorMessage = "Audio playback stopped unexpectedly"
+                root._setState(VoiceAgentService.State.Error, "playback exit " + exitCode)
+                captureProcess.running = false
+                helperProcess.running = false
+                root._cleanupFifo()
+                errorDismissTimer.restart()
             }
         }
     }
@@ -652,14 +821,17 @@ Singleton {
         repeat: false
         onTriggered: {
             if (root.voiceAgentState === VoiceAgentService.State.Connecting) {
-                console.warn("[VoiceAgentService] Connection timeout (5s) — falling back to batch")
+                console.log("[VoiceAgentService] FALLBACK | reason=connection_timeout_5s — killing helper, activating batch pipeline")
                 // Kill helper and capture
+                root._shuttingDown = true
                 helperProcess.running = false
                 captureProcess.running = false
                 playbackProcess.running = false
                 root._cleanupFifo()
+                root._cleanupContextFile()
 
                 root._setState(VoiceAgentService.State.Idle, "connection timeout → fallback")
+                root._shuttingDown = false
 
                 // Requirement 10.1: fallback to batch pipeline
                 DictationService.activate()
