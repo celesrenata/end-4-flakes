@@ -181,8 +181,16 @@ Singleton {
                 root._executeConfigSet(action);
                 break;
             case "shell.exec":
-                // Pause execution — emit approval signal, wait for approve/reject
-                root.approvalRequired(action.command, root._executionIndex);
+                if (root._directMode) {
+                    // Voice assistant mode: auto-execute shell commands without approval
+                    root._directModeCapture = true;
+                    shellExecProcess.command = shellExecProcess.baseCommand.concat([action.command]);
+                    shellExecTimeout.restart();
+                    shellExecProcess.running = true;
+                } else {
+                    // Interactive mode: pause and wait for user approval
+                    root.approvalRequired(action.command, root._executionIndex);
+                }
                 break;
             case "hyprland.dispatch":
                 root._executeHyprlandDispatch(action);
