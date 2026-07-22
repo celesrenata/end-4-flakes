@@ -246,7 +246,7 @@ Singleton {
         return {
             endpoint: endpoint,
             auth: authPart,
-            command: ["bash", "-c", 'curl -s -w "\\n%{http_code}" "' + endpoint + '" ' + authPart]
+            command: ["bash", "-c", 'curl -s --connect-timeout 10 --max-time 12 -w "\\n%{http_code}" "' + endpoint + '" ' + authPart]
         };
     }
 
@@ -417,6 +417,7 @@ Singleton {
         discoveryProcess.targetProviderId = providerId;
         discoveryProcess.command = cmdObj.command;
         discoveryProcess.running = true;
+        discoveryTimeoutTimer.restart();
     }
 
     function isRefreshing(providerId) {
@@ -564,7 +565,19 @@ Singleton {
         property string targetProviderId: ""
         stdout: StdioCollector {
             onStreamFinished: {
-                if (text.length === 0) return;
+                discoveryTimeoutTimer.stop()
+                if (text.length === 0) {
+                    // Process exited with no output — treat as failed, advance queue
+                    console.warn("[ModelDiscovery] Discovery for " + discoveryProcess.targetProviderId + " returned empty output")
+                    var newDiscovered0 = Object.assign({}, root.discoveredModels);
+                    newDiscovered0[discoveryProcess.targetProviderId] = [];
+                    root.discoveredModels = newDiscovered0;
+                    if (root._discoveryQueue.length > 0) {
+                        discoveryQueueTimer.interval = 200
+                        discoveryQueueTimer.restart()
+                    }
+                    return;
+                }
                 var lines = text.split("\n");
                 while (lines.length > 0 && lines[lines.length - 1].length === 0) {
                     lines.pop();
@@ -599,6 +612,25 @@ Singleton {
                     discoveryQueueTimer.interval = 200
                     discoveryQueueTimer.restart()
                 }
+            }
+        }
+    }
+
+    // Timeout for discovery process — prevents queue from stalling if curl hangs
+    Timer {
+        id: discoveryTimeoutTimer
+        interval: 15000
+        repeat: false
+        onTriggered: {
+            console.warn("[ModelDiscovery] Discovery timed out for: " + discoveryProcess.targetProviderId)
+            discoveryProcess.running = false
+            var newDiscovered = Object.assign({}, root.discoveredModels);
+            newDiscovered[discoveryProcess.targetProviderId] = [];
+            root.discoveredModels = newDiscovered;
+            // Advance the queue
+            if (root._discoveryQueue.length > 0) {
+                discoveryQueueTimer.interval = 200
+                discoveryQueueTimer.restart()
             }
         }
     }

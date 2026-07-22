@@ -142,6 +142,59 @@ Item {
             }
         }
 
+        // === Default Provider Selector ===
+        ColumnLayout {
+            visible: root.selectedProvider === "" && !root.showCustomForm && Config.options.policies.ai !== 0
+            Layout.fillWidth: true
+            spacing: 4
+            Layout.bottomMargin: 8
+
+            StyledText {
+                text: Translation.tr("Default Provider")
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.Medium
+                color: Appearance.colors.colSubtext
+            }
+
+            StyledText {
+                text: Translation.tr("Auto-discovered first on startup")
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Qt.alpha(Appearance.colors.colSubtext, 0.7)
+            }
+
+            Flow {
+                Layout.fillWidth: true
+                spacing: 4
+                Repeater {
+                    model: ["openai", "anthropic", "gemini", "mistral", "openrouter", "ollama", "bedrock"]
+                    delegate: RippleButton {
+                        required property string modelData
+                        required property int index
+                        implicitHeight: 26
+                        implicitWidth: dpChipText.implicitWidth + 14
+                        buttonRadius: 13
+                        colBackground: Config.options.ai.defaultProvider === modelData
+                            ? Appearance.m3colors.m3primaryContainer
+                            : Appearance.colors.colLayer2
+                        colBackgroundHover: Config.options.ai.defaultProvider === modelData
+                            ? Appearance.m3colors.m3primaryContainer
+                            : Appearance.colors.colLayer2Hover
+
+                        contentItem: StyledText {
+                            id: dpChipText
+                            anchors.centerIn: parent
+                            text: modelData
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Config.options.ai.defaultProvider === modelData
+                                ? Appearance.m3colors.m3onPrimaryContainer
+                                : Appearance.colors.colOnLayer2
+                        }
+                        onClicked: Config.setNestedValue("ai.defaultProvider", modelData)
+                    }
+                }
+            }
+        }
+
         // === Voice Settings (Dropdowns) ===
         ColumnLayout {
             visible: root.selectedProvider === "" && !root.showCustomForm && Config.options.policies.ai !== 0

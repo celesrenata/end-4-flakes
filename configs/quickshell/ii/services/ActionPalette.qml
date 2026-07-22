@@ -1333,6 +1333,9 @@ Rules:
             case "system_info":
                 root._executeToolDirectShell("uname -srm && free -h | head -2 && df -h / | tail -1", callback);
                 break;
+            case "weather":
+                root._executeToolDirectWeather(callback);
+                break;
             default:
                 toolDirectTimeout.stop();
                 root._toolDirectCallback = null;
@@ -1440,6 +1443,28 @@ Rules:
         } catch (e) {
             callback({ result: "Failed to launch " + appId + ": " + e, isError: true });
         }
+    }
+
+    /**
+     * Internal: Return current weather data from the Weather service singleton.
+     */
+    function _executeToolDirectWeather(callback) {
+        toolDirectTimeout.stop();
+        root._toolDirectCallback = null;
+
+        var w = Weather.data;
+        if (!w || !w.city || w.city === 0) {
+            callback({ result: "Weather data not available. The weather service may still be loading.", isError: true });
+            return;
+        }
+        var summary = "Weather in " + w.city + ": " + w.temp
+            + ", Humidity: " + w.humidity
+            + ", Wind: " + w.wind + " " + w.windDir
+            + ", UV: " + w.uv
+            + ", Precipitation: " + w.precip
+            + ", Visibility: " + w.visib
+            + ", Pressure: " + w.press;
+        callback({ result: summary, isError: false });
     }
 
     // === Tool Direct Process (separate from shellExecProcess to avoid conflicts) ===

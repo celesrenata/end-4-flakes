@@ -197,7 +197,7 @@ Singleton {
         captureProcess.running = true
 
         // Build helper command
-        var helperPath = Quickshell.shellPath("ii/scripts/voice-agent-stream.py")
+        var helperPath = Quickshell.shellPath("scripts/voice-agent-stream.py")
         var cmd = ["python3", helperPath,
             "--backend=" + root.voiceBackend,
             "--audio-fifo=" + root._fifoPath,
@@ -218,10 +218,20 @@ Singleton {
             }
         }
 
-        // Optional system prompt
+        // Optional system prompt — resolve placeholders
         var systemPrompt = Config.options.dictation.voiceSystemPrompt || ""
         if (systemPrompt) {
+            // Resolve {DATETIME} placeholder
+            var now = new Date()
+            var dateTimeStr = now.toLocaleString(Qt.locale(), "ddd, yyyy-MM-dd hh:mm:ss")
+            systemPrompt = systemPrompt.replace("{DATETIME}", dateTimeStr)
             cmd.push("--system-prompt=" + systemPrompt)
+        }
+
+        // Write tools definition and pass to helper
+        var toolsPath = _writeToolsDefinition()
+        if (toolsPath) {
+            cmd.push("--tools=" + toolsPath)
         }
 
         // Optional context from active chat session
@@ -278,6 +288,118 @@ Singleton {
         contextFileView.setText(jsonContent)
 
         return contextPath
+    }
+
+    /**
+     * Writes the available tool definitions to a temp JSON file for the voice helper.
+     * These tools match what ActionPalette.executeToolDirect() supports.
+     * Returns the file path, or empty string on failure.
+     */
+    function _writeToolsDefinition(): string {
+        var tools = [
+            {
+                "name": "shell_exec",
+                "description": "Execute a shell command and return its output. Use for system queries like checking time (date), running processes (ps aux), disk usage, etc.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "The bash command to execute"
+                        }
+                    },
+                    "required": ["command"]
+                }
+            },
+            {
+                "name": "system_info",
+                "description": "Get basic system information: kernel, memory usage, and disk usage.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "config_get",
+                "description": "Read a Quickshell configuration value by dot-separated key path (e.g. 'bar.weather.city', 'dictation.provider').",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "key": {
+                            "type": "string",
+                            "description": "Dot-separated config key path"
+                        }
+                    },
+                    "required": ["key"]
+                }
+            },
+            {
+                "name": "config_set",
+                "description": "Set a Quickshell configuration value by dot-separated key path.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "key": {
+                            "type": "string",
+                            "description": "Dot-separated config key path"
+                        },
+                        "value": {
+                            "description": "The value to set"
+                        }
+                    },
+                    "required": ["key", "value"]
+                }
+            },
+            {
+                "name": "hyprland_dispatch",
+                "description": "Execute a Hyprland dispatcher command (e.g. workspace switching, window focus, fullscreen toggle).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "dispatcher": {
+                            "type": "string",
+                            "description": "The Hyprland dispatcher name (e.g. 'workspace', 'focuswindow', 'fullscreen')"
+                        },
+                        "args": {
+                            "type": "string",
+                            "description": "Arguments for the dispatcher"
+                        }
+                    },
+                    "required": ["dispatcher"]
+                }
+            },
+            {
+                "name": "app_launch",
+                "description": "Launch a desktop application by its .desktop entry ID (e.g. 'firefox', 'org.kde.dolphin', 'kitty').",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "description": "The desktop entry ID of the application to launch"
+                        }
+                    },
+                    "required": ["id"]
+                }
+            },
+            {
+                "name": "weather",
+                "description": "Get the current weather conditions including temperature, humidity, wind, and conditions for the configured city.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        ]
+
+        var timestamp = Date.now()
+        var toolsPath = "/tmp/voice-agent-tools-" + timestamp + ".json"
+
+        var jsonContent = JSON.stringify(tools)
+        toolsFileView.path = toolsPath
+        toolsFileView.setText(jsonContent)
+
+        return toolsPath
     }
 
     // ─── Deactivate ──────────────────────────────────────────────────────
@@ -703,6 +825,11 @@ Singleton {
 
     FileView {
         id: contextFileView
+        blockLoading: true
+    }
+
+    FileView {
+        id: toolsFileView
         blockLoading: true
     }
 
