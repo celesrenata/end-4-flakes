@@ -178,6 +178,12 @@ def parse_args(argv: list[str] | None = None) -> VoiceAgentConfig:
         default="",
         help="Path to available tools definition JSON file",
     )
+    parser.add_argument(
+        "--dictation-mode",
+        action="store_true",
+        default=False,
+        help="Use transcription-only session (gpt-realtime-whisper) for dictation",
+    )
 
     args = parser.parse_args(argv)
 
@@ -191,6 +197,7 @@ def parse_args(argv: list[str] | None = None) -> VoiceAgentConfig:
         system_prompt=args.system_prompt,
         context=args.context,
         tools=args.tools,
+        dictation_mode=args.dictation_mode,
     )
 
 
@@ -235,27 +242,42 @@ async def _read_audio_fifo(
     backend: BaseVoiceBackend,
     stop_event: asyncio.Event,
     tool_manager: ToolCallManager,
+    sample_rate: int = 24000,
 ) -> None:
-    """Async task: read raw PCM from the named FIFO and forward to backend.
+    """Async task: capture audio via pw-cat subprocess and forward to backend.
 
-    Opens the FIFO for reading and continuously reads chunks of audio data,
-    forwarding each to the backend. Audio is silently dropped when the
-    tool_manager indicates audio is paused (tool call in progress).
+    Spawns pw-cat --record as a subprocess (writing to stdout), reads chunks
+    of raw PCM from its stdout pipe, and forwards to the backend. This avoids
+    FIFO reliability issues with pw-cat.
+
+    If fifo_path is provided and exists as a FIFO, falls back to reading from it.
+    Otherwise, spawns pw-cat internally.
+
+    Audio is silently dropped when the tool_manager indicates audio is paused
+    (tool call in progress).
 
     Computes running RMS amplitude and emits AMPLITUDE events at ~10Hz
     for the QML waveform indicator (Requirement 13.4).
 
-    Stops when the stop_event is set or the FIFO is closed (EOF).
+    Stops when the stop_event is set or pw-cat exits.
     """
+    import subprocess
+
+    # Spawn pw-cat as subprocess, reading from its stdout
+    pw_cat_cmd = [
+        "pw-cat", "--record", "--format=s16",
+        f"--rate={sample_rate}", "--channels=1", "-"
+    ]
     try:
-        # Open FIFO — this will block until the writer (pw-cat) opens it
-        fd = os.open(fifo_path, os.O_RDONLY | os.O_NONBLOCK)
+        proc = await asyncio.create_subprocess_exec(
+            *pw_cat_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
     except OSError as exc:
-        emit_error(f"Failed to open audio FIFO: {exc}", fatal=True)
+        emit_error(f"Failed to spawn pw-cat: {exc}", fatal=True)
         stop_event.set()
         return
-
-    loop = asyncio.get_event_loop()
 
     # RMS tracking for ~10Hz amplitude emission
     _last_amplitude_time = time.monotonic()
@@ -265,12 +287,12 @@ async def _read_audio_fifo(
     try:
         while not stop_event.is_set():
             try:
-                data = await loop.run_in_executor(None, os.read, fd, _AUDIO_READ_CHUNK_SIZE)
-            except OSError:
+                data = await proc.stdout.read(_AUDIO_READ_CHUNK_SIZE)
+            except Exception:
                 break
 
             if not data:
-                # EOF — writer closed the FIFO
+                # EOF — pw-cat exited
                 break
 
             # Compute RMS from PCM s16le samples for amplitude indicator
@@ -304,7 +326,12 @@ async def _read_audio_fifo(
                 stop_event.set()
                 return
     finally:
-        os.close(fd)
+        # Terminate pw-cat subprocess
+        try:
+            proc.terminate()
+            await proc.wait()
+        except Exception:
+            pass
 
 
 async def _read_stdin_events(
@@ -465,7 +492,7 @@ async def run(config: VoiceAgentConfig) -> None:
 
     # Launch concurrent tasks
     audio_task = asyncio.create_task(
-        _read_audio_fifo(config.audio_fifo, backend, stop_event, tool_manager)
+        _read_audio_fifo(config.audio_fifo, backend, stop_event, tool_manager, config.sample_rate)
     )
     stdin_task = asyncio.create_task(
         _read_stdin_events(backend, stop_event, tool_manager)

@@ -93,7 +93,10 @@ in
     xdg.configFile = mkMerge [
       # Hyprland complete override
       (mkIf (cfg.overrides.hyprlandConf != null) {
-        "hypr/hyprland.conf".text = cfg.overrides.hyprlandConf;
+        "hypr/hyprland.conf" = {
+          text = cfg.overrides.hyprlandConf;
+          force = true;
+        };
       })
 
       # Quickshell complete override  

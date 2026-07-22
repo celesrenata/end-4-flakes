@@ -212,6 +212,73 @@ Item {
             }
         },
         {
+            name: "tune",
+            description: Translation.tr("Set per-model tuning. Usage: /tune [get|temp|reasoning|websearch|context|verbosity] [value]. Settings are saved per-model."),
+            execute: (args) => {
+                const modelId = Ai.currentModelId;
+                const modelName = Ai.currentModelName;
+                if (args.length == 0 || args[0] == "get") {
+                    const tuning = Ai.getModelTuning();
+                    let lines = [`**Model tuning for ${modelName}** (\`${modelId}\`):\n`];
+                    lines.push(`- **Temperature**: ${tuning.temperature}`);
+                    lines.push(`- **Reasoning effort**: ${tuning.reasoningEffort || "default (not set)"}`);
+                    lines.push(`- **Web search**: ${tuning.webSearch ? "enabled" : "disabled"}`);
+                    lines.push(`- **Search context size**: ${tuning.searchContextSize}`);
+                    lines.push(`- **Verbosity**: ${tuning.verbosity || "default (not set)"}`);
+                    Ai.addMessage(lines.join("\n"), Ai.interfaceRole);
+                } else if (args[0] === "temp" || args[0] === "temperature") {
+                    if (args.length < 2) {
+                        Ai.addMessage(Translation.tr("Usage: /tune temp VALUE (0.0-2.0)"), Ai.interfaceRole);
+                        return;
+                    }
+                    const val = parseFloat(args[1]);
+                    if (isNaN(val) || val < 0 || val > 2) {
+                        Ai.addMessage(Translation.tr("Temperature must be between 0 and 2"), Ai.interfaceRole);
+                        return;
+                    }
+                    Ai.setModelSetting(modelId, "temperature", val);
+                    Ai.addMessage(Translation.tr("Set temperature to %1 for %2").arg(val).arg(modelName), Ai.interfaceRole);
+                } else if (args[0] === "reasoning" || args[0] === "reason") {
+                    const valid = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "off"];
+                    if (args.length < 2 || valid.indexOf(args[1]) === -1) {
+                        Ai.addMessage(Translation.tr("Usage: /tune reasoning [none|minimal|low|medium|high|xhigh|max|off]\n\n`off` clears the setting."), Ai.interfaceRole);
+                        return;
+                    }
+                    const val = args[1] === "off" ? "" : args[1];
+                    Ai.setModelSetting(modelId, "reasoningEffort", val);
+                    Ai.addMessage(Translation.tr("Set reasoning effort to %1 for %2").arg(val || "default").arg(modelName), Ai.interfaceRole);
+                } else if (args[0] === "websearch" || args[0] === "web") {
+                    const valid = ["on", "off", "true", "false"];
+                    if (args.length < 2 || valid.indexOf(args[1]) === -1) {
+                        Ai.addMessage(Translation.tr("Usage: /tune websearch [on|off]"), Ai.interfaceRole);
+                        return;
+                    }
+                    const val = args[1] === "on" || args[1] === "true";
+                    Ai.setModelSetting(modelId, "webSearch", val);
+                    Ai.addMessage(Translation.tr("Set web search to %1 for %2").arg(val ? "enabled" : "disabled").arg(modelName), Ai.interfaceRole);
+                } else if (args[0] === "context" || args[0] === "searchcontext") {
+                    const valid = ["low", "medium", "high"];
+                    if (args.length < 2 || valid.indexOf(args[1]) === -1) {
+                        Ai.addMessage(Translation.tr("Usage: /tune context [low|medium|high]"), Ai.interfaceRole);
+                        return;
+                    }
+                    Ai.setModelSetting(modelId, "searchContextSize", args[1]);
+                    Ai.addMessage(Translation.tr("Set search context size to %1 for %2").arg(args[1]).arg(modelName), Ai.interfaceRole);
+                } else if (args[0] === "verbosity" || args[0] === "verbose") {
+                    const valid = ["low", "medium", "high", "off"];
+                    if (args.length < 2 || valid.indexOf(args[1]) === -1) {
+                        Ai.addMessage(Translation.tr("Usage: /tune verbosity [low|medium|high|off]\n\n`off` clears the setting."), Ai.interfaceRole);
+                        return;
+                    }
+                    const val = args[1] === "off" ? "" : args[1];
+                    Ai.setModelSetting(modelId, "verbosity", val);
+                    Ai.addMessage(Translation.tr("Set verbosity to %1 for %2").arg(val || "default").arg(modelName), Ai.interfaceRole);
+                } else {
+                    Ai.addMessage(Translation.tr("Unknown tuning option: %1\n\nAvailable: temp, reasoning, websearch, context, verbosity").arg(args[0]), Ai.interfaceRole);
+                }
+            }
+        },
+        {
             name: "compact",
             description: Translation.tr("Compact conversation history into a summary to free context space"),
             execute: (args) => {
@@ -564,8 +631,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             StatusSeparator {}
             StatusItem {
                 icon: "device_thermostat"
-                statusText: Ai.temperature.toFixed(1)
-                description: Translation.tr("Temperature\nChange with /temp VALUE")
+                statusText: Ai.effectiveTemperature.toFixed(1)
+                description: Translation.tr("Temperature\nChange with /temp VALUE or /tune temp VALUE")
             }
             StatusSeparator {
                 visible: Ai.tokenCount.total > 0

@@ -8,7 +8,7 @@ ApiStrategy {
 
     // Convert messages to Bedrock Converse API format.
     // System prompt goes in top-level "system" array, not in messages.
-    function buildRequestData(model: AiModel, messages, systemPrompt: string, temperature: real, tools: list<var>) {
+    function buildRequestData(model: AiModel, messages, systemPrompt: string, temperature: real, tools: list<var>, tuning: var) {
         var convertedMessages = [];
         for (var i = 0; i < messages.length; i++) {
             var msg = messages[i];

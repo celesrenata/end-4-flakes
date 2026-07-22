@@ -32,6 +32,9 @@ Singleton {
                 property string model
                 property real temperature: 0.5
                 property string activeSession: "Chat 1"
+                // Per-model tuning settings keyed by model ID
+                // Each entry: { temperature, reasoningEffort, webSearch, searchContextSize, verbosity }
+                property var modelSettings: ({})
             }
 
             property JsonObject sidebar: JsonObject {

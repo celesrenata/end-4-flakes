@@ -602,6 +602,8 @@ Singleton {
 
     // Double-tap detection
     property bool _waitingForSecondTap: false
+    // When true, batch transcription result types at cursor instead of voice assistant
+    property bool _dictationToCursor: false
 
     Timer {
         id: doubleTapTimer
@@ -765,9 +767,22 @@ Singleton {
 
         // ─── Voice Agent active session handling ─────────────────────
         // If voice agent is already in an active state, handle taps as
-        // toggle/barge-in controls regardless of double-tap state.
+        // toggle/barge-in controls — BUT check double-tap first.
+        // If we're still in the double-tap window, a second tap means
+        // "switch to batch dictation", not "cancel voice agent".
         if (VoiceAgentService.voiceBackend && VoiceAgentService.voiceBackend !== "none") {
             var vasState = VoiceAgentService.voiceAgentState
+
+            // Double-tap override: if waiting for second tap and voice agent
+            // is still connecting (from first tap), treat as double-tap → realtime dictation
+            if (root._waitingForSecondTap && vasState === VoiceAgentService.State.Connecting) {
+                root._waitingForSecondTap = false
+                doubleTapTimer.stop()
+                console.log("[DictationService] Double-tap detected (during Connecting) → realtime dictation")
+                // VoiceAgentService is already connecting — switch to dictation mode
+                VoiceAgentService.dictationToCursorMode = true
+                return
+            }
 
             if (vasState === VoiceAgentService.State.Speaking) {
                 // Tap during playback: barge-in (Requirement 7.5)
@@ -781,7 +796,7 @@ Singleton {
                 VoiceAgentService.deactivate()
                 return
             } else if (vasState !== VoiceAgentService.State.Idle) {
-                // Tap during Connecting, Thinking, ToolExecuting, Error: deactivate
+                // Tap during Thinking, ToolExecuting, Error: deactivate
                 console.log("[DictationService] Routing to VoiceAgentService.deactivate()")
                 VoiceAgentService.deactivate()
                 return
@@ -789,9 +804,30 @@ Singleton {
         }
 
         // ─── Idle state: double-tap detection ────────────────────────
-        // Single tap → voice agent (immediate, no latency)
-        // Double tap (second tap within doubleTapMs) → batch dictation
-        // This gives the voice agent the fast path since it's the primary mode.
+        // Single tap → batch voice assistant (record, transcribe, execute, show summary)
+        // Double tap (second tap within doubleTapMs) → realtime streaming dictation to cursor
+        // Single tap gets the fast path since voice commands are the primary use.
+
+        // Double-tap detection — must be checked BEFORE "already recording" logic
+        if (root._waitingForSecondTap) {
+            // ─── Second tap: cancel batch, activate realtime dictation ───────
+            root._waitingForSecondTap = false
+            doubleTapTimer.stop()
+            console.log("[DictationService] Double-tap detected → realtime dictation to cursor")
+
+            // Cancel the batch recording we just started on the first tap
+            if (root.state === DictationService.State.Listening || root.state === DictationService.State.StreamingActive) {
+                recordProcess.running = false
+                root._setState(DictationService.State.Idle, "double-tap cancel batch")
+            }
+
+            // Activate realtime voice agent in dictation-to-cursor mode
+            if (VoiceAgentService.voiceBackend && VoiceAgentService.voiceBackend !== "none") {
+                VoiceAgentService.dictationToCursorMode = true
+                VoiceAgentService.activate()
+            }
+            return
+        }
 
         // If batch pipeline is already active, tap stops recording
         if (root.state === DictationService.State.Listening || root.state === DictationService.State.StreamingActive) {
@@ -800,46 +836,18 @@ Singleton {
             return
         }
 
-        // Double-tap detection
-        if (root._waitingForSecondTap) {
-            // ─── Second tap: cancel voice agent, activate batch ───────
-            root._waitingForSecondTap = false
-            doubleTapTimer.stop()
-            console.log("[DictationService] Double-tap detected → batch dictation")
-
-            // Kill the voice agent session we just started on the first tap
-            if (VoiceAgentService.voiceAgentState !== VoiceAgentService.State.Idle) {
-                VoiceAgentService.deactivate()
-            }
-
-            // Debounce for batch
-            if (root.debounceMs > 0) {
-                root._debounceActive = true
-                debounceTimer.restart()
-            }
-
-            activate()
-            return
-        }
-
         // ─── First tap ───────────────────────────────────────────────
-        // If voice backend is configured → activate voice agent immediately
-        // Start timer to detect possible double-tap for batch fallback
-        if (VoiceAgentService.voiceBackend && VoiceAgentService.voiceBackend !== "none") {
-            console.log("[DictationService] Single tap → voice agent (waiting " + root.doubleTapMs + "ms for possible double-tap)")
-            root._waitingForSecondTap = true
-            doubleTapTimer.restart()
-            VoiceAgentService.activate()
-            return
-        }
+        // Activate batch voice assistant immediately
+        // Start timer to detect possible double-tap for realtime dictation
+        console.log("[DictationService] Single tap → batch voice assistant (waiting " + root.doubleTapMs + "ms for possible double-tap)")
+        root._waitingForSecondTap = true
+        doubleTapTimer.restart()
 
-        // ─── No voice backend: batch pipeline directly ───────────────
         if (root._debounceActive) {
             console.log("[DictationService] GATE_REJECT | reason=debounce")
             return
         }
 
-        console.log("[DictationService] Activating batch dictation directly (no voice backend)")
         if (root.debounceMs > 0) {
             root._debounceActive = true
             debounceTimer.restart()
@@ -1151,6 +1159,17 @@ Singleton {
             return
         }
 
+        // Double-tap dictation mode: type text at cursor position
+        if (root._dictationToCursor) {
+            root._dictationToCursor = false
+            console.log("[DictationService] Typing at cursor: " + text.substring(0, 50) + "...")
+            Quickshell.execDetached(["wtype", "--", text])
+            root.transcriptionComplete(text)
+            Quickshell.execDetached(["rm", "-f", root._recordingPath])
+            root._setState(DictationService.State.Idle, "dictation-to-cursor complete")
+            return
+        }
+
         // Route based on sidebar state
         if (GlobalStates.sidebarLeftOpen) {
             // Sidebar open — route through smart routing (checks intent when enabled)
@@ -1215,6 +1234,17 @@ Singleton {
             root.errorMessage = "Streaming transcription returned empty text"
             root._setState(DictationService.State.Error, "streaming transcription empty")
             root.error(root.errorMessage)
+            return
+        }
+
+        // Double-tap dictation mode: type text at cursor position
+        if (root._dictationToCursor) {
+            root._dictationToCursor = false
+            console.log("[DictationService] Typing at cursor (streaming): " + text.substring(0, 50) + "...")
+            Quickshell.execDetached(["wtype", "--", text])
+            root.transcriptionComplete(text)
+            root.partialText = ""
+            root._setState(DictationService.State.Idle, "dictation-to-cursor streaming complete")
             return
         }
 

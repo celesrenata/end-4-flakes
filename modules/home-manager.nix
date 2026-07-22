@@ -123,6 +123,7 @@ in
     xdg.configFile."quickshell" = mkIf (cfg.mode == "hybrid" || cfg.mode == "declarative") {
       source = "${cfg.source}/.config/quickshell";
       recursive = true;
+      force = true;
     };
     
     # Enable writable mode

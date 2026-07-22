@@ -61,6 +61,62 @@ Singleton {
         property int total: -1
     }
 
+    // Per-model tuning settings
+    // Returns settings object for the current model, falling back to defaults
+    readonly property var currentModelSettings: {
+        const settings = Persistent.states?.ai?.modelSettings ?? {};
+        return settings[root.currentModelId] ?? {};
+    }
+
+    // Get effective temperature for current model (per-model overrides global)
+    readonly property real effectiveTemperature: {
+        const ms = root.currentModelSettings;
+        if (ms.temperature !== undefined && ms.temperature !== null) return ms.temperature;
+        return root.temperature;
+    }
+
+    // Get model tuning values for current model
+    readonly property string currentReasoningEffort: root.currentModelSettings.reasoningEffort ?? ""
+    readonly property bool currentWebSearch: root.currentModelSettings.webSearch ?? false
+    readonly property string currentSearchContextSize: root.currentModelSettings.searchContextSize ?? "medium"
+    readonly property string currentVerbosity: root.currentModelSettings.verbosity ?? ""
+
+    /**
+     * Set a tuning parameter for a specific model.
+     * @param modelId - the model ID (e.g., "gpt-4.1")
+     * @param key - setting key: "temperature", "reasoningEffort", "webSearch", "searchContextSize", "verbosity"
+     * @param value - the value to set
+     */
+    function setModelSetting(modelId, key, value) {
+        let allSettings = JSON.parse(JSON.stringify(Persistent.states?.ai?.modelSettings ?? {}));
+        if (!allSettings[modelId]) {
+            allSettings[modelId] = {};
+        }
+        allSettings[modelId][key] = value;
+        Persistent.states.ai.modelSettings = allSettings;
+    }
+
+    /**
+     * Get a tuning parameter for a specific model.
+     */
+    function getModelSetting(modelId, key) {
+        const settings = Persistent.states?.ai?.modelSettings ?? {};
+        return settings[modelId]?.[key];
+    }
+
+    /**
+     * Get all tuning settings for the current model (for passing to API strategy).
+     */
+    function getModelTuning() {
+        return {
+            "temperature": root.effectiveTemperature,
+            "reasoningEffort": root.currentReasoningEffort,
+            "webSearch": root.currentWebSearch,
+            "searchContextSize": root.currentSearchContextSize,
+            "verbosity": root.currentVerbosity,
+        };
+    }
+
     // Context window tracking
     function estimateTokens(text) {
         return Math.ceil((text || "").length / 4);
@@ -1071,7 +1127,12 @@ Singleton {
             const endpoint = root.currentApiStrategy.buildEndpoint(model);
             const messageArray = root.messageIDs.map(id => root.messageByID[id]);
             const filteredMessageArray = messageArray.filter(message => message.role !== Ai.interfaceRole);
-            const data = root.currentApiStrategy.buildRequestData(model, filteredMessageArray, root.systemPrompt, root.temperature, root.tools[model.api_format][root.currentTool]);
+            const tuning = root.getModelTuning();
+            // Append fresh timestamp to system prompt so the model always has accurate current time
+            const now = new Date();
+            const freshDatetime = Qt.locale().toString(now, "hh:mm:ss, dddd dd MMMM yyyy");
+            const liveSystemPrompt = root.systemPrompt + `\n\n[Current local time at moment of request: ${freshDatetime}]`;
+            const data = root.currentApiStrategy.buildRequestData(model, filteredMessageArray, liveSystemPrompt, tuning.temperature, root.tools[model.api_format][root.currentTool], tuning);
             // console.log("[Ai] Request data: ", JSON.stringify(data, null, 2));
 
             let requestHeaders = {

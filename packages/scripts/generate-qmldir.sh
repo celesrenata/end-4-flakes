@@ -42,6 +42,9 @@ generate_qmldir() {
     
     log "Generating qmldir for $dir (module: $module_name)"
     
+    # Remove existing read-only qmldir if present (e.g. from copyMiscConfig)
+    [[ -f "$qmldir_file" ]] && rm -f "$qmldir_file"
+    
     # Start with module declaration
     echo "module $module_name" > "$qmldir_file"
     echo "" >> "$qmldir_file"
@@ -84,6 +87,7 @@ main() {
     # Copy main qmldir to qs subdirectory for proper module resolution
     if [[ -f "$quickshell_dir/qmldir" && -d "$quickshell_dir/qs" ]]; then
         log "Copying main qmldir to qs subdirectory for module resolution..."
+        [[ -f "$quickshell_dir/qs/qmldir" ]] && rm -f "$quickshell_dir/qs/qmldir"
         cp "$quickshell_dir/qmldir" "$quickshell_dir/qs/qmldir"
         log "  → Main qmldir copied to qs/qmldir"
         
@@ -91,6 +95,7 @@ main() {
         log "Copying root-level QML files to qs subdirectory..."
         while IFS= read -r qml_file; do
             if [[ -f "$quickshell_dir/$qml_file" ]]; then
+                [[ -f "$quickshell_dir/qs/$qml_file" ]] && rm -f "$quickshell_dir/qs/$qml_file"
                 cp "$quickshell_dir/$qml_file" "$quickshell_dir/qs/$qml_file"
                 log "  → Copied $qml_file to qs/$qml_file"
             fi

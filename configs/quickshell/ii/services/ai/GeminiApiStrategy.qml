@@ -9,7 +9,30 @@ ApiStrategy {
         return result;
     }
 
-    function buildRequestData(model: AiModel, messages, systemPrompt: string, temperature: real, tools: list<var>) {
+    function buildRequestData(model: AiModel, messages, systemPrompt: string, temperature: real, tools: list<var>, tuning: var) {
+        let generationConfig = {
+            "temperature": temperature,
+        };
+
+        // Apply per-model tuning: thinking/reasoning budget for Gemini
+        if (tuning && tuning.reasoningEffort && tuning.reasoningEffort.length > 0) {
+            // Gemini uses thinkingConfig with thinkingBudget (token count)
+            // Map effort levels to approximate token budgets
+            const effortBudgets = {
+                "none": 0,
+                "minimal": 128,
+                "low": 1024,
+                "medium": 4096,
+                "high": 8192,
+                "xhigh": 16384,
+                "max": 32768,
+            };
+            const budget = effortBudgets[tuning.reasoningEffort];
+            if (budget !== undefined) {
+                generationConfig["thinkingConfig"] = { "thinkingBudget": budget };
+            }
+        }
+
         let baseData = {
             "contents": messages.map(message => {
                 const geminiApiRoleName = (message.role === "assistant") ? "model" : message.role;
@@ -56,9 +79,7 @@ ApiStrategy {
             "system_instruction": {
                 "parts": [{ text: systemPrompt }]
             },
-            "generationConfig": {
-                "temperature": temperature,
-            },
+            "generationConfig": generationConfig,
         };
         return model.extraParams ? Object.assign({}, baseData, model.extraParams) : baseData;
     }

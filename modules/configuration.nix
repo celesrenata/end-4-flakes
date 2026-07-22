@@ -83,6 +83,7 @@ in
             value = {
               source = "${cfg.source}/.config/${dir}";
               recursive = true;
+              force = true;
             };
           }) configDirs);
         in
@@ -94,6 +95,7 @@ in
         "fish" = {
           source = "${cfg.source}/.config/fish";
           recursive = true;
+          force = true;
         };
       })
       
@@ -118,17 +120,21 @@ in
             mkdir -p $out
           '';
           recursive = true;
+          force = true;
         };
         
         # Copy the main config files separately (installer does this)
         "hypr/hyprland.conf" = {
           source = "${cfg.source}/.config/hypr/hyprland.conf";
+          force = true;
         };
         "hypr/hypridle.conf" = {
           source = "${cfg.source}/.config/hypr/hypridle.conf";
+          force = true;
         };
         "hypr/hyprlock.conf" = {
           source = "${cfg.source}/.config/hypr/hyprlock.conf";
+          force = true;
         };
       })
     ];

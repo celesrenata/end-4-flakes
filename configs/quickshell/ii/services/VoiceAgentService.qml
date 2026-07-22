@@ -39,6 +39,10 @@ Singleton {
     property string credentialError: ""
     property string errorMessage: ""
 
+    // Dictation-to-cursor mode: when true, user transcripts are typed at cursor via wtype
+    // and audio responses are suppressed. Activated by double-tap.
+    property bool dictationToCursorMode: false
+
     // Config-bound
     property string voiceBackend: Config.options.dictation.voiceBackend || "none"
 
@@ -169,39 +173,25 @@ Singleton {
      * Creates a unique FIFO path and launches the audio + helper processes.
      */
     function _createFifoAndLaunch() {
-        // Generate a unique FIFO path
-        var timestamp = Date.now()
-        root._fifoPath = "/tmp/voice-agent-" + timestamp + ".pcm"
-
-        // Create FIFO via helper process, then launch pipeline
-        fifoCreateProcess.command = ["bash", "-c",
-            "mkfifo '" + root._fifoPath + "' && echo OK"
-        ]
-        fifoCreateProcess.running = true
+        // No FIFO needed — helper spawns pw-cat internally.
+        // Go straight to launching the helper.
+        root._fifoPath = ""
+        _launchProcesses()
     }
 
     /**
-     * Launches pw-cat and the helper after FIFO is created.
+     * Launches the helper after FIFO is created.
+     * pw-cat is now spawned internally by the helper script (no FIFO needed).
      */
     function _launchProcesses() {
         var rate = root._sampleRate
-
-        // Launch pw-cat recording to the FIFO (Requirement 13.1, 13.2)
-        // pw-cat --record writes captured audio to the output file (our FIFO).
-        // Omit --target to use the default PipeWire source.
-        captureProcess.command = [
-            "pw-cat", "--record", "--format=s16",
-            "--rate=" + rate, "--channels=1",
-            root._fifoPath
-        ]
-        captureProcess.running = true
 
         // Build helper command — voice-agent-stream wrapper (nix-built, has websockets+boto3)
         var helperPath = Quickshell.shellPath("scripts/voice-agent-stream.py")
         var cmdParts = [
             helperPath,
             "--backend=" + root.voiceBackend,
-            "--audio-fifo=" + root._fifoPath,
+            "--audio-fifo=internal",
             "--sample-rate=" + rate
         ]
 
@@ -219,26 +209,33 @@ Singleton {
             }
         }
 
-        // Optional system prompt — resolve placeholders
-        var systemPrompt = Config.options.dictation.voiceSystemPrompt || ""
-        if (systemPrompt) {
-            // Resolve {DATETIME} placeholder
-            var now = new Date()
-            var dateTimeStr = now.toLocaleString(Qt.locale(), "ddd, yyyy-MM-dd hh:mm:ss")
-            systemPrompt = systemPrompt.replace("{DATETIME}", dateTimeStr)
-            cmdParts.push("--system-prompt=" + systemPrompt)
+        // Optional system prompt — resolve placeholders (skip in dictation-to-cursor mode)
+        if (!root.dictationToCursorMode) {
+            var systemPrompt = Config.options.dictation.voiceSystemPrompt || ""
+            if (systemPrompt) {
+                // Resolve {DATETIME} placeholder
+                var now = new Date()
+                var dateTimeStr = now.toLocaleString(Qt.locale(), "ddd, yyyy-MM-dd hh:mm:ss")
+                systemPrompt = systemPrompt.replace("{DATETIME}", dateTimeStr)
+                cmdParts.push("--system-prompt=" + systemPrompt)
+            }
         }
 
-        // Write tools definition and pass to helper
-        var toolsPath = _writeToolsDefinition()
-        if (toolsPath) {
-            cmdParts.push("--tools=" + toolsPath)
-        }
+        // Write tools definition and pass to helper (skip in dictation-to-cursor mode)
+        if (!root.dictationToCursorMode) {
+            var toolsPath = _writeToolsDefinition()
+            if (toolsPath) {
+                cmdParts.push("--tools=" + toolsPath)
+            }
 
-        // Optional context from active chat session
-        var contextPath = _writeSessionContext()
-        if (contextPath) {
-            cmdParts.push("--context=" + contextPath)
+            // Optional context from active chat session
+            var contextPath = _writeSessionContext()
+            if (contextPath) {
+                cmdParts.push("--context=" + contextPath)
+            }
+        } else {
+            // In dictation mode, use realtime-whisper transcription session
+            cmdParts.push("--dictation-mode")
         }
 
         var cmd = ["voice-agent-stream"].concat(cmdParts)
@@ -447,6 +444,7 @@ Singleton {
         _setState(VoiceAgentService.State.Idle, "deactivate()")
         root._shuttingDown = false
         root._helperStderr = ""
+        root.dictationToCursorMode = false
         root.sessionEnded()
     }
 
@@ -572,6 +570,12 @@ Singleton {
             case "AMPLITUDE":
                 _onAmplitude(event)
                 break
+            case "USER_TRANSCRIPT":
+                _onUserTranscript(event)
+                break
+            case "USER_TRANSCRIPT_DELTA":
+                _onUserTranscriptDelta(event)
+                break
             default:
                 console.warn("[VoiceAgentService] Unknown event type: " + eventType)
         }
@@ -610,6 +614,12 @@ Singleton {
         // TURN_COMPLETE carries the finalized user utterance
         if (event.text) {
             root._sessionTranscript.push({"role": "user", "content": event.text})
+
+            // Dictation-to-cursor mode: type user transcript at cursor
+            if (root.dictationToCursorMode && event.text.trim().length > 0) {
+                console.log("[VoiceAgentService] Dictation-to-cursor: typing '" + event.text.substring(0, 40) + "'...")
+                Quickshell.execDetached(["wtype", "--", event.text])
+            }
         }
 
         if (root.voiceAgentState === VoiceAgentService.State.Speaking ||
@@ -619,6 +629,9 @@ Singleton {
     }
 
     function _onAudioResponse(event) {
+        // In dictation-to-cursor mode, suppress audio playback entirely
+        if (root.dictationToCursorMode) return
+
         if (root.voiceAgentState === VoiceAgentService.State.Thinking ||
             root.voiceAgentState === VoiceAgentService.State.Listening) {
             _setState(VoiceAgentService.State.Speaking, "AUDIO_RESPONSE")
@@ -755,6 +768,31 @@ Singleton {
         var level = event.level
         if (typeof level === "number" && isFinite(level)) {
             root.audioLevel = Math.max(0.0, Math.min(1.0, level))
+        }
+    }
+
+    function _onUserTranscript(event) {
+        // User's speech transcribed by input_audio_transcription
+        var text = event.text || ""
+        if (!text || text.trim().length === 0) return
+
+        console.log("[VoiceAgentService] USER_TRANSCRIPT: " + text.substring(0, 60))
+
+        // In dictation-to-cursor mode, type the user's transcript at cursor
+        if (root.dictationToCursorMode) {
+            console.log("[VoiceAgentService] Dictation-to-cursor: typing final via wtype")
+            // Final transcript — type with a trailing space
+            Quickshell.execDetached(["wtype", "--", text + " "])
+        }
+    }
+
+    function _onUserTranscriptDelta(event) {
+        // Partial transcript delta — type incrementally at cursor
+        var delta = event.delta || ""
+        if (!delta) return
+
+        if (root.dictationToCursorMode) {
+            Quickshell.execDetached(["wtype", "--", delta])
         }
     }
 

@@ -28,6 +28,7 @@ class VoiceAgentConfig:
     system_prompt: str  # System prompt text
     context: str  # Path to session context JSON file
     tools: str  # Path to tools definition JSON file
+    dictation_mode: bool = False  # Use transcription-only session (gpt-realtime-whisper)
 
 
 # ---------------------------------------------------------------------------

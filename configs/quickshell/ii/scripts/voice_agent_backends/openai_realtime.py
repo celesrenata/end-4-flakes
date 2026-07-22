@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 _OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
+_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime/transcription_sessions?model=gpt-realtime-whisper"
 _OPENAI_BETA_HEADER = "realtime=v1"
 
 
@@ -103,6 +104,7 @@ class VoiceAgentConfig:
     context: str = ""
     tools: str = ""
     tools: str = ""
+    dictation_mode: bool = False
 
 
 class BaseVoiceBackend(ABC):
@@ -179,8 +181,11 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
             "Authorization": f"Bearer {api_key}",
         }
 
+        # Use transcription endpoint for dictation mode, realtime for voice agent
+        url = _OPENAI_TRANSCRIPTION_URL if self.config.dictation_mode else _OPENAI_REALTIME_URL
+
         self._ws = await websockets.connect(
-            _OPENAI_REALTIME_URL,
+            url,
             additional_headers=headers,
         )
 
@@ -330,20 +335,36 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
         # Build tools list
         tools = self._load_tools()
 
-        session_config: "dict[str, Any]" = {
-            "modalities": ["text", "audio"],
-            "input_audio_format": "pcm16",
-            "output_audio_format": "pcm16",
-            "turn_detection": {
-                "type": "server_vad",
-            },
-        }
+        session_config: "dict[str, Any]"
 
-        if instructions:
-            session_config["instructions"] = instructions
+        if self.config.dictation_mode:
+            # Transcription-only session: use gpt-realtime-whisper
+            session_config = {
+                "type": "transcription",
+                "audio": {
+                    "input": {
+                        "format": {
+                            "type": "audio/pcm",
+                            "rate": self.config.sample_rate,
+                        },
+                        "transcription": {
+                            "model": "gpt-realtime-whisper",
+                            "language": "en",
+                        },
+                    },
+                },
+            }
+        else:
+            # Voice agent session
+            session_config = {
+                "type": "realtime",
+            }
 
-        if tools:
-            session_config["tools"] = tools
+            if instructions:
+                session_config["instructions"] = instructions
+
+            if tools:
+                session_config["tools"] = tools
 
         event = {
             "type": "session.update",
@@ -498,6 +519,18 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
         elif event_type == "input_audio_buffer.speech_stopped":
             # User stopped speaking — emit TURN_END
             _emit_turn_end()
+
+        elif event_type == "conversation.item.input_audio_transcription.completed":
+            # User's speech transcribed — emit as USER_TRANSCRIPT for dictation-to-cursor
+            transcript = event.get("transcript", "")
+            if transcript:
+                _emit_event({"type": "USER_TRANSCRIPT", "text": transcript})
+
+        elif event_type == "conversation.item.input_audio_transcription.delta":
+            # Partial transcript delta — emit for live typing
+            delta = event.get("delta", "")
+            if delta:
+                _emit_event({"type": "USER_TRANSCRIPT_DELTA", "delta": delta})
 
         elif event_type == "response.done":
             # Response generation complete
