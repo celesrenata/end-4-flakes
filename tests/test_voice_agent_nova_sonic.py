@@ -17,8 +17,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 # Add the helper script directory to the path
 SCRIPT_DIR = Path(__file__).parent.parent / "configs" / "quickshell" / "ii" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -433,9 +431,10 @@ class TestSystemPromptInjection:
 class TestAudioPausingDuringToolCall:
     """Test that audio is paused while a tool call is pending."""
 
-    @pytest.mark.asyncio
-    async def test_send_audio_dropped_when_paused(self) -> None:
+    def test_send_audio_dropped_when_paused(self) -> None:
         """Audio chunks are silently dropped when _audio_paused is True."""
+        import asyncio
+
         backend = _make_backend()
         backend._is_active = True
         backend._audio_paused = True
@@ -443,16 +442,17 @@ class TestAudioPausingDuringToolCall:
         # send_audio should not raise or send anything when paused
         # Since we haven't connected, _send_event_dict would fail if called
         # The fact that it returns without error proves audio is dropped
-        await backend.send_audio(b"\x00\x01\x02\x03")
+        asyncio.run(backend.send_audio(b"\x00\x01\x02\x03"))
 
-    @pytest.mark.asyncio
-    async def test_send_audio_dropped_when_inactive(self) -> None:
+    def test_send_audio_dropped_when_inactive(self) -> None:
         """Audio chunks are dropped when backend is inactive."""
+        import asyncio
+
         backend = _make_backend()
         backend._is_active = False
         backend._audio_paused = False
 
-        await backend.send_audio(b"\x00\x01\x02\x03")
+        asyncio.run(backend.send_audio(b"\x00\x01\x02\x03"))
 
 
 # ---------------------------------------------------------------------------
