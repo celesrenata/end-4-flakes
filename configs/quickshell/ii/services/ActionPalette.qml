@@ -1215,11 +1215,21 @@ Rules:
 
         // In direct mode (voice assistant), auto-execute and emit summary
         if (root._directMode) {
-            root.responseSummary(root.actionPlan.summary || "Done");
             if (root.actionPlan.actions.length > 0) {
-                // Enable output capture for shell.exec commands so we can summarize the result
-                root._directModeCapture = true;
-                root.applyPlan();
+                // Check if there are shell.exec actions that will produce output
+                var hasShellExec = root.actionPlan.actions.some(function(a) { return a.type === "shell.exec"; });
+                if (hasShellExec) {
+                    // Don't emit summary yet — wait for shell output summarization
+                    root._directModeCapture = true;
+                    root.applyPlan();
+                } else {
+                    // No shell commands — emit plan summary immediately and execute
+                    root.responseSummary(root.actionPlan.summary || "Done");
+                    root.applyPlan();
+                }
+            } else {
+                // No actions — just emit the summary as-is
+                root.responseSummary(root.actionPlan.summary || "Done");
             }
             root._directMode = false;
             root._extraSystemPrompt = "";
