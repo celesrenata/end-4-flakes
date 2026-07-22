@@ -34,6 +34,14 @@ Singleton {
     // TTS execution process
     Process {
         id: ttsProcess
+        stderr: SplitParser {
+            splitMarker: ""
+            onRead: data => {
+                if (data.trim().length > 0) {
+                    console.warn("[TtsService] stderr: " + data.trim())
+                }
+            }
+        }
         onExited: (exitCode, exitStatus) => {
             if (exitCode !== 0) {
                 const msg = "TTS process exited with code " + exitCode
@@ -74,11 +82,27 @@ Singleton {
                 console.warn("[TtsService] OpenAI TTS requires an API key — set 'openai' in KeyringStorage")
                 return
             }
-            // Escape for JSON string embedding: backslashes, double quotes, newlines
-            const escaped = text.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")
-            const selectedVoice = voice || "nova"
+            // Strip markdown formatting for cleaner speech
+            var cleanText = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "").replace(/#{1,6}\s/g, "").replace(/- /g, "")
+            // Escape for JSON string: backslashes, double quotes, newlines, tabs
+            var escaped = cleanText.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ").replace(/\t/g, " ")
+            // Truncate to avoid massive TTS requests (max 4096 chars for OpenAI TTS)
+            if (escaped.length > 4000) escaped = escaped.substring(0, 4000)
+            var selectedVoice = voice || "nova"
+            // Use a temp file approach to avoid shell quoting issues
+            var jsonPayload = JSON.stringify({"model": "tts-1", "input": escaped, "voice": selectedVoice})
+            // Escape single quotes in JSON for shell embedding
+            var shellSafeJson = jsonPayload.split("'").join("'\\''")
             command = ["sh", "-c",
-                `curl -s https://api.openai.com/v1/audio/speech -H "Authorization: Bearer ${_apiKey}" -H "Content-Type: application/json" -d '{"model":"tts-1","input":"${escaped}","voice":"${selectedVoice}"}' | pw-play -`]
+                "curl -s https://api.openai.com/v1/audio/speech -H 'Authorization: Bearer " + _apiKey + "' -H 'Content-Type: application/json' -d '" + shellSafeJson + "' | pw-play -"]
+        } else if (provider === "bedrock") {
+            // AWS Polly via CLI — uses credentials from ~/.aws or environment
+            var cleanText = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "").replace(/#{1,6}\s/g, "").replace(/- /g, "")
+            var escaped = cleanText.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ").replace(/\t/g, " ")
+            if (escaped.length > 3000) escaped = escaped.substring(0, 3000)
+            var selectedVoice = voice || "Joanna"
+            command = ["sh", "-c",
+                'aws polly synthesize-speech --output-format pcm --sample-rate 16000 --voice-id ' + selectedVoice + ' --text "' + escaped + '" /dev/stdout | pw-play --format=s16 --rate=16000 --channels=1 -']
         } else {
             console.log("[TtsService] speak() called with unknown provider=" + provider)
             return

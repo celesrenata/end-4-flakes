@@ -35,11 +35,21 @@ ApiStrategy {
                         }]
                     }
                 }
+                // Build parts array — text + optional images
+                var parts = [{ text: message.rawContent }];
+                if (message.images && message.images.length > 0) {
+                    for (var i = 0; i < message.images.length; i++) {
+                        parts.push({
+                            inline_data: {
+                                mime_type: "image/png",
+                                data: message.images[i]
+                            }
+                        });
+                    }
+                }
                 return {
                     "role": geminiApiRoleName,
-                    "parts": [{ 
-                        text: message.rawContent,
-                    }]
+                    "parts": parts
                 }
             }),
             "tools": tools,

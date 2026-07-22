@@ -276,6 +276,96 @@ Rectangle {
                 }
             }
 
+            // File-based attachments (images show thumbnails, others show chips)
+            Flow {
+                visible: (root.messageData?.attachments?.length ?? 0) > 0
+                Layout.fillWidth: true
+                Layout.bottomMargin: 8
+                spacing: 5
+
+                Repeater {
+                    model: root.messageData?.attachments?.length ?? 0
+                    delegate: Rectangle {
+                        required property int index
+                        property var attachment: root.messageData?.attachments?.[index] ?? {}
+                        property bool isImage: (attachment.type || "").startsWith("image/")
+                        property string absPath: Directories.aiAttachments + "/" + (attachment.path || "")
+
+                        width: isImage ? 120 : attachChipLayout.implicitWidth + 16
+                        height: isImage ? 90 : 32
+                        radius: Appearance.rounding.small
+                        color: Appearance.colors.colLayer2
+                        clip: true
+
+                        // Image thumbnail for image attachments
+                        Image {
+                            visible: parent.isImage
+                            anchors.fill: parent
+                            source: parent.isImage ? "file://" + parent.absPath : ""
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                        }
+
+                        // Chip layout for non-image attachments
+                        RowLayout {
+                            id: attachChipLayout
+                            visible: !parent.isImage
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            MaterialSymbol {
+                                text: {
+                                    var type = parent.parent.attachment.type || ""
+                                    if (type === "application/pdf") return "picture_as_pdf"
+                                    if (type.startsWith("audio/")) return "audio_file"
+                                    if (type.startsWith("video/")) return "video_file"
+                                    if (type.startsWith("text/")) return "description"
+                                    return "attach_file"
+                                }
+                                iconSize: Appearance.font.pixelSize.small
+                                color: Appearance.colors.colOnLayer2
+                            }
+
+                            StyledText {
+                                text: {
+                                    var name = parent.parent.attachment.name || "file"
+                                    return name.length > 18 ? name.substring(0, 15) + "..." : name
+                                }
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.colors.colOnLayer2
+                            }
+
+                            // Download button
+                            MouseArea {
+                                implicitWidth: 18
+                                implicitHeight: 18
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var att = parent.parent.attachment
+                                    Ai.downloadAttachment(att.path, att.name)
+                                }
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "download"
+                                    iconSize: Appearance.font.pixelSize.small
+                                    color: Appearance.m3colors.m3primary
+                                }
+                            }
+                        }
+
+                        // Click to open file (xdg-open)
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                Ai.openAttachment(parent.attachment.path)
+                            }
+                        }
+                    }
+                }
+            }
+
             Repeater {
                 model: root.messageBlocks.length
                 delegate: Loader {

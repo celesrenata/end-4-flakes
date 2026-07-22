@@ -9,6 +9,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import Quickshell
+import Quickshell.Io
 
 Item {
     id: root
@@ -25,14 +26,91 @@ Item {
         }
     }
 
-    onVisibleChanged: {
-        if (visible) {
-            messageListView.contentY = 0;
+    property bool _scrollToMatchActive: false
+    property int highlightedMessageIndex: -1
+
+    // Clipboard image type checker — runs wl-paste --list-types to see if clipboard has image
+    Process {
+        id: clipboardTypeChecker
+        command: ["wl-paste", "--list-types"]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var types = text.trim().split("\n")
+                var hasImage = types.some(t => t.startsWith("image/"))
+                if (hasImage) {
+                    // Clipboard has an image — store it as attachment
+                    Ai.storeClipboardImage(function(meta) {
+                        Ai.addPendingAttachment(meta)
+                    })
+                }
+            }
         }
     }
 
+    // File picker via zenity (native file dialog)
+    Process {
+        id: filePickerProcess
+        command: ["zenity", "--file-selection", "--multiple", "--separator=\n"]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.trim().length === 0) return
+                var files = text.trim().split("\n")
+                for (var i = 0; i < files.length; i++) {
+                    var filePath = files[i]
+                    if (filePath.length === 0) continue
+                    var fileName = filePath.split("/").pop()
+                    var ext = fileName.split(".").pop().toLowerCase()
+                    var mimeMap = {
+                        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                        "gif": "image/gif", "webp": "image/webp", "svg": "image/svg+xml",
+                        "pdf": "application/pdf", "txt": "text/plain", "md": "text/markdown",
+                        "json": "application/json", "zip": "application/zip",
+                        "tar": "application/x-tar", "gz": "application/gzip",
+                        "mp3": "audio/mpeg", "wav": "audio/wav", "mp4": "video/mp4",
+                        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    }
+                    var mimeType = mimeMap[ext] || "application/octet-stream"
+                    var meta = Ai.storeAttachment(filePath, fileName, mimeType)
+                    Ai.addPendingAttachment(meta)
+                }
+            }
+        }
+    }
+
+    onVisibleChanged: {
+        if (visible) {
+            // Use a timer to ensure layout is complete before scrolling to bottom
+            scrollToBottomTimer.restart()
+        }
+    }
+
+    Timer {
+        id: scrollToBottomTimer
+        interval: 50
+        repeat: false
+        onTriggered: {
+            if (root._scrollToMatchActive) {
+                root._scrollToMatchActive = false
+                return
+            }
+            messageListView.positionViewAtBeginning()
+        }
+    }
+
+    Timer {
+        id: highlightResetTimer
+        interval: 3000
+        repeat: false
+        onTriggered: root.highlightedMessageIndex = -1
+    }
+
     Keys.onPressed: (event) => {
-        messageInputField.forceActiveFocus()
+        if (!messageInputField.activeFocus) {
+            messageInputField.forceActiveFocus()
+        }
         if (event.modifiers === Qt.NoModifier) {
             if (event.key === Qt.Key_PageUp) {
                 messageListView.contentY = Math.max(0, messageListView.contentY - messageListView.height / 2)
@@ -271,7 +349,12 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             }
         }
         else {
-            Ai.sendUserMessage(inputText);
+            // Use attachment-aware send if there are pending attachments
+            if (Ai.pendingAttachments.length > 0) {
+                Ai.sendUserMessageWithAttachments(inputText);
+            } else {
+                Ai.sendUserMessage(inputText);
+            }
         }
     }
 
@@ -324,27 +407,29 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         target: Ai
         function onActiveSessionNameChanged() {
             root.sessionDrawerOpen = false
+            root.searchOpen = false
+            Ai.clearSearch()
         }
     }
 
     Connections {
         target: DictationService
         function onTranscriptionComplete(text) {
-            if (!text || text.trim().length === 0) return; // Req 10.4: skip empty
+            if (!text || text.trim().length === 0) return;
             if (Ai.activeSessionName === "Free Dictation") {
-                // Req 10.1: auto-submit to Free Dictation
+                // Auto-submit to Free Dictation session
+                Ai.postResponseHook = function() {
+                    var lastId = Ai.messageIDs[Ai.messageIDs.length - 1];
+                    var lastMsg = Ai.messageByID[lastId];
+                    if (lastMsg && lastMsg.role === "assistant" && lastMsg.rawContent) {
+                        DictationService.responseText = lastMsg.rawContent;
+                        DictationService.responsePinned = false;
+                    }
+                };
                 Ai.sendUserMessage(text);
-                messageInputField.text = ""; // Req 10.3: clear input
             } else {
-                // Req 10.2: insert at cursor (existing behavior)
-                var existing = messageInputField.text;
-                var pos = messageInputField.cursorPosition;
-                var before = existing.substring(0, pos);
-                var after = existing.substring(pos);
-                var separator = (before.length > 0 && !before.endsWith(" ")) ? " " : "";
-                messageInputField.text = before + separator + text + after;
-                messageInputField.cursorPosition = (before + separator + text).length;
-                messageInputField.forceActiveFocus();
+                // Type at system cursor via wtype
+                Quickshell.execDetached(["wtype", text]);
             }
         }
     }
@@ -461,7 +546,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 color: Ai.compacting ? Appearance.m3colors.m3tertiary : contextIndicator.indicatorColor
                 text: Ai.compacting
                     ? Translation.tr("Compacting…")
-                    : Translation.tr("%1%").arg(Math.round(contextIndicator.usage * 100))
+                    : Ai.contextMeterText
             }
         }
     }
@@ -505,7 +590,13 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 buttonRadius: 14
                 colBackground: "transparent"
                 colBackgroundHover: Appearance.colors.colLayer1Hover
-                onClicked: root.searchOpen = !root.searchOpen
+                onClicked: {
+                    root.searchOpen = !root.searchOpen
+                    if (root.searchOpen) {
+                        root.sessionDrawerOpen = false
+                        Ai.maybeGenerateKeywords()
+                    }
+                }
 
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
@@ -538,6 +629,10 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             // Track which session is being renamed
             property string renamingSession: ""
             property string renameText: ""
+
+            // Track which session is being grouped
+            property string groupingSession: ""
+            property string groupText: ""
 
             ColumnLayout {
                 id: sessionDrawerColumn
@@ -672,12 +767,17 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         Item {
                             id: sessionRow
                             Layout.fillWidth: true
-                            implicitHeight: 36
+                            implicitHeight: Math.max(36, sessionRowContent.implicitHeight + 8)
 
                             readonly property bool isActive: sessionDelegate.modelData.name === Ai.activeSessionName
                             readonly property bool isRenaming: sessionDrawer.renamingSession === sessionDelegate.modelData.name
                             readonly property bool isProtected: sessionDelegate.modelData.name === "Free Dictation" || (sessionDelegate.modelData.protected === true)
-                            readonly property bool hovered: sessionRowHover.containsMouse
+                            readonly property bool hovered: sessionRowHover.containsMouse || sessionRowHoverHandler.hovered
+
+                            // HoverHandler propagates through child items (fixes glyph disappearing)
+                            HoverHandler {
+                                id: sessionRowHoverHandler
+                            }
 
                             // Hover/active background
                             Rectangle {
@@ -713,6 +813,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             }
 
                             RowLayout {
+                                id: sessionRowContent
                                 anchors {
                                     left: parent.left
                                     right: parent.right
@@ -745,17 +846,46 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                     Component {
                                         id: nameLabelComponent
                                         ColumnLayout {
-                                            spacing: 0
-                                            StyledText {
-                                                text: sessionDelegate.modelData.name
-                                                font.pixelSize: Appearance.font.pixelSize.small
-                                                font.weight: sessionRow.isActive ? Font.Medium : Font.Normal
-                                                color: sessionRow.isActive
-                                                    ? Appearance.m3colors.m3onSecondaryContainer
-                                                    : Appearance.m3colors.m3onSurface
-                                                elide: Text.ElideRight
+                                            spacing: 1
+                                            // Title row with date/group tag — uses Flow to wrap when narrow
+                                            Flow {
                                                 Layout.fillWidth: true
+                                                spacing: 6
+
+                                                StyledText {
+                                                    text: sessionDelegate.modelData.name
+                                                    font.pixelSize: Appearance.font.pixelSize.small
+                                                    font.weight: sessionRow.isActive ? Font.Medium : Font.Normal
+                                                    color: sessionRow.isActive
+                                                        ? Appearance.m3colors.m3onSecondaryContainer
+                                                        : Appearance.m3colors.m3onSurface
+                                                    elide: Text.ElideRight
+                                                    width: Math.min(implicitWidth, parent.width)
+                                                }
+
+                                                // Date/group tag — right side, wraps to new line when narrow
+                                                StyledText {
+                                                    property int ts: sessionDelegate.modelData.lastModified || 0
+                                                    property string groupText: sessionDelegate.modelData.group || ""
+                                                    property string dateText: {
+                                                        if (ts === 0) return ""
+                                                        var now = Math.floor(Date.now() / 1000)
+                                                        var diff = now - ts
+                                                        if (diff < 60) return "now"
+                                                        if (diff < 3600) return Math.floor(diff / 60) + "m"
+                                                        if (diff < 86400) return Math.floor(diff / 3600) + "h"
+                                                        if (diff < 604800) return Math.floor(diff / 86400) + "d"
+                                                        return Math.floor(diff / 604800) + "w"
+                                                    }
+                                                    visible: dateText.length > 0 || groupText.length > 0
+                                                    text: groupText.length > 0 ? groupText + " · " + dateText : dateText
+                                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                                    color: Appearance.colors.colSubtext
+                                                    horizontalAlignment: Text.AlignRight
+                                                }
                                             }
+
+                                            // Subject/summary line
                                             StyledText {
                                                 visible: (sessionDelegate.modelData.subject || "").length > 0
                                                 text: sessionDelegate.modelData.subject || ""
@@ -881,6 +1011,12 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                             color: Appearance.colors.colSubtext
                                         }
 
+                                        StyledToolTip {
+                                            content: Translation.tr("Rename")
+                                            extraVisibleCondition: false
+                                            alternativeVisibleCondition: parent.hovered
+                                        }
+
                                         onClicked: {
                                             sessionDrawer.renamingSession = sessionDelegate.modelData.name
                                             sessionDrawer.renameText = sessionDelegate.modelData.name
@@ -908,6 +1044,34 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                                 var field = nameLoader.item.children ? nameLoader.item.children[0] : nameLoader.item;
                                                 if (field && field.commitRename) field.commitRename();
                                             }
+                                        }
+                                    }
+
+                                    // Group button — assign session to a group
+                                    RippleButton {
+                                        implicitWidth: 22
+                                        implicitHeight: 22
+                                        buttonRadius: 11
+                                        colBackground: "transparent"
+                                        colBackgroundHover: Qt.alpha(Appearance.m3colors.m3onSurface, 0.08)
+                                        visible: !sessionRow.isRenaming
+
+                                        contentItem: MaterialSymbol {
+                                            anchors.centerIn: parent
+                                            text: "folder"
+                                            iconSize: Appearance.font.pixelSize.small
+                                            color: Appearance.colors.colSubtext
+                                        }
+
+                                        StyledToolTip {
+                                            content: Translation.tr("Set group")
+                                            extraVisibleCondition: false
+                                            alternativeVisibleCondition: parent.hovered
+                                        }
+
+                                        onClicked: {
+                                            sessionDrawer.groupingSession = sessionDelegate.modelData.name
+                                            sessionDrawer.groupText = sessionDelegate.modelData.group || ""
                                         }
                                     }
 
@@ -950,6 +1114,12 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                             text: "delete"
                                             iconSize: Appearance.font.pixelSize.small
                                             color: Appearance.m3colors.m3error
+                                        }
+
+                                        StyledToolTip {
+                                            content: Translation.tr("Delete")
+                                            extraVisibleCondition: false
+                                            alternativeVisibleCondition: parent.hovered
                                         }
 
                                         onClicked: root.deleteConfirmSession = sessionDelegate.modelData.name
@@ -1195,6 +1365,155 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         }
                     }
                 }
+
+                // Group assignment banner (shown inline when group button is clicked)
+                Rectangle {
+                    Layout.fillWidth: true
+                    visible: sessionDrawer.groupingSession.length > 0
+                    implicitHeight: visible ? groupBannerColumn.implicitHeight + 12 : 0
+                    radius: Appearance.rounding.small
+                    color: Qt.alpha(Appearance.m3colors.m3secondaryContainer, 0.8)
+                    border.color: Appearance.m3colors.m3secondary
+                    border.width: 1
+
+                    ColumnLayout {
+                        id: groupBannerColumn
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            verticalCenter: parent.verticalCenter
+                            leftMargin: 8
+                            rightMargin: 6
+                        }
+                        spacing: 6
+
+                        RowLayout {
+                            id: groupInputRow
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            MaterialSymbol {
+                                text: "folder"
+                                iconSize: Appearance.font.pixelSize.normal
+                                color: Appearance.m3colors.m3onSecondaryContainer
+                            }
+
+                            TextField {
+                                id: groupInputField
+                                Layout.fillWidth: true
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                color: Appearance.m3colors.m3onSecondaryContainer
+                                placeholderText: Translation.tr("Group name (or empty to clear)")
+                                text: sessionDrawer.groupText
+                                background: Rectangle {
+                                    color: Qt.alpha(Appearance.m3colors.m3onSecondaryContainer, 0.06)
+                                    radius: 4
+                                }
+                                leftPadding: 6
+                                rightPadding: 6
+                                topPadding: 4
+                                bottomPadding: 4
+
+                                Component.onCompleted: forceActiveFocus()
+                                onTextChanged: sessionDrawer.groupText = text
+
+                                Keys.onReturnPressed: {
+                                    var name = sessionDrawer.groupingSession
+                                    var group = sessionDrawer.groupText.trim()
+                                    if (group.length > 0) {
+                                        Ai.setSessionGroup(name, group)
+                                    } else {
+                                        Ai.setSessionGroup(name, "")
+                                    }
+                                    sessionDrawer.groupingSession = ""
+                                }
+                                Keys.onEscapePressed: sessionDrawer.groupingSession = ""
+                            }
+
+                            ApiCommandButton {
+                                bounce: false
+                                colBackground: Appearance.m3colors.m3secondary
+                                colBackgroundHover: Qt.darker(Appearance.m3colors.m3secondary, 1.1)
+                                contentItem: StyledText {
+                                    horizontalAlignment: Text.AlignHCenter
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: Appearance.m3colors.m3onSecondary
+                                    text: Translation.tr("Set")
+                                }
+                                onClicked: {
+                                    var name = sessionDrawer.groupingSession
+                                    var group = sessionDrawer.groupText.trim()
+                                    if (group.length > 0) {
+                                        Ai.setSessionGroup(name, group)
+                                    } else {
+                                        Ai.setSessionGroup(name, "")
+                                    }
+                                    sessionDrawer.groupingSession = ""
+                                }
+                            }
+
+                            RippleButton {
+                                implicitWidth: 24
+                                implicitHeight: 24
+                                buttonRadius: 12
+                                colBackground: "transparent"
+                                colBackgroundHover: Qt.alpha(Appearance.m3colors.m3onSecondaryContainer, 0.12)
+                                contentItem: MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "close"
+                                    iconSize: Appearance.font.pixelSize.small
+                                    color: Appearance.m3colors.m3onSecondaryContainer
+                                }
+                                onClicked: sessionDrawer.groupingSession = ""
+                            }
+                        }
+
+                        // Existing group suggestions
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            visible: existingGroups.length > 0
+
+                            property var existingGroups: {
+                                var groups = [];
+                                var sessions = Ai.sessionsIndex.sessions || [];
+                                for (var i = 0; i < sessions.length; i++) {
+                                    var g = sessions[i].group || "";
+                                    if (g.length > 0 && groups.indexOf(g) === -1) {
+                                        groups.push(g);
+                                    }
+                                }
+                                return groups;
+                            }
+
+                            Repeater {
+                                model: parent.existingGroups
+                                delegate: RippleButton {
+                                    required property string modelData
+                                    required property int index
+                                    implicitHeight: 24
+                                    implicitWidth: groupChipText.implicitWidth + 12
+                                    buttonRadius: 12
+                                    colBackground: Qt.alpha(Appearance.m3colors.m3secondaryContainer, 0.6)
+                                    colBackgroundHover: Appearance.m3colors.m3secondaryContainer
+
+                                    contentItem: StyledText {
+                                        id: groupChipText
+                                        anchors.centerIn: parent
+                                        text: modelData
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        color: Appearance.m3colors.m3onSecondaryContainer
+                                    }
+
+                                    onClicked: {
+                                        sessionDrawer.groupText = modelData
+                                        groupInputField.text = modelData
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -1222,6 +1541,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         }
 
         Item { // Messages
+            visible: !root.searchOpen
             Layout.fillWidth: true
             Layout.fillHeight: true
             StyledListView { // Message list
@@ -1247,14 +1567,14 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 }
 
                 clip: true
-                layer.enabled: true
-                layer.effect: OpacityMask {
-                    maskSource: Rectangle {
-                        width: swipeView.width
-                        height: swipeView.height
-                        radius: Appearance.rounding.small
-                    }
-                }
+                // layer.enabled: true — DISABLED: causes invisible content until interaction
+                // layer.effect: OpacityMask {
+                //     maskSource: Rectangle {
+                //         width: swipeView.width
+                //         height: swipeView.height
+                //         radius: Appearance.rounding.small
+                //     }
+                // }
 
                 add: null // Prevent function calls from being janky
 
@@ -1273,14 +1593,25 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         return message?.visibleToUser ?? true;
                     }).slice().reverse()
                 }
-                delegate: AiMessage {
+                delegate: Rectangle {
                     required property var modelData
                     required property int index
-                    messageIndex: index
-                    messageData: {
-                        Ai.messageByID[modelData]
+                    width: messageListView.width
+                    implicitHeight: aiMsg.implicitHeight
+                    radius: Appearance.rounding.small
+                    color: root.highlightedMessageIndex >= 0 && index === (Ai.messageIDs.length - 1 - root.highlightedMessageIndex)
+                        ? Qt.alpha(Appearance.m3colors.m3primary, 0.08)
+                        : "transparent"
+                    Behavior on color { ColorAnimation { duration: 300 } }
+
+                    AiMessage {
+                        id: aiMsg
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        messageIndex: parent.index
+                        messageData: Ai.messageByID[parent.modelData]
+                        messageInputField: root.inputField
                     }
-                    messageInputField: root.inputField
                 }
             }
 
@@ -1320,6 +1651,95 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         horizontalAlignment: Text.AlignLeft
                         wrapMode: Text.Wrap
                         text: Translation.tr("Type /key to get started with online models\nCtrl+O to expand the sidebar\nCtrl+P to detach sidebar into a window")
+                    }
+                }
+            }
+        }
+
+        // Search results view — shows matching messages when search is active
+        Item {
+            visible: root.searchOpen
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            // Empty state when no results
+            StyledText {
+                anchors.centerIn: parent
+                visible: Ai.searchResults.length === 0
+                text: Translation.tr("Type at least 2 characters to search")
+                color: Appearance.colors.colSubtext
+                font.pixelSize: Appearance.font.pixelSize.small
+            }
+
+            ListView {
+                id: searchResultsView
+                anchors.fill: parent
+                visible: Ai.searchResults.length > 0
+                spacing: 6
+                clip: true
+                model: Ai.searchResults
+
+                delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    width: searchResultsView.width
+                    implicitHeight: resultColumn.implicitHeight + 12
+                    radius: Appearance.rounding.small
+                    color: index === Ai.searchIndex
+                        ? Qt.alpha(Appearance.m3colors.m3primary, 0.12)
+                        : Appearance.colors.colLayer2
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            Ai.searchIndex = index
+                            root._scrollToMatchActive = true
+                            root.highlightedMessageIndex = modelData.messageIndex
+                            highlightResetTimer.restart()
+                            // Close search and scroll chat to the matched message
+                            root.searchOpen = false
+                            // The ScriptModel is reversed, so convert messageIndex to display index
+                            var totalMessages = Ai.messageIDs.length
+                            var displayIndex = totalMessages - 1 - modelData.messageIndex
+                            messageListView.positionViewAtIndex(displayIndex, ListView.Center)
+                        }
+                    }
+
+                    ColumnLayout {
+                        id: resultColumn
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            verticalCenter: parent.verticalCenter
+                            leftMargin: 10
+                            rightMargin: 10
+                        }
+                        spacing: 2
+
+                        // Role label
+                        StyledText {
+                            property var msg: Ai.messageByID[Ai.messageIDs[modelData.messageIndex]] || null
+                            text: msg ? msg.role : "?"
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.weight: Font.Medium
+                            color: Appearance.m3colors.m3primary
+                        }
+
+                        // Message snippet with match highlighted
+                        StyledText {
+                            property var msg: Ai.messageByID[Ai.messageIDs[modelData.messageIndex]] || null
+                            property string raw: msg ? (msg.rawContent || "") : ""
+                            property int start: Math.max(0, modelData.matchStart - 40)
+                            property int end: Math.min(raw.length, modelData.matchEnd + 80)
+                            text: (start > 0 ? "…" : "") + raw.substring(start, end) + (end < raw.length ? "…" : "")
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: Appearance.colors.colOnLayer2
+                            wrapMode: Text.Wrap
+                            Layout.fillWidth: true
+                            maximumLineCount: 3
+                            elide: Text.ElideRight
+                        }
                     }
                 }
             }
@@ -1479,10 +1899,11 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             radius: Appearance.rounding.small
             color: Appearance.colors.colLayer1
             implicitHeight: Math.max(inputFieldRowLayout.implicitHeight + inputFieldRowLayout.anchors.topMargin 
+                + attachmentPreviewRow.implicitHeight + (attachmentPreviewRow.visible ? 4 : 0)
                 + commandButtonsRow.implicitHeight + commandButtonsRow.anchors.bottomMargin + columnSpacing, 45)
             clip: true
-            border.color: Appearance.colors.colOutlineVariant
-            border.width: 1
+            border.color: dropArea.containsDrag ? Appearance.m3colors.m3primary : Appearance.colors.colOutlineVariant
+            border.width: dropArea.containsDrag ? 2 : 1
 
             // Hide normal input content when context is full
             opacity: Ai.contextFull ? 0 : 1
@@ -1492,9 +1913,106 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
             }
 
+            // Drop area for file attachments
+            DropArea {
+                id: dropArea
+                anchors.fill: parent
+                keys: ["text/uri-list"]
+
+                onDropped: (drop) => {
+                    if (drop.hasUrls) {
+                        for (var i = 0; i < drop.urls.length; i++) {
+                            var url = drop.urls[i].toString()
+                            // Strip file:// prefix
+                            var filePath = url.replace(/^file:\/\//, "")
+                            var fileName = filePath.split("/").pop()
+                            // Determine MIME type from extension
+                            var ext = fileName.split(".").pop().toLowerCase()
+                            var mimeMap = {
+                                "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                                "gif": "image/gif", "webp": "image/webp", "svg": "image/svg+xml",
+                                "pdf": "application/pdf", "txt": "text/plain", "md": "text/markdown",
+                                "json": "application/json", "zip": "application/zip",
+                                "tar": "application/x-tar", "gz": "application/gzip",
+                                "mp3": "audio/mpeg", "wav": "audio/wav", "mp4": "video/mp4",
+                            }
+                            var mimeType = mimeMap[ext] || "application/octet-stream"
+                            var meta = Ai.storeAttachment(filePath, fileName, mimeType)
+                            Ai.addPendingAttachment(meta)
+                        }
+                    }
+                }
+            }
+
+            // Pending attachments preview row
+            Flow {
+                id: attachmentPreviewRow
+                visible: Ai.pendingAttachments.length > 0
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 6
+                spacing: 4
+
+                Repeater {
+                    model: Ai.pendingAttachments.length
+
+                    Rectangle {
+                        required property int index
+                        width: attachChipRow.implicitWidth + 12
+                        height: 28
+                        radius: Appearance.rounding.small
+                        color: Appearance.colors.colLayer2
+
+                        RowLayout {
+                            id: attachChipRow
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            MaterialSymbol {
+                                text: {
+                                    var type = Ai.pendingAttachments[parent.parent.index]?.type || ""
+                                    if (type.startsWith("image/")) return "image"
+                                    if (type === "application/pdf") return "picture_as_pdf"
+                                    if (type.startsWith("audio/")) return "audio_file"
+                                    if (type.startsWith("video/")) return "video_file"
+                                    return "attach_file"
+                                }
+                                iconSize: Appearance.font.pixelSize.small
+                                color: Appearance.colors.colOnLayer2
+                            }
+
+                            StyledText {
+                                text: {
+                                    var name = Ai.pendingAttachments[parent.parent.parent.index]?.name || ""
+                                    return name.length > 20 ? name.substring(0, 17) + "..." : name
+                                }
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.colors.colOnLayer2
+                            }
+
+                            // Remove button
+                            MouseArea {
+                                implicitWidth: 14
+                                implicitHeight: 14
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: Ai.removePendingAttachment(parent.parent.parent.index)
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "close"
+                                    iconSize: Appearance.font.pixelSize.smaller
+                                    color: Appearance.colors.colSubtext
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             RowLayout { // Input field and send button
                 id: inputFieldRowLayout
-                anchors.top: parent.top
+                anchors.top: attachmentPreviewRow.visible ? attachmentPreviewRow.bottom : parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.topMargin: 5
@@ -1676,6 +2194,10 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         } else if (event.key === Qt.Key_Down && suggestions.visible) {
                             suggestions.selectedIndex = Math.min(root.suggestionList.length - 1, suggestions.selectedIndex + 1);
                             event.accepted = true;
+                        } else if (event.key === Qt.Key_V && (event.modifiers & Qt.ControlModifier)) {
+                            // Ctrl+V: check if clipboard has an image, attach it
+                            clipboardTypeChecker.running = true
+                            // Don't prevent normal text paste — the checker will add image if found
                         } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                             if (event.modifiers & Qt.ShiftModifier) {
                                 // Insert newline
@@ -1688,6 +2210,30 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                 event.accepted = true
                             }
                         }
+                    }
+                }
+
+                RippleButton { // Attach file button
+                    id: attachButton
+                    Layout.alignment: Qt.AlignTop
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    buttonRadius: Appearance.rounding.small
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            filePickerProcess.running = true
+                        }
+                    }
+
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        horizontalAlignment: Text.AlignHCenter
+                        iconSize: Appearance.font.pixelSize.larger
+                        color: Appearance.colors.colOnLayer1
+                        text: "attach_file"
                     }
                 }
 
@@ -1728,7 +2274,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     implicitWidth: 40
                     implicitHeight: 40
                     buttonRadius: Appearance.rounding.small
-                    enabled: messageInputField.text.length > 0
+                    enabled: messageInputField.text.length > 0 || Ai.pendingAttachments.length > 0
                     toggled: enabled
 
                     MouseArea {

@@ -191,6 +191,7 @@ in
 
       Service = {
         Type = "simple";
+        ExecStartPre = "${pkgs.coreutils}/bin/rm -rf %h/.cache/quickshell/qmlcache";
         ExecStart = quickshellStartup;
         ExecReload = "${pkgs.coreutils}/bin/kill -SIGUSR2 $MAINPID";
         Restart = if cfg.restartOnFailure then "on-failure" else "no";

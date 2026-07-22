@@ -14,9 +14,19 @@ ApiStrategy {
             "messages": [
                 {role: "system", content: systemPrompt},
                 ...messages.map(message => {
+                    // Build multimodal content if message has images
+                    var hasImages = message.images && message.images.length > 0;
                     return {
                         "role": message.role,
-                        "content": message.rawContent,
+                        "content": hasImages
+                            ? [
+                                { type: "text", text: message.rawContent },
+                                ...message.images.map(img => ({
+                                    type: "image_url",
+                                    image_url: { url: "data:image/png;base64," + img }
+                                }))
+                            ]
+                            : message.rawContent,
                     }
                 }),
             ],

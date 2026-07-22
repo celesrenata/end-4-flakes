@@ -15,13 +15,22 @@ ApiStrategy {
                 {role: "system", content: systemPrompt},
                 ...messages.map(message => {
                     const hasFunctionCall = message.functionCall != undefined && message.functionName.length > 0
+                    var hasImages = message.images && message.images.length > 0;
                     let messageData = {
                         "role": message.role,
-                        "content": message.rawContent,
+                        "content": hasImages
+                            ? [
+                                { type: "text", text: message.rawContent },
+                                ...message.images.map(img => ({
+                                    type: "image_url",
+                                    image_url: { url: "data:image/png;base64," + img }
+                                }))
+                            ]
+                            : message.rawContent,
                     }
                     if (hasFunctionCall) {
                         if (message.functionResponse?.length > 0) {
-                            messageData.name = message.functionName; // Does the func call also need this name? or just the func output?
+                            messageData.name = message.functionName;
                             messageData.role = "tool";
                             messageData.content = message.functionResponse;
                             messageData.tool_call_id = message.functionCall.id

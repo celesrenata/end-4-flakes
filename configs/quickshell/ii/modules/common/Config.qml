@@ -286,9 +286,10 @@ Singleton {
                 property string model: "whisper-1"
                 property string streamingEndpoint: ""
                 property int chunkDurationMs: 3000
-                property string ttsProvider: "none" // none, piper, espeak-ng, openai
-                property string ttsVoice: "" // Provider-specific voice ID
-                property bool talkback: false // Enable TTS playback
+                property string ttsProvider: "openai" // none, piper, espeak-ng, openai
+                property string ttsVoice: "nova" // Provider-specific voice ID
+                property bool talkback: true // Enable TTS playback
+                property string verbosity: "concise" // concise, normal, detailed
                 property string intentMode: "heuristic" // heuristic, ai
                 property string httpEndpoint: "" // HTTP batch endpoint for STT
                 property bool smartRouting: false // Smart Dictation Routing — route voice input by intent
@@ -356,6 +357,14 @@ Singleton {
                 property bool xray: false
                 property int size: 8
                 property int passes: 4
+            }
+
+            property JsonObject notifications: JsonObject {
+                property int timeout: 7000
+                property JsonObject forceMonitor: JsonObject {
+                    property bool enable: false
+                    property string name: "" // Name of the monitor to show notifications on, like "eDP-1". Find out with 'hyprctl monitors' command
+                }
             }
         }
     }

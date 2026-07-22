@@ -193,6 +193,40 @@ ContentPage {
         }
 
         ContentSubsection {
+            title: Translation.tr("Response Verbosity")
+
+            ColumnLayout {
+                ContentSubsectionLabel {
+                    text: Translation.tr("How detailed should voice responses be?")
+                }
+                ConfigSelectionArray {
+                    currentValue: Config.options.dictation.verbosity
+                    configOptionName: "dictation.verbosity"
+                    onSelected: newValue => {
+                        Config.options.dictation.verbosity = newValue;
+                    }
+                    options: [
+                        { displayName: Translation.tr("Concise"), value: "concise" },
+                        { displayName: Translation.tr("Normal"), value: "normal" },
+                        { displayName: Translation.tr("Detailed"), value: "detailed" },
+                    ]
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                    text: Config.options.dictation.verbosity === "concise"
+                        ? Translation.tr("One sentence answers. Just the key info.")
+                        : Config.options.dictation.verbosity === "normal"
+                            ? Translation.tr("2-3 sentences. Enough context to be useful.")
+                            : Translation.tr("Full explanations when relevant. Still spoken-language, no raw data dumps.")
+                }
+            }
+        }
+
+        ContentSubsection {
             title: Translation.tr("Intent Classification")
 
             ColumnLayout {

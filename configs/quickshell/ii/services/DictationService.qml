@@ -73,10 +73,43 @@ Singleton {
     // Voice assistant response text — Floating Indicator binds to this
     property string responseText: ""
 
+    onResponseTextChanged: {
+        // Auto-start dismiss timer when responseText is set externally (e.g. from postResponseHook)
+        if (responseText.length > 0 && !responsePinned && !TtsService.playing) {
+            responseDismissTimer.interval = _calculateDismissInterval(responseText)
+            responseDismissTimer.restart()
+        } else if (responseText.length === 0) {
+            responseDismissTimer.stop()
+        }
+    }
+
+    // Whether the response popup is pinned (won't auto-dismiss)
+    property bool responsePinned: false
+
+    // Toggle pin state. If pinning, stop dismiss timer. If unpinning, restart it.
+    function toggleResponsePin() {
+        responsePinned = !responsePinned
+        if (responsePinned) {
+            responseDismissTimer.stop()
+        } else if (responseText !== "") {
+            responseDismissTimer.interval = _calculateDismissInterval(responseText)
+            responseDismissTimer.restart()
+        }
+    }
+
+    // Calculate dismiss interval: 10s base + 50ms per character, capped at 60s
+    function _calculateDismissInterval(text) {
+        var base = 10000
+        var perChar = 50
+        var calculated = base + (text.length * perChar)
+        return Math.min(calculated, 60000)
+    }
+
     // Manually dismiss the voice response indicator, stopping any active dismiss timers.
     // Called by click-to-copy in DictationIndicator.
     function dismissResponse() {
         responseText = ""
+        responsePinned = false
         responseClearTimer.stop()
         errorDismissTimer.stop()
         responseDismissTimer.stop()
@@ -88,11 +121,41 @@ Singleton {
     property int approvalActionIndex: -1
 
     // Voice assistant system prompt — passed as extraSystemPrompt to submitQueryDirect
-    readonly property string _voiceAssistantPrompt:
-        "Respond concisely in natural spoken language. For simple lookups, one sentence max. " +
-        "For moderate queries, up to three short sentences. Only give detailed responses when " +
-        "explicitly asked. Use contractions and informal units. No markdown, no tables, no " +
-        "bullet points — plain spoken text."
+    // Verbosity scales based on Config.options.dictation.verbosity setting
+    readonly property string _voiceAssistantPrompt: {
+        var verbosity = Config.options.dictation.verbosity || "concise";
+
+        var verbosityRules = "";
+        if (verbosity === "concise") {
+            verbosityRules =
+                "VERBOSITY: CONCISE (user preference)\n" +
+                "- ONE short sentence for most answers. Example: \"You have 450GB free of 1TB.\"\n" +
+                "- For status queries: give the KEY number only. Filter out all noise.\n" +
+                "- Maximum 2 sentences even for complex questions.\n";
+        } else if (verbosity === "normal") {
+            verbosityRules =
+                "VERBOSITY: NORMAL (user preference)\n" +
+                "- 1-3 sentences depending on complexity.\n" +
+                "- For simple lookups: one sentence. For status queries: the key info plus one line of context.\n" +
+                "- For complex questions: up to 3 sentences with enough detail to be useful.\n";
+        } else {
+            verbosityRules =
+                "VERBOSITY: DETAILED (user preference)\n" +
+                "- Give thorough answers — a short paragraph when appropriate.\n" +
+                "- For status queries: include the main drive plus any notable secondary drives.\n" +
+                "- For complex questions: explain fully but still in spoken conversational language.\n" +
+                "- Still NO raw command output. Summarize into human-readable form.\n";
+        }
+
+        return "You are answering a voice query. Your response will be displayed as a brief notification and optionally spoken aloud via TTS.\n\n" +
+            verbosityRules + "\n" +
+            "RULES:\n" +
+            "- NEVER dump raw command output. Summarize it into human-readable form.\n" +
+            "- NEVER explain your reasoning or methodology. Just give the answer.\n" +
+            "- For disk/system queries: filter out virtual filesystems, tmpfs, snap mounts, duplicates.\n" +
+            "- Report only what the user cares about.\n\n" +
+            "STYLE: Contractions, informal units (gigs not gigabytes), spoken language. No markdown, no tables, no bullet points, no code blocks.";
+    }
 
     // Structured state transition logging helper
     function _logTransition(from, to, context) {
@@ -362,6 +425,7 @@ Singleton {
             root.approvalActionIndex = -1
 
             root.responseText = text
+            root.responsePinned = false
             Ai.appendToFreeDictation(text, "assistant")
 
             // Talkback: speak the response if enabled
@@ -369,7 +433,8 @@ Singleton {
                 TtsService.speak(text)
                 // Don't start dismiss timer — indicator stays until TTS finishes
             } else {
-                // No TTS — start auto-dismiss timer (4s)
+                // No TTS — start auto-dismiss timer (10s base + scales with length)
+                responseDismissTimer.interval = root._calculateDismissInterval(text)
                 responseDismissTimer.restart()
             }
         }
@@ -392,15 +457,18 @@ Singleton {
         }
     }
 
-    // Timer to auto-dismiss voice assistant response text (4s).
+    // Timer to auto-dismiss voice assistant response text.
+    // Base interval is 10s, scaled dynamically with response length (set before restart).
     // Only starts when TTS is NOT playing; if talkback is on, the indicator
     // stays visible until TTS finishes (see Connections on TtsService below).
     Timer {
         id: responseDismissTimer
-        interval: 4000
+        interval: 10000
         repeat: false
         onTriggered: {
-            root.responseText = ""
+            if (!root.responsePinned) {
+                root.responseText = ""
+            }
         }
     }
 
@@ -668,7 +736,7 @@ Singleton {
             "pw-cat --record --target=@DEFAULT_SOURCE@ --format=s16 --rate=16000 --channels=1 - 2>/dev/null | " +
             "head -c 32000 | " +
             "od -A none -v -t d2 | " +
-            "awk '{for(i=1;i<=NF;i++){s+=$i*$i;n++}} END{if(n>0){rms=sqrt(s/n); if(rms>500) print \"AUDIO\"; else print \"SILENCE\"}}'; " +
+            "awk '{for(i=1;i<=NF;i++){s+=$i*$i;n++}} END{if(n>0){rms=sqrt(s/n); if(rms>250) print \"AUDIO\"; else print \"SILENCE\"}}'; " +
             "done"
         ]
         running: root.state === DictationService.State.Listening

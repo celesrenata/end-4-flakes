@@ -377,13 +377,17 @@ Singleton {
     }
 
     // === Shell command execution process (for shell.exec actions) ===
+    // Captured shell output for direct-mode summarization
+    property string _shellOutput: ""
+    property bool _directModeCapture: false
+
     Process {
         id: shellExecProcess
         property list<string> baseCommand: ["bash", "-c"]
         stdout: StdioCollector {
             onStreamFinished: {
                 shellExecTimeout.stop();
-                // Exit handled in onExited
+                root._shellOutput = text;
             }
         }
         onExited: (exitCode, exitStatus) => {
@@ -392,9 +396,14 @@ Singleton {
                 root._executionFailed("shell.exec", root._executionIndex,
                     `Command exited with code ${exitCode}`);
             } else {
-                // Success — advance to next action
-                root._executionIndex++;
-                root._executeNext();
+                // If in direct-mode capture and we have output, summarize it
+                if (root._directModeCapture && root._shellOutput.trim().length > 0) {
+                    root._summarizeShellOutput(root._shellOutput);
+                } else {
+                    // Success — advance to next action
+                    root._executionIndex++;
+                    root._executeNext();
+                }
             }
         }
     }
@@ -407,6 +416,149 @@ Singleton {
         onTriggered: () => {
             shellExecProcess.running = false;
             root._executionFailed("shell.exec", root._executionIndex, "Command timed out (30s)");
+        }
+    }
+
+    /**
+     * Summarizes shell command output for the user in direct (voice) mode.
+     * Sends the output + original query to the LLM for a brief spoken summary.
+     * On completion, emits a new responseSummary with the actual answer.
+     */
+    function _summarizeShellOutput(output) {
+        // Truncate output to avoid token overload (keep first 4000 chars)
+        var truncatedOutput = output.length > 4000 ? output.substring(0, 4000) + "\n[...truncated]" : output;
+
+        var summaryPrompt = "You received the output of a command that was run to answer a user's voice query. " +
+            "Summarize the output into a brief, spoken-language answer. Be direct — just give the key info. " +
+            "Filter out noise (virtual filesystems, tmpfs, irrelevant entries). " +
+            "No markdown, no tables, no code blocks. Max 2-3 sentences.\n\n" +
+            "User's original question: " + root.lastQuery + "\n\n" +
+            "Command output:\n" + truncatedOutput + "\n\n" +
+            "Your brief answer:";
+
+        var model = Ai.models[Ai.currentModelId];
+        if (!model) {
+            root._directModeCapture = false;
+            root._shellOutput = "";
+            root._executionIndex++;
+            root._executeNext();
+            return;
+        }
+
+        // Skip summarization for Bedrock (uses CLI, not curl) — just advance
+        if ((model.api_format || "openai") === "bedrock") {
+            root._directModeCapture = false;
+            root._shellOutput = "";
+            root._executionIndex++;
+            root._executeNext();
+            return;
+        }
+
+        var strategy = root._getStrategy(model);
+        if (!strategy) {
+            root._directModeCapture = false;
+            root._shellOutput = "";
+            root._executionIndex++;
+            root._executeNext();
+            return;
+        }
+
+        strategy.reset();
+        var endpoint = strategy.buildEndpoint(model);
+        var fakeMessages = [{
+            role: "user",
+            rawContent: summaryPrompt,
+            images: [],
+            functionName: "",
+            functionCall: undefined,
+            functionResponse: "",
+        }];
+        var sysPrompt = "You are a concise voice assistant. Give only the direct answer in spoken language.";
+        var data = strategy.buildRequestData(model, fakeMessages, sysPrompt, 0.3, []);
+
+        var requestHeaders = { "Content-Type": "application/json" };
+        var headerString = Object.entries(requestHeaders)
+            .filter(function(entry) { return entry[1] && entry[1].length > 0; })
+            .map(function(entry) { return "-H '" + entry[0] + ": " + entry[1] + "'"; })
+            .join(' ');
+        var authHeader = strategy.buildAuthorizationHeader(Ai.apiKeyEnvVarName);
+
+        if (model.requires_key) {
+            summarizeProcess.environment = {};
+            summarizeProcess.environment[Ai.apiKeyEnvVarName] = Ai.apiKeys ? (Ai.apiKeys[model.key_id] || "") : "";
+        }
+
+        var requestString = 'curl -s --no-buffer "' + endpoint + '"'
+            + ' ' + headerString
+            + (authHeader ? ' ' + authHeader : "")
+            + " -d '" + CF.StringUtils.shellSingleQuoteEscape(JSON.stringify(data)) + "'";
+
+        summarizeProcess.currentStrategy = strategy;
+        summarizeProcess.responseBuffer = "";
+        summarizeProcess.command = summarizeProcess.baseCommand.concat([requestString]);
+        summarizeProcess.running = true;
+    }
+
+    // Helper to get strategy for a model
+    function _getStrategy(model) {
+        var format = model.api_format || "openai";
+        return Ai.apiStrategies[format] || Ai.apiStrategies["openai"];
+    }
+
+    // === Summarization process for shell output in direct mode ===
+    Process {
+        id: summarizeProcess
+        property list<string> baseCommand: ["bash", "-c"]
+        property var currentStrategy: null
+        property string responseBuffer: ""
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                // Parse streamed response to extract text
+                var result = "";
+                var lines = text.split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (line.startsWith("data: ")) line = line.substring(6);
+                    if (line === "[DONE]" || line.length === 0) continue;
+                    try {
+                        var parsed = JSON.parse(line);
+                        // OpenAI format
+                        if (parsed.choices && parsed.choices[0]) {
+                            var delta = parsed.choices[0].delta || parsed.choices[0].message || {};
+                            if (delta.content) result += delta.content;
+                        }
+                        // Gemini format
+                        else if (parsed.candidates && parsed.candidates[0]) {
+                            var parts = parsed.candidates[0].content?.parts;
+                            if (parts && parts[0] && parts[0].text) result += parts[0].text;
+                        }
+                    } catch (e) {
+                        // Non-JSON line, skip
+                    }
+                }
+
+                if (result.trim().length > 0) {
+                    // Emit updated summary with the actual answer
+                    root.responseSummary(result.trim());
+                }
+
+                // Continue execution
+                root._directModeCapture = false;
+                root._shellOutput = "";
+                root._executionIndex++;
+                root._executeNext();
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0 && summarizeProcess.responseBuffer === "") {
+                // Summarization failed — just advance without updating summary
+                root._directModeCapture = false;
+                root._shellOutput = "";
+                root._executionIndex++;
+                root._executeNext();
+            }
         }
     }
 
@@ -527,23 +679,33 @@ Singleton {
             }
         }
 
-        // Run shell commands via delayed Timer (ensures dispatch fires after click handler)
-        // Wrap non-silent commands in a terminal so output is visible to the user
+        // Run shell commands
         if (shellCommands.length > 0) {
-            var wrappedCommands = shellCommands.map(function(cmd) {
-                var isSilent = /^(pkill|kill|killall|systemctl|hyprctl|notify-send|xdg-open|nohup|sleep)\b/.test(cmd)
-                    || /&\s*$/.test(cmd)
-                    || />\s*\/dev\/null/.test(cmd)
-                    || /^sleep\s/.test(cmd);
-                if (isSilent) {
-                    return cmd;
-                } else {
-                    return "foot -e bash -c '" + cmd.replace(/'/g, "'\\''") + "; echo; echo Press Enter to close...; read'";
-                }
-            });
-            console.log("[ActionPalette] queuing " + wrappedCommands.length + " commands for delayed dispatch");
-            root._pendingCommands = wrappedCommands;
-            execDelayTimer.start();
+            if (root._directModeCapture) {
+                // Voice assistant mode: run silently in background, capture output for summarization
+                var combinedCmd = shellCommands.join(" && ");
+                console.log("[ActionPalette] running in background (direct mode): " + combinedCmd);
+                shellExecProcess.command = shellExecProcess.baseCommand.concat([combinedCmd]);
+                root._shellOutput = "";
+                shellExecProcess.running = true;
+                shellExecTimeout.start();
+            } else {
+                // Normal mode: wrap non-silent commands in a terminal so output is visible to the user
+                var wrappedCommands = shellCommands.map(function(cmd) {
+                    var isSilent = /^(pkill|kill|killall|systemctl|hyprctl|notify-send|xdg-open|nohup|sleep)\b/.test(cmd)
+                        || /&\s*$/.test(cmd)
+                        || />\s*\/dev\/null/.test(cmd)
+                        || /^sleep\s/.test(cmd);
+                    if (isSilent) {
+                        return cmd;
+                    } else {
+                        return "foot -e bash -c '" + cmd.replace(/'/g, "'\\''") + "; echo; echo Press Enter to close...; read'";
+                    }
+                });
+                console.log("[ActionPalette] queuing " + wrappedCommands.length + " commands for delayed dispatch");
+                root._pendingCommands = wrappedCommands;
+                execDelayTimer.start();
+            }
         }
 
         root.state = ActionPalette.Idle;
@@ -786,7 +948,9 @@ Configuration key namespaces (use with config.set):
 
 Rules:
 - Return ONLY valid JSON, no markdown, no explanation text
-- summary must be ≤ 200 characters
+- summary must be ≤ 200 characters and must ONLY contain the direct answer or result — NEVER explain your reasoning, thought process, or why you chose a particular approach. Just state the answer.
+  Examples: "It's 3:42 PM" NOT "I'll show you the time: it's 3:42 PM"
+            "Volume set to 80%" NOT "Since you asked to turn it up, I've set volume to 80%"
 - actions array must have ≤ 20 items
 - Each action must have a "type" field and all required parameters for that type
 - Prefer config.set over shell.exec when possible (safer, reversible)
@@ -799,7 +963,9 @@ Rules:
 - ALWAYS use "pkill -f" instead of plain "pkill" — this is NixOS where binary names are wrapped
 - When launching an app after killing it, combine with a delay: "sleep 1 && appname"
 - Do NOT put & at the end of commands — Hyprland exec handles backgrounding
-- For shell.exec, prefer commands that produce useful visible output`;
+- For shell.exec, prefer commands that produce useful visible output
+- The "summary" field is shown directly to the user as a notification/popup. When the query is informational (asking about system status, disk space, etc.), put the ANSWER in the summary. Distill command output into what the user actually wants to know — e.g., "You have 234GB free on your main drive" not "Here are the results of df -h"
+- For status queries, filter out noise: ignore virtual filesystems, tmpfs, snap mounts, duplicate entries. Report only the drives/info the user cares about.`;
     }
 
     // === Internal: Policy gates ===
@@ -848,13 +1014,30 @@ Rules:
             return false;
         }
 
-        // 4. Missing API key
+        // 4. Missing API key — try to fall back to a model that has one
         if (!Ai.currentModelHasApiKey) {
-            console.log("[ActionPalette] Gate BLOCKED: No API key for model " + Ai.currentModelId)
-            root.errorMessage = "Set an API key via /key in the AI sidebar";
-            root.state = ActionPalette.Error;
-            root.canRetry = false;
-            return false;
+            // Try to find another model that has a key
+            var foundFallback = false;
+            for (var i = 0; i < Ai.modelList.length; i++) {
+                var mId = Ai.modelList[i];
+                var m = Ai.models[mId];
+                if (!m) continue;
+                if (!m.requires_key) { foundFallback = true; Ai.setModel(mId, false, false); break; }
+                var keyId = m.key_id || mId;
+                if (Ai.apiKeys && Ai.apiKeys[keyId] && Ai.apiKeys[keyId].length > 0) {
+                    foundFallback = true;
+                    console.log("[ActionPalette] Falling back to model with key: " + mId);
+                    Ai.setModel(mId, false, false);
+                    break;
+                }
+            }
+            if (!foundFallback) {
+                console.log("[ActionPalette] Gate BLOCKED: No API key for model " + Ai.currentModelId)
+                root.errorMessage = "Set an API key via /key in the AI sidebar";
+                root.state = ActionPalette.Error;
+                root.canRetry = false;
+                return false;
+            }
         }
 
         return true;
@@ -1023,6 +1206,8 @@ Rules:
         if (root._directMode) {
             root.responseSummary(root.actionPlan.summary || "Done");
             if (root.actionPlan.actions.length > 0) {
+                // Enable output capture for shell.exec commands so we can summarize the result
+                root._directModeCapture = true;
                 root.applyPlan();
             }
             root._directMode = false;
@@ -1047,10 +1232,23 @@ Rules:
             floating: w.floating || false,
             focused: w.focusHistoryID === 0
         }));
+        const monitors = HyprlandData.monitors.map(m => ({
+            name: m.name || "",
+            width: m.width || 0,
+            height: m.height || 0,
+            refreshRate: m.refreshRate || 0,
+            x: m.x || 0,
+            y: m.y || 0,
+            scale: m.scale || 1,
+            focused: m.focused || false,
+            activeWorkspace: m.activeWorkspace?.id ?? -1,
+            description: m.description || ""
+        }));
         const activeWorkspace = HyprlandData.activeWorkspace?.id ?? 1;
         return {
             config: config,
             windows: windows,
+            monitors: monitors,
             activeWorkspace: activeWorkspace
         };
     }

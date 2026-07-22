@@ -40,7 +40,7 @@ Singleton {
     property var messageIDs: []
     property var messageByID: ({})
     onMessageIDsChanged: {
-        if (root.messageIDs.length > 0) {
+        if (root.messageIDs.length > 0 && !root.switching) {
             root.saveCurrentSession();
         }
     }
@@ -86,9 +86,9 @@ Singleton {
         var limit = root.contextLimit;
         var limitStr;
         if (limit >= 1000000) {
-            limitStr = String(limit / 1000000) + "M";
+            limitStr = (Math.round(limit / 10000) / 100).toFixed(2) + "M";
         } else if (limit >= 1000) {
-            limitStr = String(limit / 1000) + "k";
+            limitStr = String(Math.round(limit / 1000)) + "k";
         } else {
             limitStr = String(limit);
         }
@@ -1420,7 +1420,7 @@ Singleton {
         return root.messageIDs.map(id => {
             const message = root.messageByID[id]
             if (!message) return null
-            return ({
+            var obj = {
                 "role": message.role,
                 "rawContent": message.rawContent,
                 "model": message.model,
@@ -1432,7 +1432,14 @@ Singleton {
                 "functionCall": message.functionCall,
                 "functionResponse": message.functionResponse,
                 "visibleToUser": message.visibleToUser,
-            })
+            }
+            // Only include attachments if non-empty (keep JSON lean)
+            // NOTE: We do NOT save base64 images — they are re-encoded from attachment
+            // files at request time. This keeps chat files small.
+            if (message.attachments && message.attachments.length > 0) {
+                obj.attachments = message.attachments
+            }
+            return obj
         }).filter(m => m !== null)
     }
 
@@ -1824,6 +1831,8 @@ Singleton {
                     "functionCall": message.functionCall,
                     "functionResponse": message.functionResponse,
                     "visibleToUser": message.visibleToUser,
+                    "attachments": message.attachments || [],
+                    "images": message.images || [],
                 });
             }
             root.messageByID = newMessageByID;
@@ -1887,6 +1896,37 @@ Singleton {
             // Save session and update state
             root.saveCurrentSession();
             root.compacting = false;
+        }
+    }
+
+    // Keyword generation process - extracts keywords from conversation
+    Process {
+        id: keywordRequester
+        property list<string> baseCommand: ["bash", "-c"]
+        property string sessionName: ""
+        property AiMessageData keywordMessage
+        property ApiStrategy currentStrategy
+
+        stdout: SplitParser {
+            onRead: data => {
+                if (data.length === 0) return;
+                try {
+                    keywordRequester.currentStrategy.parseResponseLine(data, keywordRequester.keywordMessage);
+                } catch (e) {
+                    keywordRequester.keywordMessage.rawContent += data;
+                }
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            if (keywordRequester.currentStrategy) {
+                keywordRequester.currentStrategy.onRequestFinished(keywordRequester.keywordMessage);
+            }
+            var keywords = (keywordRequester.keywordMessage.rawContent || "").trim();
+            if (exitCode === 0 && keywords.length > 0 && keywords.length <= 128) {
+                root.setSessionSubject(keywordRequester.sessionName, keywords);
+                console.log("[AI] Keywords generated for '" + keywordRequester.sessionName + "': " + keywords);
+            }
         }
     }
 
@@ -2015,12 +2055,20 @@ Singleton {
             }
 
             // Parse title and summary from response
-            // Expected format: first line is the title (max 50 chars), rest is summary
+            // Expected format: first line is the title (max 50 chars), second line is keywords, rest is summary
             var lines = response.split("\n");
             var title = lines[0].trim();
             if (title.length > 50) title = title.substring(0, 50);
             if (title.length === 0) title = "Summary";
-            var summary = lines.length > 1 ? lines.slice(1).join("\n").trim() : response;
+            // Second line is keywords, rest is summary
+            var keywords = lines.length > 1 ? lines[1].trim() : "";
+            var summary = lines.length > 2 ? lines.slice(2).join("\n").trim() : (lines.length > 1 ? lines[1] : response);
+            // If keywords line looks like a keyword list (short, has commas), use it; otherwise treat as summary
+            if (keywords.length > 128 || keywords.indexOf(",") === -1) {
+                // Not a valid keyword line, treat all after title as summary
+                keywords = "";
+                summary = lines.length > 1 ? lines.slice(1).join("\n").trim() : response;
+            }
 
             // Save current session (original stays unchanged)
             root.saveCurrentSession();
@@ -2038,7 +2086,7 @@ Singleton {
                 "lastModified": Math.floor(Date.now() / 1000),
                 "archived": false,
                 "group": "",
-                "subject": "",
+                "subject": keywords.length > 0 ? keywords.substring(0, 128) : "",
             });
             root.sessionsIndex = { "sessions": sessions };
             root.saveSessionsIndex();
@@ -2089,7 +2137,7 @@ Singleton {
         });
 
         // Build summarization prompt asking for title + summary
-        var summarizationPrompt = "Generate a title (first line, max 50 characters) and a concise summary (remaining lines) of the following conversation. The title should describe the topic.";
+        var summarizationPrompt = "Generate a title (first line, max 50 characters), then on the second line 3-5 comma-separated keywords, then a concise summary (remaining lines) of the following conversation. The title should describe the topic. Keywords should be single words or short phrases useful for search.";
         if (focusInstruction && focusInstruction.trim().length > 0) {
             summarizationPrompt += " Focus on: " + focusInstruction.trim();
         }
@@ -2217,9 +2265,271 @@ Singleton {
         }
     }
 
+    // === Attachment Management ===
+
+    // Pending attachments for the next message (list of {name, path, type, size})
+    property var pendingAttachments: []
+
+    /**
+     * Stores a file in the attachments directory and returns its metadata.
+     * The file is copied (not moved) so the original remains intact.
+     * @param sourcePath Absolute path to the source file
+     * @param fileName Original file name (for display)
+     * @param mimeType MIME type of the file
+     * @returns Object {name, path, type, size} where path is relative to aiAttachments dir
+     */
+    function storeAttachment(sourcePath, fileName, mimeType) {
+        const timestamp = Date.now()
+        // Sanitize filename: replace spaces and special chars
+        const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_")
+        const storedName = timestamp + "-" + safeName
+        const destPath = Directories.aiAttachments + "/" + storedName
+
+        // Copy file to attachments directory
+        Quickshell.execDetached(["cp", "--", sourcePath, destPath])
+
+        return {
+            "name": fileName,
+            "path": storedName,  // relative to aiAttachments
+            "type": mimeType || "application/octet-stream",
+            "size": 0,  // size will be determined by the file itself
+        }
+    }
+
+    /**
+     * Stores clipboard image data (from wl-paste) as a PNG attachment.
+     * Runs wl-paste --type image/png to save to the attachments folder.
+     * @param callback Function called with the attachment metadata when done
+     */
+    function storeClipboardImage(callback) {
+        const timestamp = Date.now()
+        const storedName = timestamp + "-clipboard.png"
+        const destPath = Directories.aiAttachments + "/" + storedName
+        clipboardImageSaver.destPath = destPath
+        clipboardImageSaver.storedName = storedName
+        clipboardImageSaver.callback = callback
+        clipboardImageSaver.command = ["bash", "-c", "wl-paste --type image/png > '" + destPath + "'"]
+        clipboardImageSaver.running = true
+    }
+
+    Process {
+        id: clipboardImageSaver
+        property string destPath: ""
+        property string storedName: ""
+        property var callback: null
+
+        onRunningChanged: {
+            if (!running && callback) {
+                var meta = {
+                    "name": "clipboard-image.png",
+                    "path": storedName,
+                    "type": "image/png",
+                    "size": 0,
+                }
+                callback(meta)
+                callback = null
+            }
+        }
+    }
+
+    /**
+     * Adds an attachment to the pending list (shown in input area before sending).
+     */
+    function addPendingAttachment(attachment) {
+        root.pendingAttachments = [...root.pendingAttachments, attachment]
+    }
+
+    /**
+     * Removes a pending attachment by index.
+     */
+    function removePendingAttachment(index) {
+        var arr = [...root.pendingAttachments]
+        arr.splice(index, 1)
+        root.pendingAttachments = arr
+    }
+
+    /**
+     * Clears all pending attachments.
+     */
+    function clearPendingAttachments() {
+        root.pendingAttachments = []
+    }
+
+    /**
+     * Sends a user message with any pending attachments.
+     * For image attachments: base64-encodes them and includes in the message's images array.
+     * For text/document attachments: reads content and appends to message text.
+     * Attachments are stored on the message object, then cleared from pending.
+     */
+    function sendUserMessageWithAttachments(message) {
+        if (message.length === 0 && root.pendingAttachments.length === 0) return;
+        if (root.switching) return;
+        if (root.contextFull) {
+            root.addMessage(
+                Translation.tr("Context window is full. Please compact the conversation or switch to a model with a larger context window."),
+                root.interfaceRole
+            );
+            return;
+        }
+
+        // Separate images from non-image attachments
+        var imageAttachments = [];
+        var textAttachments = [];
+        for (var i = 0; i < root.pendingAttachments.length; i++) {
+            var att = root.pendingAttachments[i];
+            if ((att.type || "").startsWith("image/")) {
+                imageAttachments.push(att);
+            } else {
+                textAttachments.push(att);
+            }
+        }
+
+        // Store pending attachments for the async encode process
+        attachmentEncoder.userMessage = message;
+        attachmentEncoder.allAttachments = [...root.pendingAttachments];
+        attachmentEncoder.imageAttachments = imageAttachments;
+        attachmentEncoder.textAttachments = textAttachments;
+        attachmentEncoder.encodedImages = [];
+        attachmentEncoder.textContents = [];
+        attachmentEncoder.currentIndex = 0;
+        root.clearPendingAttachments();
+
+        // Start encoding pipeline
+        attachmentEncoder.processNext();
+    }
+
+    // Sequential attachment encoder — processes each attachment one at a time
+    // (base64 for images, cat for text files), then sends the message
+    QtObject {
+        id: attachmentEncoder
+        property string userMessage: ""
+        property var allAttachments: []
+        property var imageAttachments: []
+        property var textAttachments: []
+        property var encodedImages: []
+        property var textContents: []
+        property int currentIndex: 0
+
+        // Total items to process: images first, then text files
+        property int totalItems: imageAttachments.length + textAttachments.length
+
+        function processNext() {
+            if (currentIndex >= totalItems) {
+                // All done — send the message
+                finishAndSend();
+                return;
+            }
+
+            if (currentIndex < imageAttachments.length) {
+                // Encode an image
+                var att = imageAttachments[currentIndex];
+                var absPath = Directories.aiAttachments + "/" + att.path;
+                encodeProcess.command = ["base64", "-w", "0", absPath];
+                encodeProcess.running = true;
+            } else {
+                // Read a text file
+                var textIdx = currentIndex - imageAttachments.length;
+                var textAtt = textAttachments[textIdx];
+                var textAbsPath = Directories.aiAttachments + "/" + textAtt.path;
+                readProcess.fileName = textAtt.name;
+                readProcess.command = ["head", "-c", "100000", textAbsPath]; // Cap at 100KB
+                readProcess.running = true;
+            }
+        }
+
+        function finishAndSend() {
+            // Build the final message content
+            var finalContent = userMessage;
+
+            // Append text file contents
+            for (var i = 0; i < textContents.length; i++) {
+                var tc = textContents[i];
+                if (tc.content.length > 0) {
+                    finalContent += "\n\n--- Attached file: " + tc.name + " ---\n" + tc.content;
+                }
+            }
+
+            var aiMessage = root.aiMessageComponent.createObject(root, {
+                "role": "user",
+                "content": finalContent,
+                "rawContent": finalContent,
+                "thinking": false,
+                "done": true,
+                "attachments": allAttachments,
+                "images": encodedImages,
+            });
+            var id = root.idForMessage(aiMessage);
+            root.messageIDs = [...root.messageIDs, id];
+            root.messageByID[id] = aiMessage;
+            requester.makeRequest();
+        }
+    }
+
+    // Process for base64-encoding image attachments
+    Process {
+        id: encodeProcess
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.trim().length > 0) {
+                    attachmentEncoder.encodedImages.push(text.trim());
+                } else {
+                    // Empty output — encoding failed or empty file
+                    attachmentEncoder.encodedImages.push("");
+                }
+                attachmentEncoder.currentIndex++;
+                attachmentEncoder.processNext();
+            }
+        }
+    }
+
+    // Process for reading text file contents
+    Process {
+        id: readProcess
+        property string fileName: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                attachmentEncoder.textContents.push({
+                    name: readProcess.fileName,
+                    content: text
+                });
+                attachmentEncoder.currentIndex++;
+                attachmentEncoder.processNext();
+            }
+        }
+    }
+
+    /**
+     * Returns the absolute path for an attachment given its relative stored name.
+     */
+    function getAttachmentAbsolutePath(relativePath) {
+        return Directories.aiAttachments + "/" + relativePath
+    }
+
+    /**
+     * Opens an attachment with xdg-open for viewing/downloading.
+     */
+    function openAttachment(relativePath) {
+        const absPath = getAttachmentAbsolutePath(relativePath)
+        Quickshell.execDetached(["xdg-open", absPath])
+    }
+
+    /**
+     * Copies an attachment to the user's Downloads folder.
+     */
+    function downloadAttachment(relativePath, originalName) {
+        const absPath = getAttachmentAbsolutePath(relativePath)
+        const destPath = CF.FileUtils.trimFileProtocol(Directories.downloads) + "/" + originalName
+        Quickshell.execDetached(["cp", "--", absPath, destPath])
+    }
+
     // Search state
     property var searchResults: []
     property int searchIndex: -1
+    property var crossSessionResults: []
+
+    // Keyword generation state
+    property int _lastKeywordMessageCount: 0
+    property int _keywordGenerationThreshold: 5
 
     /**
      * Returns all sessions sorted by lastModified (newest first).
@@ -2247,6 +2557,15 @@ Singleton {
             root.searchIndex = -1;
             return [];
         }
+
+        // No active filter — clear results
+        if (keyword.length === 0 && dateStart === null && dateEnd === null) {
+            root.searchResults = [];
+            root.searchIndex = -1;
+            return [];
+        }
+
+        console.log("[AI] searchMessages: keyword='" + keyword + "' messageIDs.length=" + root.messageIDs.length)
 
         for (var i = 0; i < root.messageIDs.length; i++) {
             var id = root.messageIDs[i];
@@ -2283,6 +2602,10 @@ Singleton {
 
         root.searchResults = results;
         root.searchIndex = results.length > 0 ? 0 : -1;
+
+        // Cross-session keyword search
+        root.crossSessionResults = root.searchSessionsByKeyword(keyword);
+
         return results;
     }
 
@@ -2325,6 +2648,7 @@ Singleton {
      */
     function switchSession(name) {
         const trimmedName = (name || "").trim();
+        console.log("[AI] switchSession called:", trimmedName, "| current:", root.activeSessionName);
         if (trimmedName.length === 0) {
             root.addMessage(Translation.tr("Session name cannot be empty"), root.interfaceRole);
             return;
@@ -2347,6 +2671,7 @@ Singleton {
         }
 
         // Save current session before switching
+        root.maybeGenerateKeywords();
         root.saveCurrentSession();
 
         // Signal switch starting, disable input
@@ -2377,12 +2702,18 @@ Singleton {
      */
     function loadSession(name) {
         const trimmedName = (name || "").trim();
+        console.log("[AI] loadSession called for:", trimmedName);
         try {
             chatSaveFile.chatName = trimmedName;
+            // Force path update before reload (binding may not evaluate immediately)
+            chatSaveFile.path = Directories.aiChats + "/" + trimmedName + ".json";
+            console.log("[AI] loadSession path set to:", chatSaveFile.path);
             chatSaveFile.reload();
             const saveContent = chatSaveFile.text();
+            console.log("[AI] loadSession file content length:", saveContent ? saveContent.length : 0);
             if (!saveContent || saveContent.trim().length === 0) {
                 // Empty file — treat as empty session (not a failure)
+                console.log("[AI] loadSession: empty file, clearing messages");
                 root.clearMessages();
                 return;
             }
@@ -2390,6 +2721,7 @@ Singleton {
             if (!Array.isArray(saveData)) {
                 throw new Error("Session file does not contain a JSON array");
             }
+            console.log("[AI] loadSession: parsed", saveData.length, "messages");
 
             // Only clear messages AFTER successful parse — preserves state on failure
             root.clearMessages();
@@ -2413,10 +2745,13 @@ Singleton {
                     "functionCall": message.functionCall ?? null,
                     "functionResponse": message.functionResponse ?? "",
                     "visibleToUser": message.visibleToUser ?? true,
+                    "attachments": message.attachments ?? [],
+                    "images": message.images ?? [],
                 });
             }
             root.messageByID = newMessageByID;
             root.messageIDs = saveData.map((_, i) => i);
+            console.log("[AI] loadSession DONE: messageIDs.length =", root.messageIDs.length);
         } catch (e) {
             console.log("[AI] Could not load session:", trimmedName, e);
             // Preserve current state — do NOT clear messages on failure
@@ -2425,5 +2760,116 @@ Singleton {
                 root.interfaceRole
             );
         }
+    }
+
+    /**
+     * Searches ALL sessions' subjects/names for a keyword match.
+     * @param keyword The keyword to search for (min 2 chars)
+     * @returns Array of matching session objects
+     */
+    function searchSessionsByKeyword(keyword) {
+        if (!keyword || keyword.length < 2) return [];
+        var kw = keyword.toLowerCase();
+        var sessions = root.sessionsIndex.sessions || [];
+        var results = [];
+        for (var i = 0; i < sessions.length; i++) {
+            var s = sessions[i];
+            var subject = (s.subject || "").toLowerCase();
+            var name = (s.name || "").toLowerCase();
+            if (subject.indexOf(kw) !== -1 || name.indexOf(kw) !== -1) {
+                results.push(s);
+            }
+        }
+        return results;
+    }
+
+    /**
+     * Called when user is leaving the current session (switching, search open).
+     * Generates keywords lazily if enough new messages have been added.
+     */
+    function maybeGenerateKeywords() {
+        var currentCount = root.messageIDs.length;
+        var lastCount = root._lastKeywordMessageCount;
+
+        // Skip if: no messages, or not enough growth since last generation
+        if (currentCount === 0) return;
+        if (lastCount > 0 && currentCount < lastCount * 1.3 && (currentCount - lastCount) < root._keywordGenerationThreshold) return;
+
+        // Check if subject already exists and is recent enough
+        var sessions = root.sessionsIndex.sessions || [];
+        var entry = null;
+        for (var i = 0; i < sessions.length; i++) {
+            if (sessions[i].name === root.activeSessionName) {
+                entry = sessions[i];
+                break;
+            }
+        }
+        if (!entry) return;
+        if (entry.subject && entry.subject.length > 0 && lastCount > 0 && currentCount < lastCount * 1.5) return;
+
+        // Generate keywords asynchronously
+        root._generateKeywordsForSession(root.activeSessionName);
+        root._lastKeywordMessageCount = currentCount;
+    }
+
+    /**
+     * Builds and fires the keyword extraction request for the given session.
+     * @param sessionName The session to generate keywords for
+     */
+    function _generateKeywordsForSession(sessionName) {
+        // Build a brief summary of last 10 messages for keyword extraction
+        var messageSample = [];
+        var startIdx = Math.max(0, root.messageIDs.length - 10);
+        for (var i = startIdx; i < root.messageIDs.length; i++) {
+            var msg = root.messageByID[root.messageIDs[i]];
+            if (msg && msg.rawContent) {
+                messageSample.push(msg.rawContent.substring(0, 200));
+            }
+        }
+        if (messageSample.length === 0) return;
+
+        var sampleText = messageSample.join("\n");
+
+        // Use the existing model to extract keywords
+        var model = root.models[root.currentModelId];
+        if (!model) return;
+
+        var strategy = root.currentApiStrategy;
+        keywordRequester.sessionName = sessionName;
+        keywordRequester.currentStrategy = strategy;
+        strategy.reset();
+
+        keywordRequester.keywordMessage = root.aiMessageComponent.createObject(root, {
+            "role": "assistant", "content": "", "rawContent": "", "thinking": false, "done": false,
+        });
+
+        var prompt = "Extract 3-7 comma-separated keywords/topics from this conversation sample. Reply with ONLY the keywords, nothing else:";
+        var syntheticMessages = [root.aiMessageComponent.createObject(root, {
+            "role": "user", "content": sampleText, "rawContent": sampleText, "thinking": false, "done": true,
+        })];
+
+        var endpoint = strategy.buildEndpoint(model);
+        var data = strategy.buildRequestData(model, syntheticMessages, prompt, 0.0, []);
+
+        if (model.requires_key) {
+            keywordRequester.environment[root.apiKeyEnvVarName] = root.apiKeys ? (root.apiKeys[model.key_id] || "") : "";
+        }
+
+        var requestHeaders = {"Content-Type": "application/json"};
+        var headerString = "";
+        var keys = Object.keys(requestHeaders);
+        for (var j = 0; j < keys.length; j++) {
+            if (requestHeaders[keys[j]] && requestHeaders[keys[j]].length > 0) {
+                headerString += " -H '" + keys[j] + ": " + requestHeaders[keys[j]] + "'";
+            }
+        }
+        var authHeader = strategy.buildAuthorizationHeader(root.apiKeyEnvVarName);
+
+        var cmd = 'curl --no-buffer --max-time 10 "' + endpoint + '"' + headerString
+            + (authHeader ? ' ' + authHeader : '')
+            + " -d '" + CF.StringUtils.shellSingleQuoteEscape(JSON.stringify(data)) + "'";
+
+        keywordRequester.command = ["bash", "-c", cmd];
+        keywordRequester.running = true;
     }
 }

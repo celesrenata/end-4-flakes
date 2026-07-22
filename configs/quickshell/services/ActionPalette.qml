@@ -804,7 +804,9 @@ Configuration key namespaces (use with config.set):
 
 Rules:
 - Return ONLY valid JSON, no markdown, no explanation text
-- summary must be ≤ 200 characters
+- summary must be ≤ 200 characters and must ONLY contain the direct answer or result — NEVER explain your reasoning, thought process, or why you chose a particular approach. Just state the answer.
+  Examples: "It's 3:42 PM" NOT "I'll show you the time: it's 3:42 PM"
+            "Volume set to 80%" NOT "Since you asked to turn it up, I've set volume to 80%"
 - actions array must have ≤ 20 items
 - Each action must have a "type" field and all required parameters for that type
 - Prefer config.set over shell.exec when possible (safer, reversible)

@@ -137,25 +137,258 @@ Item {
             }
         }
 
-        // Voice Provider Sections — below AI providers
-        VoiceProviderSection {
-            id: sttSection
+        // === Voice Settings (Dropdowns) ===
+        ColumnLayout {
             visible: root.selectedProvider === "" && !root.showCustomForm && Config.options.policies.ai !== 0
             Layout.fillWidth: true
-            sectionTitle: "Voice: Speech-to-Text"
-            providerType: "stt"
-            providerData: Config.options.dictation.sttProviders
-            aiPolicy: Config.options.policies.ai
-        }
+            spacing: 8
+            Layout.topMargin: 12
 
-        VoiceProviderSection {
-            id: ttsSection
-            visible: root.selectedProvider === "" && !root.showCustomForm && Config.options.policies.ai !== 0
-            Layout.fillWidth: true
-            sectionTitle: "Voice: Text-to-Speech"
-            providerType: "tts"
-            providerData: Config.options.dictation.ttsProviders
-            aiPolicy: Config.options.policies.ai
+            // Section header
+            StyledText {
+                text: Translation.tr("Voice Settings")
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.Medium
+                color: Appearance.colors.colSubtext
+            }
+
+            // STT Provider dropdown
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 4
+
+                StyledText {
+                    text: Translation.tr("Speech-to-Text")
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+
+                // Provider selector
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: ["openai", "bedrock", "whisperCpp", "fasterWhisper", "vosk", "whisperLive"]
+                        delegate: RippleButton {
+                            required property string modelData
+                            required property int index
+                            implicitHeight: 26
+                            implicitWidth: sttChipText.implicitWidth + 14
+                            buttonRadius: 13
+                            colBackground: Config.options.dictation.provider === modelData
+                                ? Appearance.m3colors.m3primaryContainer
+                                : Appearance.colors.colLayer2
+                            colBackgroundHover: Config.options.dictation.provider === modelData
+                                ? Appearance.m3colors.m3primaryContainer
+                                : Appearance.colors.colLayer2Hover
+
+                            contentItem: StyledText {
+                                id: sttChipText
+                                anchors.centerIn: parent
+                                text: modelData
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Config.options.dictation.provider === modelData
+                                    ? Appearance.m3colors.m3onPrimaryContainer
+                                    : Appearance.colors.colOnLayer2
+                            }
+                            onClicked: Config.setNestedValue("dictation.provider", modelData)
+                        }
+                    }
+                }
+            }
+
+            // TTS Provider dropdown
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 4
+
+                StyledText {
+                    text: Translation.tr("Text-to-Speech")
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+
+                // Provider selector
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Repeater {
+                        model: ["none", "openai", "bedrock", "piper", "espeak-ng"]
+                        delegate: RippleButton {
+                            required property string modelData
+                            required property int index
+                            implicitHeight: 26
+                            implicitWidth: ttsChipText.implicitWidth + 14
+                            buttonRadius: 13
+                            colBackground: Config.options.dictation.ttsProvider === modelData
+                                ? Appearance.m3colors.m3primaryContainer
+                                : Appearance.colors.colLayer2
+                            colBackgroundHover: Config.options.dictation.ttsProvider === modelData
+                                ? Appearance.m3colors.m3primaryContainer
+                                : Appearance.colors.colLayer2Hover
+
+                            contentItem: StyledText {
+                                id: ttsChipText
+                                anchors.centerIn: parent
+                                text: modelData === "none" ? Translation.tr("Off") : modelData
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Config.options.dictation.ttsProvider === modelData
+                                    ? Appearance.m3colors.m3onPrimaryContainer
+                                    : Appearance.colors.colOnLayer2
+                            }
+                            onClicked: Config.setNestedValue("dictation.ttsProvider", modelData)
+                        }
+                    }
+                }
+
+                // Voice selector (only when TTS is openai)
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    visible: Config.options.dictation.ttsProvider === "openai"
+
+                    Repeater {
+                        model: ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+                        delegate: RippleButton {
+                            required property string modelData
+                            required property int index
+                            implicitHeight: 24
+                            implicitWidth: voiceChipText.implicitWidth + 12
+                            buttonRadius: 12
+                            colBackground: Config.options.dictation.ttsVoice === modelData
+                                ? Appearance.m3colors.m3tertiaryContainer
+                                : Qt.alpha(Appearance.colors.colLayer2, 0.6)
+                            colBackgroundHover: Config.options.dictation.ttsVoice === modelData
+                                ? Appearance.m3colors.m3tertiaryContainer
+                                : Appearance.colors.colLayer2Hover
+
+                            contentItem: StyledText {
+                                id: voiceChipText
+                                anchors.centerIn: parent
+                                text: modelData
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Config.options.dictation.ttsVoice === modelData
+                                    ? Appearance.m3colors.m3onTertiaryContainer
+                                    : Appearance.colors.colOnLayer2
+                            }
+                            onClicked: Config.setNestedValue("dictation.ttsVoice", modelData)
+                        }
+                    }
+                }
+
+                // Voice selector (only when TTS is bedrock/Polly)
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    visible: Config.options.dictation.ttsProvider === "bedrock"
+
+                    Repeater {
+                        model: ["Joanna", "Matthew", "Amy", "Brian", "Ruth", "Stephen"]
+                        delegate: RippleButton {
+                            required property string modelData
+                            required property int index
+                            implicitHeight: 24
+                            implicitWidth: pollyChipText.implicitWidth + 12
+                            buttonRadius: 12
+                            colBackground: Config.options.dictation.ttsVoice === modelData
+                                ? Appearance.m3colors.m3tertiaryContainer
+                                : Qt.alpha(Appearance.colors.colLayer2, 0.6)
+                            colBackgroundHover: Config.options.dictation.ttsVoice === modelData
+                                ? Appearance.m3colors.m3tertiaryContainer
+                                : Appearance.colors.colLayer2Hover
+
+                            contentItem: StyledText {
+                                id: pollyChipText
+                                anchors.centerIn: parent
+                                text: modelData
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Config.options.dictation.ttsVoice === modelData
+                                    ? Appearance.m3colors.m3onTertiaryContainer
+                                    : Appearance.colors.colOnLayer2
+                            }
+                            onClicked: Config.setNestedValue("dictation.ttsVoice", modelData)
+                        }
+                    }
+                }
+            }
+
+            // Talkback toggle
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                StyledText {
+                    text: Translation.tr("Speak responses")
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                    Layout.fillWidth: true
+                }
+
+                Switch {
+                    checked: Config.options.dictation.talkback
+                    onToggled: Config.setNestedValue("dictation.talkback", checked)
+                }
+            }
+
+            // Override endpoint (optional, collapsed by default)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 4
+                visible: overrideToggle.checked
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 32
+                    color: Appearance.colors.colLayer2
+                    radius: Appearance.rounding.small
+
+                    StyledTextInput {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        verticalAlignment: TextInput.AlignVCenter
+                        color: Appearance.m3colors.m3onSurface
+                        clip: true
+                        text: Config.options.dictation.httpEndpoint
+                        onEditingFinished: Config.setNestedValue("dictation.httpEndpoint", text)
+
+                        Text {
+                            anchors.fill: parent
+                            verticalAlignment: Text.AlignVCenter
+                            text: Translation.tr("Custom STT endpoint")
+                            color: Appearance.m3colors.m3outline
+                            font: parent.font
+                            visible: !parent.text && !parent.activeFocus
+                        }
+                    }
+                }
+            }
+
+            // Show/hide override fields
+            MouseArea {
+                id: overrideToggle
+                implicitWidth: overrideRow.implicitWidth
+                implicitHeight: overrideRow.implicitHeight
+                cursorShape: Qt.PointingHandCursor
+                onClicked: overrideToggle.checked = !overrideToggle.checked
+
+                property bool checked: false
+
+                RowLayout {
+                    id: overrideRow
+                    spacing: 4
+                    MaterialSymbol {
+                        text: overrideToggle.checked ? "expand_less" : "tune"
+                        iconSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colSubtext
+                    }
+                    StyledText {
+                        text: Translation.tr("Endpoint override")
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: Appearance.colors.colSubtext
+                    }
+                }
+            }
         }
     }
 }

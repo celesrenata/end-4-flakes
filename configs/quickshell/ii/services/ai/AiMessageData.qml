@@ -18,4 +18,9 @@ QtObject {
     property string functionResponse
     property bool functionPending: false
     property bool visibleToUser: true
+    // Legacy: base64-encoded image thumbnails (Context Lens)
+    property var images: []
+    // File-based attachments: [{name, path, type, size}]
+    // path is relative to Directories.aiAttachments
+    property var attachments: []
 }

@@ -73,14 +73,8 @@ Item {
             }
 
             clip: true
-            layer.enabled: true
-            layer.effect: OpacityMask {
-                maskSource: Rectangle {
-                    width: swipeView.width
-                    height: swipeView.height
-                    radius: Appearance.rounding.small
-                }
-            }
+            // OpacityMask removed — layer caching causes invisible content until interaction
+            // Rounded corners handled by clip + parent radius instead
 
             contentChildren: [
                 ...(Config.options.policies.ai !== 0 ? [aiChat.createObject(), providerPanel.createObject()] : []),

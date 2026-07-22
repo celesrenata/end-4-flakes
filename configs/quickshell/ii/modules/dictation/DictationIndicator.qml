@@ -24,7 +24,7 @@ Scope {
     PanelWindow {
         id: indicatorWindow
         visible: (root.isActive || root.hasResponseText || root.isAwaitingApproval) && !GlobalStates.screenLocked
-        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
+        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null
 
         WlrLayershell.namespace: "quickshell:dictationIndicator"
         WlrLayershell.layer: WlrLayer.Overlay
@@ -33,14 +33,20 @@ Scope {
         anchors {
             top: true
             right: true
+            bottom: true
         }
 
         mask: Region {
-            item: root.isAwaitingApproval && !root.isActive
-                ? approvalContent
-                : root.hasResponseText && !root.isActive
-                    ? responseContent
-                    : indicatorContent
+            item: indicatorMaskItem
+        }
+
+        // Unified mask item that encompasses whichever content is active
+        Item {
+            id: indicatorMaskItem
+            x: root.isAwaitingApproval && !root.isActive ? approvalContent.x : root.hasResponseText && !root.isActive ? responseContent.x : indicatorContent.x
+            y: root.isAwaitingApproval && !root.isActive ? approvalContent.y : root.hasResponseText && !root.isActive ? responseContent.y : indicatorContent.y
+            width: root.isAwaitingApproval && !root.isActive ? approvalContent.width : root.hasResponseText && !root.isActive ? responseContent.width : indicatorContent.width
+            height: root.isAwaitingApproval && !root.isActive ? approvalContent.height : root.hasResponseText && !root.isActive ? responseContent.height : indicatorContent.height
         }
 
         color: "transparent"
@@ -49,11 +55,6 @@ Scope {
             : root.hasResponseText && !root.isActive
                 ? responseContent.implicitWidth + Appearance.sizes.elevationMargin * 2
                 : indicatorContent.implicitWidth + Appearance.sizes.elevationMargin * 2
-        implicitHeight: root.isAwaitingApproval && !root.isActive
-            ? approvalContent.implicitHeight + Appearance.sizes.elevationMargin * 2
-            : root.hasResponseText && !root.isActive
-                ? responseContent.implicitHeight + Appearance.sizes.elevationMargin * 2
-                : indicatorContent.implicitHeight + Appearance.sizes.elevationMargin * 2
 
         // Measure partial text width for dynamic sizing
         TextMetrics {
@@ -65,8 +66,9 @@ Scope {
         // === Voice Response Indicator ===
         // Displays AI response text with max 500px width, word wrap.
         // Visible when responseText is non-empty and dictation state is Idle.
-        // Auto-dismiss (4s) is handled by DictationService.responseDismissTimer.
+        // Auto-dismiss (10s+ scaled) is handled by DictationService.responseDismissTimer.
         // While TtsService.playing, the dismiss timer is paused — indicator stays visible.
+        // User can pin to prevent auto-dismiss, or click to copy and dismiss.
         Rectangle {
             id: responseContent
             visible: root.hasResponseText && !root.isActive && !root.isAwaitingApproval
@@ -80,22 +82,11 @@ Scope {
             implicitHeight: responseLayout.implicitHeight + 16
             radius: Appearance.rounding.normal
             color: Appearance.colors.colLayer1
+            border.width: 2
+            border.color: Appearance.m3colors.m3primary
 
             Behavior on implicitWidth {
                 animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-            }
-
-            // Click-to-copy: copies responseText to clipboard and dismisses indicator
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    var text = DictationService.responseText
-                    if (text !== "") {
-                        Quickshell.execDetached(["wl-copy", text])
-                    }
-                    DictationService.dismissResponse()
-                }
             }
 
             ColumnLayout {
@@ -103,6 +94,91 @@ Scope {
                 anchors.fill: parent
                 anchors.margins: 8
                 spacing: 4
+
+                // Header row with TTS, pin, copy, and close buttons
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    Item { Layout.fillWidth: true }
+
+                    // TTS toggle button
+                    MouseArea {
+                        implicitWidth: 20
+                        implicitHeight: 20
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            Config.options.dictation.talkback = !Config.options.dictation.talkback
+                            // If just enabled and there's text showing, speak it now
+                            if (Config.options.dictation.talkback && DictationService.responseText !== "") {
+                                TtsService.speak(DictationService.responseText)
+                            } else if (!Config.options.dictation.talkback) {
+                                TtsService.stop()
+                            }
+                        }
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: Config.options.dictation.talkback ? "volume_up" : "volume_off"
+                            iconSize: Appearance.font.pixelSize.small
+                            color: Config.options.dictation.talkback
+                                ? Appearance.m3colors.m3primary
+                                : Appearance.colors.colSubtext
+                        }
+                    }
+
+                    // Pin button
+                    MouseArea {
+                        implicitWidth: 20
+                        implicitHeight: 20
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: DictationService.toggleResponsePin()
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: DictationService.responsePinned ? "push_pin" : "keep"
+                            iconSize: Appearance.font.pixelSize.small
+                            color: DictationService.responsePinned
+                                ? Appearance.m3colors.m3primary
+                                : Appearance.colors.colSubtext
+                        }
+                    }
+
+                    // Copy button
+                    MouseArea {
+                        implicitWidth: 20
+                        implicitHeight: 20
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            var text = DictationService.responseText
+                            if (text !== "") {
+                                Quickshell.execDetached(["wl-copy", text])
+                            }
+                        }
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "content_copy"
+                            iconSize: Appearance.font.pixelSize.small
+                            color: Appearance.colors.colSubtext
+                        }
+                    }
+
+                    // Close button
+                    MouseArea {
+                        implicitWidth: 20
+                        implicitHeight: 20
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: DictationService.dismissResponse()
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "close"
+                            iconSize: Appearance.font.pixelSize.small
+                            color: Appearance.colors.colSubtext
+                        }
+                    }
+                }
 
                 RowLayout {
                     spacing: 8
@@ -112,6 +188,7 @@ Scope {
                         text: DictationService.responseText
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
+                        textFormat: Text.MarkdownText
                         color: Appearance.colors.colOnLayer1
                         font.pixelSize: Appearance.font.pixelSize.small
                     }

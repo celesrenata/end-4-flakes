@@ -12,9 +12,21 @@ ApiStrategy {
         var convertedMessages = [];
         for (var i = 0; i < messages.length; i++) {
             var msg = messages[i];
+            var contentBlocks = [{ text: msg.rawContent }];
+            // Add image blocks if present
+            if (msg.images && msg.images.length > 0) {
+                for (var j = 0; j < msg.images.length; j++) {
+                    contentBlocks.push({
+                        image: {
+                            format: "png",
+                            source: { bytes: msg.images[j] }
+                        }
+                    });
+                }
+            }
             convertedMessages.push({
                 role: msg.role,
-                content: [{ text: msg.rawContent }]
+                content: contentBlocks
             });
         }
         var system = [];
