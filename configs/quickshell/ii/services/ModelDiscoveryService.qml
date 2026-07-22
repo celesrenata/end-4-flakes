@@ -109,6 +109,33 @@ Singleton {
     // Custom providers from user config
     property var customProviders: Config.options.ai.customProviders || []
 
+    // Discovery queue — processes providers one at a time since discoveryProcess is shared
+    property var _discoveryQueue: []
+
+    Timer {
+        id: discoveryQueueTimer
+        interval: 200
+        repeat: false
+        onTriggered: {
+            if (root._discoveryQueue.length > 0) {
+                var nextPid = root._discoveryQueue.shift()
+                root._discoveryQueue = root._discoveryQueue // trigger change
+                root.discoverModels(nextPid)
+            }
+        }
+    }
+
+    function _queueDiscovery(providerId) {
+        var q = root._discoveryQueue
+        q.push(providerId)
+        root._discoveryQueue = q
+        // If nothing currently running, start immediately
+        if (!discoveryProcess.running && !bedrockDiscoveryProcess.running) {
+            discoveryQueueTimer.interval = 50
+            discoveryQueueTimer.restart()
+        }
+    }
+
     // Auto-discover models for all providers that have stored API keys on startup
     Connections {
         target: KeyringStorage
@@ -117,19 +144,47 @@ Singleton {
             console.log("[ModelDiscovery] KeyringStorage loaded, auto-discovering providers...")
             var keys = KeyringStorage.keyringData?.apiKeys || {}
             var providers = Object.keys(root.providerConfigs)
+
+            // Determine priority provider: config default or inferred from persisted model
+            var priorityProvider = Config.options.ai.defaultProvider || ""
+            var persistedModel = (Persistent.states && Persistent.states.ai) ? (Persistent.states.ai.model || "") : ""
+            if (!priorityProvider && persistedModel) {
+                // Infer from model name
+                if (persistedModel.indexOf("gpt") !== -1 || persistedModel.indexOf("o1") !== -1 || persistedModel.indexOf("o3") !== -1 || persistedModel.indexOf("chatgpt") !== -1) {
+                    priorityProvider = "openai"
+                } else if (persistedModel.indexOf("claude") !== -1) {
+                    priorityProvider = "anthropic"
+                } else if (persistedModel.indexOf("gemini") !== -1) {
+                    priorityProvider = "gemini"
+                } else if (persistedModel.indexOf("mistral") !== -1) {
+                    priorityProvider = "mistral"
+                }
+            }
+
+            // Queue priority provider first
+            if (priorityProvider && keys[priorityProvider]) {
+                console.log("[ModelDiscovery] Priority: discovering " + priorityProvider + " first (persisted model: " + persistedModel + ")")
+                root._queueDiscovery(priorityProvider)
+            }
+
             for (var i = 0; i < providers.length; i++) {
                 var pid = providers[i]
+                if (pid === priorityProvider) continue  // Already queued
                 var config = root.providerConfigs[pid]
                 if (config.requires_key && keys[config.key_id]) {
-                    root.discoverModels(pid)
-                } else if (!config.requires_key && pid !== "bedrock") {
-                    root.discoverModels(pid)
+                    root._queueDiscovery(pid)
+                } else if (!config.requires_key && pid !== "bedrock" && pid !== "ollama") {
+                    root._queueDiscovery(pid)
                 }
+            }
+            // Queue ollama last (often not running, would timeout and block others)
+            if (root.providerConfigs["ollama"] && !root.providerConfigs["ollama"].requires_key) {
+                root._queueDiscovery("ollama")
             }
             // Also discover custom providers
             var customs = root.customProviders || []
             for (var j = 0; j < customs.length; j++) {
-                root.discoverModels(customs[j].id)
+                root._queueDiscovery(customs[j].id)
             }
         }
     }
@@ -538,6 +593,11 @@ Singleton {
                     var newDiscovered2 = Object.assign({}, root.discoveredModels);
                     newDiscovered2[discoveryProcess.targetProviderId] = [];
                     root.discoveredModels = newDiscovered2;
+                }
+                // Advance discovery queue
+                if (root._discoveryQueue.length > 0) {
+                    discoveryQueueTimer.interval = 200
+                    discoveryQueueTimer.restart()
                 }
             }
         }

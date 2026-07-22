@@ -759,39 +759,28 @@ Singleton {
         }
     }
 
-    // Called when dictation trigger fires (F20 from keyd double-tap, or hyprctl dispatch)
+    // Called when dictation trigger fires (keyd dispatch via hyprctl global)
     function onKeyTap() {
-        console.log("[DictationService] onKeyTap: state=" + root.state + " _debounceActive=" + root._debounceActive)
+        console.log("[DictationService] onKeyTap: state=" + root.state + " _waitingForSecondTap=" + root._waitingForSecondTap)
 
-        // ─── Voice Agent routing ─────────────────────────────────────
-        // When a streaming voice backend is configured, route activation
-        // key through VoiceAgentService instead of the batch pipeline.
-        // Toggle behavior: first tap activates, second tap deactivates.
-        // Exception: tap during Speaking → bargeIn (interrupt, don't exit).
-        // Requirement: 7.1, 7.2, 7.3, 7.4, 7.5, 2.3, 2.4
+        // ─── Voice Agent active session handling ─────────────────────
+        // If voice agent is already in an active state, handle taps as
+        // toggle/barge-in controls regardless of double-tap state.
         if (VoiceAgentService.voiceBackend && VoiceAgentService.voiceBackend !== "none") {
             var vasState = VoiceAgentService.voiceAgentState
 
-            if (vasState === VoiceAgentService.State.Idle) {
-                // First tap: activate voice agent session
-                console.log("[DictationService] Routing to VoiceAgentService.activate()")
-                VoiceAgentService.activate()
-                return
-            } else if (vasState === VoiceAgentService.State.Speaking) {
-                // Tap during playback: barge-in (interrupt audio, resume listening)
-                // Requirement: 7.5
+            if (vasState === VoiceAgentService.State.Speaking) {
+                // Tap during playback: barge-in (Requirement 7.5)
                 console.log("[DictationService] Routing to VoiceAgentService.bargeIn()")
                 VoiceAgentService.bargeIn()
                 return
             } else if (vasState === VoiceAgentService.State.Listening) {
-                // Tap during listening: send end-of-turn signal then deactivate
-                // Sends explicit commit to backend so any buffered audio is processed
-                // Requirement: 7.4, 2.4
+                // Tap during listening: commit and deactivate (Requirement 7.4, 2.4)
                 console.log("[DictationService] Routing to VoiceAgentService.deactivate() from Listening")
                 VoiceAgentService.sendEndTurn()
                 VoiceAgentService.deactivate()
                 return
-            } else {
+            } else if (vasState !== VoiceAgentService.State.Idle) {
                 // Tap during Connecting, Thinking, ToolExecuting, Error: deactivate
                 console.log("[DictationService] Routing to VoiceAgentService.deactivate()")
                 VoiceAgentService.deactivate()
@@ -799,31 +788,62 @@ Singleton {
             }
         }
 
-        // ─── Batch pipeline (existing behavior) ──────────────────────
-        // Debounce guard: suppress rapid re-activation within the debounce window.
-        // Only gates activation from Idle — stop-recording taps pass through after window expires.
-        if (root._debounceActive) {
-            console.log("[DictationService] GATE_REJECT | reason=debounce")
-            return
-        }
+        // ─── Idle state: double-tap detection ────────────────────────
+        // Single tap → voice agent (immediate, no latency)
+        // Double tap (second tap within doubleTapMs) → batch dictation
+        // This gives the voice agent the fast path since it's the primary mode.
 
+        // If batch pipeline is already active, tap stops recording
         if (root.state === DictationService.State.Listening || root.state === DictationService.State.StreamingActive) {
-            // Already recording — tap stops recording (not gated by debounce)
             console.log("[DictationService] Already recording, stopping")
             stopRecording()
             return
         }
 
-        // keyd handles double-tap detection at kernel level, so F20 only fires
-        // on confirmed double-tap. Activate directly.
-        console.log("[DictationService] Activating directly (keyd double-tap confirmed)")
+        // Double-tap detection
+        if (root._waitingForSecondTap) {
+            // ─── Second tap: cancel voice agent, activate batch ───────
+            root._waitingForSecondTap = false
+            doubleTapTimer.stop()
+            console.log("[DictationService] Double-tap detected → batch dictation")
 
-        // Start debounce window if configured (Requirement 4.1, 5.3)
+            // Kill the voice agent session we just started on the first tap
+            if (VoiceAgentService.voiceAgentState !== VoiceAgentService.State.Idle) {
+                VoiceAgentService.deactivate()
+            }
+
+            // Debounce for batch
+            if (root.debounceMs > 0) {
+                root._debounceActive = true
+                debounceTimer.restart()
+            }
+
+            activate()
+            return
+        }
+
+        // ─── First tap ───────────────────────────────────────────────
+        // If voice backend is configured → activate voice agent immediately
+        // Start timer to detect possible double-tap for batch fallback
+        if (VoiceAgentService.voiceBackend && VoiceAgentService.voiceBackend !== "none") {
+            console.log("[DictationService] Single tap → voice agent (waiting " + root.doubleTapMs + "ms for possible double-tap)")
+            root._waitingForSecondTap = true
+            doubleTapTimer.restart()
+            VoiceAgentService.activate()
+            return
+        }
+
+        // ─── No voice backend: batch pipeline directly ───────────────
+        if (root._debounceActive) {
+            console.log("[DictationService] GATE_REJECT | reason=debounce")
+            return
+        }
+
+        console.log("[DictationService] Activating batch dictation directly (no voice backend)")
         if (root.debounceMs > 0) {
             root._debounceActive = true
             debounceTimer.restart()
         }
-
         activate()
     }
 
