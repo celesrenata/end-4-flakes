@@ -259,17 +259,15 @@ in
       };
     };
 
-    # Always sync quickshell config from staging on rebuild
-    # This ensures nixos-rebuild/home-manager switch deploys the latest configs
-    # without requiring manual rsync or re-running the initial setup script.
-    home.activation.syncQuickshellConfig = lib.hm.dag.entryAfter ["writeBoundary"] ''
-      STAGING="$HOME/${mainCfg.writable-mode.stagingDir}/quickshell"
-      TARGET="$HOME/.config/quickshell"
-
-      if [[ -d "$STAGING" ]]; then
-        $DRY_RUN_CMD mkdir -p "$TARGET"
-        $DRY_RUN_CMD ${pkgs.rsync}/bin/rsync -a --delete "$STAGING/" "$TARGET/"
-      fi
-    '';
+    # Quickshell QML source — declarative, read-only symlink to nix store.
+    # The QML code never writes to this directory at runtime (user config
+    # lives at ~/.config/illogical-impulse/, state at ~/.local/state/).
+    # On every rebuild, home-manager atomically updates the symlink.
+    # NOTE: For writable mode, this provides the initial config. The xdg.configFile
+    # in home-manager.nix handles hybrid/declarative modes.
+    home.file.".config/quickshell" = mkIf (mainCfg.mode == "writable") {
+      source = "${mainCfg.source}/.config/quickshell";
+      recursive = true;
+    };
   };
 }

@@ -245,7 +245,7 @@ in
       let
         # Get all config directories from source
         configDirs = [
-          "quickshell" "hypr" "fish" "foot" "kitty" "fuzzel" "wlogout" "matugen"
+          "hypr" "fish" "foot" "kitty" "fuzzel" "wlogout" "matugen"
         ];
         
         # Create staging entries for each config directory

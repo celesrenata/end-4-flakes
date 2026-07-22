@@ -117,6 +117,13 @@ in
       copyFishConfig = mkDefault true;
       copyHyprlandConfig = mkDefault (cfg.mode == "declarative");  # Only copy in pure declarative mode
     };
+
+    # Quickshell QML source — nix-managed symlink, atomic updates on rebuild.
+    # QML code is read-only; runtime config writes to ~/.config/illogical-impulse/.
+    xdg.configFile."quickshell" = mkIf (cfg.mode == "hybrid" || cfg.mode == "declarative") {
+      source = "${cfg.source}/.config/quickshell";
+      recursive = true;
+    };
     
     # Enable writable mode
     programs.dots-hyprland.writable-mode = mkIf (cfg.mode == "writable") {
@@ -220,16 +227,6 @@ in
     # Copy quickshell config after link generation
     home.activation.setupQuickshellConfig = lib.hm.dag.entryAfter ["linkGeneration"] ''
       ${optionalString (cfg.mode == "hybrid") ''
-        # Copy quickshell config to enable relative imports
-        # Always sync to pick up new/changed files from the flake
-        if [[ -L "$HOME/.config/quickshell" ]]; then
-          $DRY_RUN_CMD rm "$HOME/.config/quickshell"
-        fi
-        $DRY_RUN_CMD mkdir -p "$HOME/.config/quickshell"
-        $DRY_RUN_CMD cp -r "${cfg.source}/.config/quickshell/." "$HOME/.config/quickshell/"
-        $DRY_RUN_CMD chmod -R u+w "$HOME/.config/quickshell"
-        $DRY_RUN_CMD echo "✅ Quickshell configuration synced"
-        
         # Ensure quickshell uses the proper environment variables
         $DRY_RUN_CMD mkdir -p "$HOME/.local/bin"
         $DRY_RUN_CMD echo "  → Ensuring ~/.local/bin is in PATH for hybrid mode"
