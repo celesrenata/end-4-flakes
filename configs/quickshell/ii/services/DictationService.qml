@@ -88,6 +88,20 @@ Singleton {
         "explicitly asked. Use contractions and informal units. No markdown, no tables, no " +
         "bullet points — plain spoken text."
 
+    // Structured state transition logging helper
+    function _logTransition(from, to, context) {
+        var stateNames = ["Idle", "Listening", "StreamingActive", "Processing", "Error"]
+        var fromName = stateNames[from] || String(from)
+        var toName = stateNames[to] || String(to)
+        console.log("[DictationService] STATE: " + fromName + " → " + toName + " | " + (context || ""))
+    }
+
+    function _setState(newState, context) {
+        var oldState = root.state
+        root.state = newState
+        _logTransition(oldState, newState, context)
+    }
+
     // Intent classification: returns "command" or "dictation"
     // When intentMode is "ai" and the text is ambiguous, this returns "ambiguous"
     // to signal that _classifyIntentAi should be called for async LLM classification.
@@ -278,7 +292,7 @@ Singleton {
             root.responseText = ""
             // Always reset to Idle so the service can be activated again
             if (root.state === DictationService.State.Error) {
-                root.state = DictationService.State.Idle
+                root._setState(DictationService.State.Idle, "error dismiss timer")
             }
         }
     }
@@ -466,7 +480,7 @@ Singleton {
         description: "Dictation double-tap detection (Control_R release)"
 
         onPressed: {
-            console.log("[DictationService] GlobalShortcut dictationTap pressed!")
+            console.log("[DictationService] GlobalShortcut dictationTap RECEIVED | state=" + root.state + " enabled=" + root.enabled + " provider=" + root.provider)
             root.onKeyTap()
         }
     }
@@ -479,7 +493,7 @@ Singleton {
             // Recording stopped (either by us or by error)
             if (root.state === DictationService.State.Listening) {
                 // Unexpected stop — transition to processing anyway
-                root.state = DictationService.State.Processing
+                root._setState(DictationService.State.Processing, "recordProcess unexpected exit")
                 root.startTranscription()
             }
         }
@@ -491,13 +505,17 @@ Singleton {
         // Command is set dynamically in startTranscription()
         onExited: (exitCode, exitStatus) => {
             if (exitCode !== 0) {
+                // Extract endpoint from command array for diagnostics
+                var endpoint = transcribeProcess.command.length > 0 ? transcribeProcess.command[transcribeProcess.command.length - 1] : "unknown"
+                console.warn("[DictationService] TRANSCRIPTION_FAIL | endpoint=" + endpoint + " exit=" + exitCode + " fallbackIndex=" + root._fallbackIndex)
+
                 // Transcription failed — attempt fallback to next endpoint
                 if (root._attemptFallbackTranscription(root._recordingPath, root._fallbackIndex + 1)) {
                     return // Fallback in progress
                 }
                 // All fallbacks exhausted
                 root.errorMessage = "Transcription failed: all endpoints unreachable"
-                root.state = DictationService.State.Error
+                root._setState(DictationService.State.Error, "all transcription endpoints failed")
                 root.error(root.errorMessage)
                 return
             }
@@ -509,6 +527,13 @@ Singleton {
                 root._handleTranscriptionResult(data)
             }
         }
+
+        stderr: SplitParser {
+            splitMarker: ""
+            onRead: data => {
+                console.warn("[DictationService] TRANSCRIPTION_STDERR | " + data.trim())
+            }
+        }
     }
 
     // Streaming/chunked pipeline process (pw-cat piped to dictation-stream.py)
@@ -518,7 +543,7 @@ Singleton {
         onExited: (exitCode, exitStatus) => {
             if (root.state === DictationService.State.StreamingActive) {
                 // Unexpected exit while streaming — transition to processing
-                root.state = DictationService.State.Processing
+                root._setState(DictationService.State.Processing, "streamProcess unexpected exit")
             }
         }
 
@@ -667,29 +692,34 @@ Singleton {
         // Force reset from any stuck state (Error, Processing) so activation always works
         if (root.state === DictationService.State.Error || root.state === DictationService.State.Processing) {
             console.log("[DictationService] Resetting from stuck state: " + root.state)
-            root.state = DictationService.State.Idle
+            root._setState(DictationService.State.Idle, "reset stuck state")
         }
 
         // Stop any in-progress TTS playback before starting a new dictation session
         TtsService.stop()
 
+        console.log("[DictationService] activate() called | state=" + root.state + " enabled=" + root.enabled + " provider=" + root.provider + " policy=" + Config.options.policies.ai)
+
         // Policy gate: AI completely disabled
         if (Config.options.policies.ai === 0) {
+            console.warn("[DictationService] GATE_REJECT | reason=ai_disabled")
             root.errorMessage = "Dictation disabled: AI is turned off in policies"
-            root.state = DictationService.State.Error
+            root._setState(DictationService.State.Error, "ai disabled by policy")
             root.error(root.errorMessage)
             return
         }
 
         // Config gate: dictation disabled
         if (!root.enabled) {
+            console.warn("[DictationService] GATE_REJECT | reason=not_enabled")
             return  // Silently ignore — feature is simply off
         }
 
         // Provider gate: no transcription provider configured
         if (!root.provider) {
+            console.warn("[DictationService] GATE_REJECT | reason=no_provider")
             root.errorMessage = "No transcription provider configured. Set dictation.provider in config."
-            root.state = DictationService.State.Error
+            root._setState(DictationService.State.Error, "no provider configured")
             root.error(root.errorMessage)
             return
         }
@@ -698,8 +728,9 @@ Singleton {
         if (Config.options.policies.ai === 2) {
             var knownLocalProviders = ["whisper-cpp", "faster-whisper", "local-whisper"]
             if (knownLocalProviders.indexOf(root.provider) === -1) {
+                console.warn("[DictationService] GATE_REJECT | reason=local_only_policy_rejects_remote")
                 root.errorMessage = "Online transcription disallowed by policy. Configure a local provider."
-                root.state = DictationService.State.Error
+                root._setState(DictationService.State.Error, "local-only policy rejects remote provider")
                 root.error(root.errorMessage)
                 return
             }
@@ -719,12 +750,12 @@ Singleton {
             Quickshell.execDetached(["mkdir", "-p", "/tmp/quickshell-dictation"])
             root._recordingPath = "/tmp/quickshell-dictation/" + Date.now() + ".wav"
             recordProcess.running = true
-            root.state = DictationService.State.Listening
+            root._setState(DictationService.State.Listening, "activate() batch mode")
             root.activated()
         } else {
             // Streaming or chunked mode — launch piped process
             root.partialText = ""
-            root.state = DictationService.State.StreamingActive
+            root._setState(DictationService.State.StreamingActive, "activate() streaming mode")
             root.activated()
             _startStreamingProcess(mode)
         }
@@ -736,7 +767,7 @@ Singleton {
             // This sends SIGTERM to the shell, which closes pw-cat's output,
             // sending EOF to the helper's stdin, triggering finalization
             streamProcess.running = false
-            root.state = DictationService.State.Processing
+            root._setState(DictationService.State.Processing, "stopRecording() streaming finalize")
             // The FINAL message handler will complete the flow
             return
         }
@@ -747,7 +778,7 @@ Singleton {
         recordProcess.running = false
 
         // Transition to processing — timers auto-stop via their running bindings
-        root.state = DictationService.State.Processing
+        root._setState(DictationService.State.Processing, "stopRecording() batch")
 
         // Begin transcription
         startTranscription()
@@ -772,7 +803,7 @@ Singleton {
             // For known local providers with an endpoint, key is optional
             if (!apiKey && knownLocalProviders.indexOf(root.provider) === -1) {
                 root.errorMessage = "No API key found for provider '" + root.provider + "'. Add it in the Providers panel."
-                root.state = DictationService.State.Error
+                root._setState(DictationService.State.Error, "no API key for provider")
                 root.error(root.errorMessage)
                 return
             }
@@ -896,7 +927,7 @@ Singleton {
                 text = response.text || ""
             } catch (e) {
                 root.errorMessage = "Failed to parse transcription response"
-                root.state = DictationService.State.Error
+                root._setState(DictationService.State.Error, "failed to parse transcription response")
                 root.error(root.errorMessage)
                 return
             }
@@ -904,7 +935,7 @@ Singleton {
 
         if (!text) {
             root.errorMessage = "Transcription returned empty text"
-            root.state = DictationService.State.Error
+            root._setState(DictationService.State.Error, "transcription returned empty text")
             root.error(root.errorMessage)
             return
         }
@@ -923,7 +954,7 @@ Singleton {
         Quickshell.execDetached(["rm", "-f", root._recordingPath])
 
         // Return to idle
-        root.state = DictationService.State.Idle
+        root._setState(DictationService.State.Idle, "transcription complete")
     }
 
     function _handleStreamMessage(line) {
@@ -955,7 +986,7 @@ Singleton {
 
             case "ERROR":
                 root.errorMessage = payload
-                root.state = DictationService.State.Error
+                root._setState(DictationService.State.Error, "stream error: " + payload)
                 root.error(payload)
                 streamProcess.running = false
                 break
@@ -971,7 +1002,7 @@ Singleton {
     function _handleFinalStreamResult(text) {
         if (!text) {
             root.errorMessage = "Streaming transcription returned empty text"
-            root.state = DictationService.State.Error
+            root._setState(DictationService.State.Error, "streaming transcription empty")
             root.error(root.errorMessage)
             return
         }
@@ -988,7 +1019,7 @@ Singleton {
 
         // Clean up — no temp files in streaming mode
         root.partialText = ""
-        root.state = DictationService.State.Idle
+        root._setState(DictationService.State.Idle, "streaming transcription complete")
     }
 
     function _fallbackToBatch() {
@@ -1001,6 +1032,6 @@ Singleton {
         Quickshell.execDetached(["mkdir", "-p", "/tmp/quickshell-dictation"])
         root._recordingPath = "/tmp/quickshell-dictation/" + Date.now() + ".wav"
         recordProcess.running = true
-        root.state = DictationService.State.Listening
+        root._setState(DictationService.State.Listening, "fallback to batch mode")
     }
 }

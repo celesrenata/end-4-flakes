@@ -290,6 +290,63 @@ Singleton {
                 property bool talkback: false // Enable TTS playback
                 property string intentMode: "heuristic" // heuristic, ai
                 property string httpEndpoint: "" // HTTP batch endpoint for STT
+
+                // Local STT provider configurations
+                property JsonObject sttProviders: JsonObject {
+                    property JsonObject whisperCpp: JsonObject {
+                        property string endpoint: "http://localhost:8080"
+                        property string protocol: "rest"
+                        property string model: "base.en"
+                        property string language: "en"
+                        property real temperature: 0.0
+                    }
+                    property JsonObject fasterWhisper: JsonObject {
+                        property string endpoint: "http://localhost:8000"
+                        property string protocol: "rest"
+                        property string model: "base"
+                        property string language: "en"
+                        property real temperature: 0.0
+                    }
+                    property JsonObject vosk: JsonObject {
+                        property string endpoint: "ws://localhost:2700"
+                        property string protocol: "websocket"
+                        property string model: "vosk-model-en-us-0.22"
+                        property string language: "en"
+                    }
+                    property JsonObject whisperLive: JsonObject {
+                        property string endpoint: "ws://localhost:9090"
+                        property string protocol: "websocket"
+                        property string model: "base.en"
+                        property string language: "en"
+                    }
+                }
+
+                // Local TTS provider configurations
+                property JsonObject ttsProviders: JsonObject {
+                    property JsonObject piper: JsonObject {
+                        property string endpoint: "tcp://localhost:10200"
+                        property string protocol: "wyoming"
+                        property string voice: "en_US-lessac-medium"
+                        property string model: ""
+                    }
+                    property JsonObject coqui: JsonObject {
+                        property string endpoint: "http://localhost:5002"
+                        property string protocol: "rest"
+                        property string voice: "tts_models/en/ljspeech/tacotron2-DDC"
+                        property string language: "en"
+                    }
+                    property JsonObject mimic3: JsonObject {
+                        property string endpoint: "http://localhost:59125"
+                        property string protocol: "rest"
+                        property string voice: "en_US/ljspeech_low"
+                        property string language: "en"
+                    }
+                    property JsonObject espeakNg: JsonObject {
+                        property string voice: "en"
+                        property int speed: 175
+                        property int pitch: 50
+                    }
+                }
             }
 
             property JsonObject blur: JsonObject {
