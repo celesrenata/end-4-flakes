@@ -196,9 +196,10 @@ Singleton {
         ]
         captureProcess.running = true
 
-        // Build helper command
+        // Build helper command — voice-agent-stream wrapper (nix-built, has websockets+boto3)
         var helperPath = Quickshell.shellPath("scripts/voice-agent-stream.py")
-        var cmd = ["python3", helperPath,
+        var cmdParts = [
+            helperPath,
             "--backend=" + root.voiceBackend,
             "--audio-fifo=" + root._fifoPath,
             "--sample-rate=" + rate
@@ -206,15 +207,15 @@ Singleton {
 
         // Add backend-specific credentials/config
         if (root.voiceBackend === "nova-sonic") {
-            cmd.push("--region=" + (Config.options.dictation.awsRegion || "us-west-2"))
-            cmd.push("--profile=bedrock")
+            cmdParts.push("--region=" + (Config.options.dictation.awsRegion || "us-west-2"))
+            cmdParts.push("--profile=bedrock")
         } else if (root.voiceBackend === "openai-realtime") {
             var apiKey = ""
             if (KeyringStorage.keyringData && KeyringStorage.keyringData.apiKeys) {
                 apiKey = KeyringStorage.keyringData.apiKeys["openai"] || ""
             }
             if (apiKey) {
-                cmd.push("--api-key=" + apiKey)
+                cmdParts.push("--api-key=" + apiKey)
             }
         }
 
@@ -225,20 +226,22 @@ Singleton {
             var now = new Date()
             var dateTimeStr = now.toLocaleString(Qt.locale(), "ddd, yyyy-MM-dd hh:mm:ss")
             systemPrompt = systemPrompt.replace("{DATETIME}", dateTimeStr)
-            cmd.push("--system-prompt=" + systemPrompt)
+            cmdParts.push("--system-prompt=" + systemPrompt)
         }
 
         // Write tools definition and pass to helper
         var toolsPath = _writeToolsDefinition()
         if (toolsPath) {
-            cmd.push("--tools=" + toolsPath)
+            cmdParts.push("--tools=" + toolsPath)
         }
 
         // Optional context from active chat session
         var contextPath = _writeSessionContext()
         if (contextPath) {
-            cmd.push("--context=" + contextPath)
+            cmdParts.push("--context=" + contextPath)
         }
+
+        var cmd = ["voice-agent-stream"].concat(cmdParts)
 
         helperProcess.stdinEnabled = true
         helperProcess.command = cmd

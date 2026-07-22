@@ -153,6 +153,16 @@ in
   config = mkIf cfg.enable {
     # Install service management scripts (quickshell itself must be in home.packages)
     home.packages = (with pkgs; [
+      # Voice agent helper with all Python deps baked in via nix
+      (let
+        voiceAgentPython = python312.withPackages (ps: with ps; [
+          websockets
+          boto3
+        ]);
+      in writeShellScriptBin "voice-agent-stream" ''
+        exec ${voiceAgentPython}/bin/python3 "$@"
+      '')
+
       (writeShellScriptBin "quickshell-restart" ''
         systemctl --user restart quickshell.service
         echo "✅ Quickshell service restarted"
