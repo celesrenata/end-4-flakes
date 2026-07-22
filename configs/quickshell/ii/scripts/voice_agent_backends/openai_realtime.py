@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 # Constants
 # ---------------------------------------------------------------------------
 
-_OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview"
+_OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03"
 _OPENAI_BETA_HEADER = "realtime=v1"
 
 
@@ -176,7 +176,6 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
 
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "OpenAI-Beta": _OPENAI_BETA_HEADER,
         }
 
         self._ws = await websockets.connect(

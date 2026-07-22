@@ -280,15 +280,17 @@ Singleton {
 
         if (contextMessages.length === 0) return ""
 
-        // Generate unique temp file path
-        var timestamp = Date.now()
-        var contextPath = "/tmp/voice-agent-context-" + timestamp + ".json"
+        // Use a stable path (avoids stale FileView references on re-activation)
+        var contextPath = "/tmp/voice-agent-context.json"
         root._contextFilePath = contextPath
 
-        // Write context JSON to temp file using FileView
+        // Write via Process to guarantee file creation
         var jsonContent = JSON.stringify(contextMessages)
-        contextFileView.path = contextPath
-        contextFileView.setText(jsonContent)
+        contextWriteProcess.command = ["bash", "-c", "cat > " + contextPath]
+        contextWriteProcess.running = true
+        contextWriteProcess.write(jsonContent)
+        contextWriteProcess.write("\n")
+        contextWriteProcess.running = false
 
         return contextPath
     }
@@ -395,12 +397,14 @@ Singleton {
             }
         ]
 
-        var timestamp = Date.now()
-        var toolsPath = "/tmp/voice-agent-tools-" + timestamp + ".json"
+        var toolsPath = "/tmp/voice-agent-tools.json"
 
         var jsonContent = JSON.stringify(tools)
-        toolsFileView.path = toolsPath
-        toolsFileView.setText(jsonContent)
+        toolsWriteProcess.command = ["bash", "-c", "cat > " + toolsPath]
+        toolsWriteProcess.running = true
+        toolsWriteProcess.write(jsonContent)
+        toolsWriteProcess.write("\n")
+        toolsWriteProcess.running = false
 
         return toolsPath
     }
@@ -834,6 +838,16 @@ Singleton {
     FileView {
         id: toolsFileView
         blockLoading: true
+    }
+
+    Process {
+        id: contextWriteProcess
+        stdinEnabled: true
+    }
+
+    Process {
+        id: toolsWriteProcess
+        stdinEnabled: true
     }
 
     // ─── Audio Capture Process (pw-cat → FIFO) ──────────────────────────
