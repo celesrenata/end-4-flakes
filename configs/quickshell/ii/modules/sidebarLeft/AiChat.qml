@@ -759,6 +759,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 anchors.fill: parent
                 spacing: 10
                 popin: false
+                verticalLayoutDirection: ListView.BottomToTop
 
                 property int lastResponseLength: 0
 
