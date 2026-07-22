@@ -4,6 +4,7 @@ singleton ActionPalette 1.0 ActionPalette.qml
 singleton Ai 1.0 Ai.qml
 singleton AppSearch 1.0 AppSearch.qml
 singleton Audio 1.0 Audio.qml
+singleton AwsCredentialReader 1.0 AwsCredentialReader.qml
 singleton Battery 1.0 Battery.qml
 singleton Bluetooth 1.0 Bluetooth.qml
 singleton Booru 1.0 Booru.qml

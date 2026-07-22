@@ -468,6 +468,7 @@ Singleton {
     }
     property var modelList: Object.keys(root.models)
     property var currentModelId: Persistent.states?.ai?.model || modelList[0]
+    readonly property string currentModelName: root.models[root.currentModelId]?.name ?? "No model"
 
     property var apiStrategies: {
         "openai": openaiApiStrategy.createObject(this),
@@ -734,6 +735,7 @@ Singleton {
                 );
                 return;
             }
+            root.currentModelId = modelId;
             if (setPersistentState) Persistent.states.ai.model = modelId;
             if (feedback) root.addMessage(Translation.tr("Model set to %1").arg(model.name), root.interfaceRole);
             if (model.requires_key) {
