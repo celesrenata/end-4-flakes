@@ -50,9 +50,9 @@ apply_term() {
     echo "Template file not found for Terminal. Skipping that."
     return
   fi
-  # Copy template
+  # Copy template (install -m ensures writable even if source is from nix store)
   mkdir -p "$STATE_DIR"/user/generated/terminal
-  cp "$SCRIPT_DIR/terminal/sequences.txt" "$STATE_DIR"/user/generated/terminal/sequences.txt
+  install -m 644 "$SCRIPT_DIR/terminal/sequences.txt" "$STATE_DIR"/user/generated/terminal/sequences.txt
   # Apply colors
   for i in "${!colorlist[@]}"; do
     sed -i "s/${colorlist[$i]} #/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/terminal/sequences.txt
@@ -75,7 +75,7 @@ apply_foot() {
     return
   fi
   mkdir -p "$STATE_DIR"/user/generated/foot
-  cp "$SCRIPT_DIR/foot/foot.ini" "$STATE_DIR"/user/generated/foot/foot.ini
+  install -m 644 "$SCRIPT_DIR/foot/foot.ini" "$STATE_DIR"/user/generated/foot/foot.ini
   for i in "${!colorlist[@]}"; do
     sed -i "s/{{ ${colorlist[$i]} }}/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/foot/foot.ini
   done
@@ -94,7 +94,7 @@ apply_wofi() {
     return
   fi
   mkdir -p "$STATE_DIR"/user/generated/wofi
-  cp "$SCRIPT_DIR/wofi/style.css" "$STATE_DIR"/user/generated/wofi/style.css
+  install -m 644 "$SCRIPT_DIR/wofi/style.css" "$STATE_DIR"/user/generated/wofi/style.css
   for i in "${!colorlist[@]}"; do
     sed -i "s/{{ ${colorlist[$i]} }}/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/wofi/style.css
   done
