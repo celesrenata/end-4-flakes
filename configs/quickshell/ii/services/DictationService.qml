@@ -629,8 +629,7 @@ Singleton {
     // Audio recording process (pw-record)
     Process {
         id: recordProcess
-        property string sourceTarget: Audio.source?.name ?? "@DEFAULT_SOURCE@"
-        command: ["pw-record", "--target=" + sourceTarget, root._recordingPath]
+        command: ["pw-record", "--target=@DEFAULT_SOURCE@", root._recordingPath]
         onExited: (exitCode, exitStatus) => {
             // Recording stopped (either by us or by error)
             if (root.state === DictationService.State.Listening) {
@@ -735,10 +734,9 @@ Singleton {
     // whenever speech activity is detected.
     Process {
         id: silenceMonitor
-        property string sourceTarget: Audio.source?.name ?? "@DEFAULT_SOURCE@"
         command: ["sh", "-c",
             "while true; do " +
-            "pw-cat --record --target=" + sourceTarget + " --format=s16 --rate=16000 --channels=1 - 2>/dev/null | " +
+            "pw-cat --record --target=@DEFAULT_SOURCE@ --format=s16 --rate=16000 --channels=1 - 2>/dev/null | " +
             "head -c 32000 | " +
             "od -A none -v -t d2 | " +
             "awk '{for(i=1;i<=NF;i++){s+=$i*$i;n++}} END{if(n>0){rms=sqrt(s/n); if(rms>250) print \"AUDIO\"; else print \"SILENCE\"}}'; " +
@@ -917,8 +915,7 @@ Singleton {
 
         // Build the piped command
         var helperPath = Quickshell.shellPath("ii/scripts/dictation-stream.py")
-        var sourceDevice = Audio.source?.name ?? "@DEFAULT_SOURCE@"
-        var cmd = "pw-cat --record --target=" + sourceDevice + " --format=s16 --rate=16000 --channels=1 - | " +
+        var cmd = "pw-cat --record --target=@DEFAULT_SOURCE@ --format=s16 --rate=16000 --channels=1 - | " +
                   "python3 " + helperPath +
                   " --mode=" + mode +
                   " --endpoint=" + endpoint +
