@@ -4,6 +4,7 @@ import QtQuick
 Rectangle {
     id: root
     property string key
+    property int pixelSize: 0 // 0 = use default (Appearance.font.pixelSize.smaller)
 
     property real horizontalPadding: 6
     property real verticalPadding: 1
@@ -35,7 +36,7 @@ Rectangle {
             id: keyText
             anchors.centerIn: parent
             font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
+            font.pixelSize: root.pixelSize > 0 ? root.pixelSize : Appearance.font.pixelSize.smaller
             text: key
         }
     }
