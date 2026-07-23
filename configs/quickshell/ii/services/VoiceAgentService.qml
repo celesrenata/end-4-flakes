@@ -444,6 +444,7 @@ Singleton {
         connectionTimeoutTimer.stop()
         errorDismissTimer.stop()
         transcriptCompletionTimer.stop()
+        _trailingWordTimer.stop()
 
         // Kill processes
         captureProcess.running = false
@@ -856,16 +857,28 @@ Singleton {
             root._pendingText += delta
             root.partialText = root._pendingText  // Overlay shows everything
 
+            console.log("[VoiceAgentService] DELTA: '" + delta + "' | pending='" + root._pendingText + "' | injected='" + root._injectedText + "'")
+
             // Find complete words: everything up to (and including) the last space
             var lastSpace = root._pendingText.lastIndexOf(" ")
             if (lastSpace > root._injectedText.length) {
                 // There are new complete words to inject
                 var toInject = root._pendingText.substring(root._injectedText.length, lastSpace + 1)
                 if (toInject.length > 0) {
-                    _injectText(toInject)
+                    // First injection: trim leading whitespace (API prepends a space to first delta)
+                    if (root._injectedText.length === 0) {
+                        toInject = toInject.replace(/^\s+/, "")
+                    }
+                    if (toInject.length > 0) {
+                        _injectText(toInject)
+                    }
                     root._injectedText = root._pendingText.substring(0, lastSpace + 1)
                 }
             }
+
+            // Restart the idle flush timer — if no new delta arrives within 1s,
+            // flush the trailing word to cursor
+            _trailingWordTimer.restart()
         }
     }
 
@@ -1132,6 +1145,23 @@ Singleton {
                 }
                 // Small additional delay for focus to actually switch
                 _deferredTypeTimer.restart()
+            }
+        }
+    }
+
+    // Trailing word idle flush: if no new delta arrives within 1s,
+    // inject the buffered trailing word at cursor (user paused speaking).
+    Timer {
+        id: _trailingWordTimer
+        interval: 1000
+        repeat: false
+        onTriggered: {
+            if (root.dictationToCursorMode && root._pendingText.length > root._injectedText.length) {
+                var trailing = root._pendingText.substring(root._injectedText.length)
+                if (trailing.length > 0) {
+                    _injectText(trailing)
+                    root._injectedText = root._pendingText
+                }
             }
         }
     }
