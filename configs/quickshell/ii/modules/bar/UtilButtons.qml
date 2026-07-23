@@ -110,15 +110,88 @@ Item {
         Loader {
             active: Config.options.bar.utilButtons.showNightLightToggle
             visible: Config.options.bar.utilButtons.showNightLightToggle
-            sourceComponent: CircleUtilButton {
+            sourceComponent: Item {
                 Layout.alignment: Qt.AlignVCenter
-                onClicked: Hyprsunset.toggle()
-                MaterialSymbol {
-                    horizontalAlignment: Qt.AlignHCenter
-                    fill: Hyprsunset.active ? 1 : 0
-                    text: "eyeglasses"
-                    iconSize: Appearance.font.pixelSize.large
-                    color: Appearance.colors.colOnLayer2
+                implicitWidth: nightSliderRow.implicitWidth
+                implicitHeight: nightSliderRow.implicitHeight
+
+                RowLayout {
+                    id: nightSliderRow
+                    spacing: 2
+                    anchors.centerIn: parent
+
+                    MaterialSymbol {
+                        Layout.alignment: Qt.AlignVCenter
+                        fill: nightSlider.value > 0 ? 1 : 0
+                        text: "eyeglasses"
+                        iconSize: Appearance.font.pixelSize.normal
+                        color: Appearance.colors.colOnLayer2
+                    }
+
+                    // Compact slider: 0 = off (6500K), 1 = max warmth (2500K)
+                    Rectangle {
+                        Layout.alignment: Qt.AlignVCenter
+                        width: 60
+                        height: 6
+                        radius: 3
+                        color: Qt.alpha(Appearance.colors.colOnLayer2, 0.15)
+
+                        Rectangle {
+                            width: nightSlider.value * parent.width
+                            height: parent.height
+                            radius: parent.radius
+                            color: nightSlider.value > 0
+                                ? Qt.rgba(1.0, 0.6 + 0.4 * (1 - nightSlider.value), 0.2 + 0.3 * (1 - nightSlider.value), 0.9)
+                                : "transparent"
+                        }
+
+                        // Thumb
+                        Rectangle {
+                            x: nightSlider.value * (parent.width - width)
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 12
+                            height: 12
+                            radius: 6
+                            color: nightSlider.value > 0
+                                ? Qt.rgba(1.0, 0.5 + 0.3 * (1 - nightSlider.value), 0.1, 1.0)
+                                : Appearance.colors.colOnLayer2
+                            opacity: nightSliderArea.containsMouse || nightSliderArea.pressed ? 1.0 : 0.7
+                        }
+
+                        MouseArea {
+                            id: nightSliderArea
+                            anchors.fill: parent
+                            anchors.margins: -6
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+
+                            onPressed: (mouse) => updateFromMouse(mouse)
+                            onPositionChanged: (mouse) => {
+                                if (pressed) updateFromMouse(mouse)
+                            }
+
+                            function updateFromMouse(mouse) {
+                                var ratio = Math.max(0, Math.min(1, (mouse.x - 6) / (parent.width)));
+                                nightSlider.value = ratio;
+                                // Map: 0 = 6500K (off), 1 = 2500K (max warmth)
+                                var temp = Math.round(6500 - ratio * 4000);
+                                Hyprsunset.setTemperature(temp);
+                            }
+                        }
+                    }
+                }
+
+                // Slider state: 0 = off, 1 = max redshift
+                QtObject {
+                    id: nightSlider
+                    property real value: 0
+                    Component.onCompleted: {
+                        value = Qt.binding(function() {
+                            return Hyprsunset.active
+                                ? Math.max(0, Math.min(1, (6500 - Hyprsunset.colorTemperature) / 4000))
+                                : 0;
+                        });
+                    }
                 }
             }
         }

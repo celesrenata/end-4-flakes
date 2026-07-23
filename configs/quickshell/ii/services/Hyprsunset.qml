@@ -16,7 +16,10 @@ Singleton {
     property string from: Config.options?.light?.night?.from ?? "19:00" // Default to 7 PM
     property string to: Config.options?.light?.night?.to ?? "06:30" // Default to 6:30 AM
     property bool automatic: Config.options?.light?.night?.automatic && (Config?.ready ?? true)
-    property int colorTemperature: Config.options?.light?.night?.colorTemperature ?? 5000 // Default color temperature
+    property int colorTemperature: 5000 // Runtime temperature, initialized from config
+    Component.onCompleted: {
+        root.colorTemperature = Config.options?.light?.night?.colorTemperature ?? 5000;
+    }
     property bool shouldBeOn
     property bool firstEvaluation: true
     property bool active: false
@@ -70,16 +73,36 @@ Singleton {
 
     function load() { } // Dummy to force init
 
+    /**
+     * Sets the color temperature dynamically via hyprctl.
+     * @param temp Temperature in Kelvin (2500-6500). 6500 = identity/off.
+     */
+    function setTemperature(temp) {
+        temp = Math.round(Math.max(2500, Math.min(6500, temp)));
+        if (temp >= 6500) {
+            root.disable();
+            return;
+        }
+        root.colorTemperature = temp;
+        root.active = true;
+        root.manualActive = true;
+        Quickshell.execDetached(["bash", "-c",
+            `pidof hyprsunset && hyprctl hyprsunset temperature ${temp} || hyprsunset --temperature ${temp}`
+        ]);
+    }
+
     function enable() {
         root.active = true;
-        // console.log("[Hyprsunset] Enabling");
-        Quickshell.execDetached(["bash", "-c", `pidof hyprsunset || hyprsunset --temperature ${root.colorTemperature}`]);
+        Quickshell.execDetached(["bash", "-c",
+            `pidof hyprsunset && hyprctl hyprsunset temperature ${root.colorTemperature} || hyprsunset --temperature ${root.colorTemperature}`
+        ]);
     }
 
     function disable() {
         root.active = false;
-        // console.log("[Hyprsunset] Disabling");
-        Quickshell.execDetached(["bash", "-c", `pkill hyprsunset`]);
+        Quickshell.execDetached(["bash", "-c",
+            `pidof hyprsunset && hyprctl hyprsunset identity || true`
+        ]);
     }
 
     function fetchState() {
