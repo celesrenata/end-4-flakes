@@ -761,8 +761,20 @@ Singleton {
         }
     }
 
+    // Rapid-fire guard: ignore taps within 300ms of last processed tap
+    // The Logi button sends multiple events per physical press (key down + up both fire the bind)
+    property real _lastTapTime: 0
+
     // Called when dictation trigger fires (keyd dispatch via hyprctl global)
     function onKeyTap() {
+        // Rapid-fire guard: ignore events within 300ms of last tap
+        var now = Date.now()
+        if (now - root._lastTapTime < 300) {
+            console.log("[DictationService] DEBOUNCE: ignoring rapid tap (" + (now - root._lastTapTime) + "ms)")
+            return
+        }
+        root._lastTapTime = now
+
         console.log("[DictationService] onKeyTap: state=" + root.state + " _waitingForSecondTap=" + root._waitingForSecondTap)
 
         // ─── Voice Agent active session handling ─────────────────────
