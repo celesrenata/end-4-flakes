@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 _OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
-_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-whisper"
+_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime?intent=transcription"
 _OPENAI_BETA_HEADER = "realtime=v1"
 
 
@@ -183,6 +183,10 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
 
         # Use transcription endpoint for dictation mode, realtime for voice agent
         url = _OPENAI_TRANSCRIPTION_URL if self.config.dictation_mode else _OPENAI_REALTIME_URL
+
+        # Transcription endpoint requires OpenAI-Beta header
+        if self.config.dictation_mode:
+            headers["OpenAI-Beta"] = "realtime=v1"
 
         self._ws = await websockets.connect(
             url,
@@ -338,22 +342,24 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
         session_config: "dict[str, Any]"
 
         if self.config.dictation_mode:
-            # Transcription-only session: use gpt-realtime-whisper
+            # Transcription-only session: use gpt-4o-mini-transcribe
             session_config = {
-                "type": "transcription",
-                "audio": {
-                    "input": {
-                        "format": {
-                            "type": "audio/pcm",
-                            "rate": self.config.sample_rate,
-                        },
-                        "transcription": {
-                            "model": "gpt-realtime-whisper",
-                            "language": "en",
-                        },
-                    },
+                "input_audio_format": "pcm16",
+                "input_audio_transcription": {
+                    "model": "gpt-4o-mini-transcribe",
+                    "language": "en",
+                },
+                "turn_detection": {
+                    "type": "server_vad",
+                    "silence_duration_ms": 500,
                 },
             }
+            event = {
+                "type": "transcription_session.update",
+                "session": session_config,
+            }
+            await self._ws.send(json.dumps(event))
+            return
         else:
             # Voice agent session
             session_config = {
