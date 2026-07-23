@@ -767,9 +767,10 @@ Singleton {
 
     // Called when dictation trigger fires (keyd dispatch via hyprctl global)
     function onKeyTap() {
-        // Rapid-fire guard: ignore events within 300ms of last tap
+        // Rapid-fire guard: ignore events within 100ms of last tap
+        // The Logi button fires 2-3 events per physical press (keydown+keyup)
         var now = Date.now()
-        if (now - root._lastTapTime < 300) {
+        if (now - root._lastTapTime < 100) {
             console.log("[DictationService] DEBOUNCE: ignoring rapid tap (" + (now - root._lastTapTime) + "ms)")
             return
         }

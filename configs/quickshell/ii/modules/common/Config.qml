@@ -279,7 +279,7 @@ Singleton {
             property JsonObject dictation: JsonObject {
                 property bool enabled: true
                 property string activationKey: "Control_R"
-                property int doubleTapMs: 400
+                property int doubleTapMs: 600
                 property int debounceMs: 500 // Debounce window (ms) after activation; 0-2000, 0 disables
                 property int silenceTimeoutMs: 3000
                 property int maxDurationMs: 60000
