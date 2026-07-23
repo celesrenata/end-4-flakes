@@ -268,4 +268,98 @@ submap = reset
 bind = Ctrl+Super, Backslash, resizeactive, exact 640 480 # [hidden]
 
 @CUSTOM_KEYBINDS@
+
+#!
+##! Launch Apps
+bindd = Super+Ctrl, M, Tidal HiFi, exec, tidal-hifi # Tidal HiFi
+bindd = Super+Ctrl+Shift, M, Cider (Apple Music), exec, env -u NIXOS_OZONE_WL cider --use-gl=desktop # Cider (Apple Music)
+bindd = Super+Ctrl+Alt, M, Spotify, exec, spotify # Spotify
+bindd = Super+Ctrl, I, Discord, exec, discord # Discord
+bindd = Super+Ctrl, G, Terminal (foot), exec, foot # Terminal (foot)
+bindd = Super+Ctrl+Shift, T, Network TUI, exec, foot sleep 0.01 && nmtui # Network manager TUI
+bindd = Super+Ctrl, J, Thunar, exec, thunar # Thunar
+bindd = Super+Ctrl+Shift, J, Nautilus, exec, nautilus # Nautilus
+bindd = Super+Ctrl, B, Firefox, exec, firefox # Firefox
+bindd = Super+Ctrl+Shift, B, Chromium, exec, chromium # Chromium
+bindd = Super+Ctrl, U, VS Code, exec, code # VS Code
+bindd = Super+Ctrl, X, Sublime Text, exec, subl # Sublime Text
+bindd = Super+Ctrl+Shift, C, JetBrains Toolbox, exec, jetbrains-toolbox # JetBrains Toolbox
+bindd = Super+Ctrl, 3, Calculator, exec, ~/.local/bin/wofi-calc # Calculator
+bind = ,XF86Calculator, exec, ~/.local/bin/wofi-calc # [hidden]
+bindd = Super+Ctrl, N, Night mode (warm), exec, gammastep -O +3000 & # Night mode warm
+bindd = Super+Ctrl+Alt, N, Night mode off, exec, gammastep -0 +6500 & # Night mode off
+
+##! Quick Actions
+bindd = Ctrl, H, Dictation (Logi button), global, quickshell:dictationTap # Dictation (Logi button)
+bind = , XF86AudioMicMute, global, quickshell:dictationTap # [hidden] Dictation (mic mute key)
+bindd = Ctrl+Alt, Space, Clipboard history + paste, exec, cliphist list | wofi -Iim --dmenu | cliphist decode | wl-copy && wtype -M ctrl v -M ctrl # Clipboard history + paste
+bindd = Ctrl+Alt, V, Clipboard + paste (alt), exec, cliphist list | wofi -Iim --dmenu | cliphist decode | wl-copy && wtype -M ctrl v -M ctrl # Clipboard + paste (alt)
+bindd = Ctrl+Alt, Q, Force kill window, exec, hyprctl kill # Force kill window
+bindd = Alt, F4, Close window, killactive, # Close window
+bindd = Ctrl+Alt, Space, Toggle floating, togglefloating, # Toggle floating
+bindd = Super+Ctrl, L, Lock screen, exec, hyprlock # Lock screen
+bindr = Super+Ctrl, R, Restart Quickshell, exec, pkill quickshell; quickshell -c ii & # Restart Quickshell
+
+##! Desktop
+bindd = Ctrl, Space, Overview/launcher, exec, hyprctl dispatch global quickshell:overviewToggle # Overview/launcher
+bindd = Ctrl, B, Left sidebar, exec, hyprctl dispatch global quickshell:sidebarLeftToggle # Left sidebar
+bindd = Ctrl, N, Right sidebar, exec, hyprctl dispatch global quickshell:sidebarRightToggle # Right sidebar
+bindd = Ctrl, M, Media controls, exec, hyprctl dispatch global quickshell:mediaControlsToggle # Media controls
+bindd = Ctrl+Alt, Slash, Cheatsheet, exec, hyprctl dispatch global quickshell:cheatsheetToggle # Cheatsheet
+
+##! Capture
+bindd = Ctrl+Shift, 4, Screen snip >> clipboard, exec, grim -g "$(slurp -d -c D1E5F4BB -b 1B232866 -s 00000000)" - | wl-copy # Screen snip >> clipboard
+bindd = Ctrl+Shift, 5, Record region, exec, ~/.config/quickshell/ii/scripts/record.sh # Record region (no sound)
+bindd = Ctrl+Alt, 5, Record with sound, exec, ~/.config/quickshell/ii/scripts/record --sound # Record with sound
+bindd = Ctrl+Shift+Alt, 5, Record fullscreen + sound, exec, ~/.config/quickshell/ii/scripts/record.sh --fullscreen-sound # Record fullscreen + sound
+bindd = Ctrl+Alt, C, Color picker, exec, hyprpicker -a # Color picker >> clipboard
+bindd = Ctrl+Super+Shift, S, OCR >> clipboard, exec, grim -g "$(slurp -d -c D1E5F4BB -b 1B232866 -s 00000000)" "tmp.png" && tesseract "tmp.png" - | wl-copy && rm "tmp.png" # OCR >> clipboard
+
+##! Playback
+bindd = Ctrl+Shift, N, Next track, exec, playerctl next || playerctl position `bc <<< "100 * $(playerctl metadata mpris:length) / 1000000 / 100"` # Next track
+bind = , XF86AudioNext, exec, playerctl next # [hidden]
+bind = , XF86AudioPrev, exec, playerctl previous # [hidden]
+bind = , XF86AudioPlay, exec, playerctl play-pause # [hidden]
+bindd = Ctrl+Shift, B, Previous track, exec, playerctl previous # Previous track
+bindd = Ctrl+Shift, P, Play/pause, exec, playerctl play-pause # Play/pause
+
+##! Tiling
+bindd = Ctrl+Shift, Left, Move window left, movewindow, l # Move window left
+bindd = Ctrl+Shift, Right, Move window right, movewindow, r # Move window right
+bindd = Ctrl+Shift, Up, Move window up, movewindow, u # Move window up
+bindd = Ctrl+Shift, Down, Move window down, movewindow, d # Move window down
+bindd = Ctrl, Left, Focus left, movefocus, l # Focus left
+bindd = Ctrl, Right, Focus right, movefocus, r # Focus right
+bindd = Alt, Up, Focus up, movefocus, u # Focus up
+bindd = Alt, Down, Focus down, movefocus, d # Focus down
+bindd = Super+Ctrl, F, Fullscreen, fullscreen, 0 # Fullscreen
+bindd = Super+Ctrl, D, Maximize, fullscreen, 1 # Maximize
+
+##! Spaces
+bindd = Ctrl, 1, Workspace 1, workspace, 1 # Workspace 1
+bindd = Ctrl, 2, Workspace 2, workspace, 2 # Workspace 2
+bindd = Ctrl, 3, Workspace 3, workspace, 3 # Workspace 3
+bindd = Ctrl, 4, Workspace 4, workspace, 4 # Workspace 4
+bindd = Ctrl, 5, Workspace 5, workspace, 5 # Workspace 5
+bindd = Ctrl, 6, Workspace 6, workspace, 6 # Workspace 6
+bindd = Ctrl, 7, Workspace 7, workspace, 7 # Workspace 7
+bindd = Ctrl, 8, Workspace 8, workspace, 8 # Workspace 8
+bindd = Ctrl, 9, Workspace 9, workspace, 9 # Workspace 9
+bindd = Ctrl, 0, Workspace 10, workspace, 10 # Workspace 10
+bindd = Super+Ctrl, S, Scratchpad, togglespecialworkspace, # Scratchpad
+bindd = Super+Ctrl, Right, Next workspace, workspace, +1 # Next workspace
+bindd = Super+Ctrl, Left, Previous workspace, workspace, -1 # Previous workspace
+bindd = Super+Ctrl, Up, Jump 5 workspaces back, workspace, -5 # Jump 5 back
+bindd = Super+Ctrl, Down, Jump 5 workspaces forward, workspace, +5 # Jump 5 forward
+bindd = Ctrl+Alt, 1, Send to workspace 1, movetoworkspacesilent, 1 # Send to workspace 1
+bindd = Ctrl+Alt, 2, Send to workspace 2, movetoworkspacesilent, 2 # Send to workspace 2
+bindd = Ctrl+Alt, 3, Send to workspace 3, movetoworkspacesilent, 3 # Send to workspace 3
+bindd = Ctrl+Alt, 4, Send to workspace 4, movetoworkspacesilent, 4 # Send to workspace 4
+bindd = Ctrl+Alt, 5, Send to workspace 5, movetoworkspacesilent, 5 # Send to workspace 5
+bindd = Ctrl+Alt, 6, Send to workspace 6, movetoworkspacesilent, 6 # Send to workspace 6
+bindd = Ctrl+Alt, 7, Send to workspace 7, movetoworkspacesilent, 7 # Send to workspace 7
+bindd = Ctrl+Alt, 8, Send to workspace 8, movetoworkspacesilent, 8 # Send to workspace 8
+bindd = Ctrl+Alt, 9, Send to workspace 9, movetoworkspacesilent, 9 # Send to workspace 9
+bindd = Ctrl+Alt, 0, Send to workspace 10, movetoworkspacesilent, 10 # Send to workspace 10
+bindd = Ctrl+Alt, S, Send to scratchpad, movetoworkspacesilent, special # Send to scratchpad
 bind = ,F20, global, quickshell:dictationTap # [hidden] Dictation (double-tap Right Alt via keyd)

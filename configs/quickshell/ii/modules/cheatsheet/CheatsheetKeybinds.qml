@@ -11,7 +11,7 @@ import Quickshell
 Item {
     id: root
     property real padding: 4
-    implicitWidth: QsWindow?.window?.screen.width * 0.7 ?? 0
+    implicitWidth: QsWindow?.window?.screen.width * 0.75 ?? 0
     implicitHeight: QsWindow?.window?.screen.height * 0.7 ?? 0
 
     StyledFlickable {
@@ -21,11 +21,14 @@ Item {
         anchors.margins: Appearance.rounding.small
         contentHeight: height
         contentWidth: flow.implicitWidth
+
         Flow {
             id: flow
-            height: flickable.height
+            // Cap column height to force categories into multiple columns
+            height: Math.min(flickable.height, 700)
             flow: Flow.TopToBottom
-            spacing: 10
+            spacing: 30
+
             Repeater {
                 model: [...HyprlandKeybinds.keybindCategories, ""]
                 delegate: CheatsheetKeybindsCategory {
@@ -39,6 +42,6 @@ Item {
     ScrollEdgeFade {
         target: flickable
         vertical: false
-        color: Appearance.colors.colLayer0Base
+        color: Appearance.colors.colLayer0Base ?? Appearance.colors.colLayer0 ?? "transparent"
     }
 }
