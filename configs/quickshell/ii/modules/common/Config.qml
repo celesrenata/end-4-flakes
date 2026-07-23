@@ -143,6 +143,7 @@ Singleton {
                     property bool showMicToggle: false
                     property bool showKeyboardToggle: true
                     property bool showDarkModeToggle: true
+                    property bool showNightLightToggle: true
                     property bool showPerformanceProfileToggle: false
                 }
                 property JsonObject tray: JsonObject {
@@ -353,6 +354,18 @@ Singleton {
                         property int speed: 175
                         property int pitch: 50
                     }
+                }
+            }
+
+            property JsonObject cheatsheet: JsonObject {
+                property string superKey: "" // Override Super key display (e.g. "⌘" for Mac users)
+                property bool useMacSymbol: false // Use Mac-style modifier symbols (⌃ ⌥ ⇧)
+                property bool useFnSymbol: true // Use nerd font function key symbols
+                property bool useMouseSymbol: true // Use nerd font mouse symbols
+                property bool splitButtons: false // Show each modifier as separate key cap
+                property JsonObject fontSize: JsonObject {
+                    property int key: 0 // 0 = use default
+                    property int comment: 0 // 0 = use default (Appearance.font.pixelSize.smaller)
                 }
             }
 

@@ -1,4 +1,5 @@
 import qs
+import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
@@ -100,6 +101,22 @@ Item {
                     horizontalAlignment: Qt.AlignHCenter
                     fill: 0
                     text: Appearance.m3colors.darkmode ? "light_mode" : "dark_mode"
+                    iconSize: Appearance.font.pixelSize.large
+                    color: Appearance.colors.colOnLayer2
+                }
+            }
+        }
+
+        Loader {
+            active: Config.options.bar.utilButtons.showNightLightToggle
+            visible: Config.options.bar.utilButtons.showNightLightToggle
+            sourceComponent: CircleUtilButton {
+                Layout.alignment: Qt.AlignVCenter
+                onClicked: Hyprsunset.toggle()
+                MaterialSymbol {
+                    horizontalAlignment: Qt.AlignHCenter
+                    fill: Hyprsunset.active ? 1 : 0
+                    text: "eyeglasses"
                     iconSize: Appearance.font.pixelSize.large
                     color: Appearance.colors.colOnLayer2
                 }

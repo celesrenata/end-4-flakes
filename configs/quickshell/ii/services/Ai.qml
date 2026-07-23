@@ -1099,6 +1099,14 @@ Singleton {
         root.tokenCount.total = -1;
     }
 
+    // Temp file for request payloads — avoids shell ARG_MAX with large base64 images
+    FileView {
+        id: requestPayloadFile
+        path: "/tmp/ii-ai-request-payload.json"
+        preload: false
+        blockWrites: true
+    }
+
     Process {
         id: requester
         property list<string> baseCommand: ["bash", "-c"]
@@ -1163,12 +1171,18 @@ Singleton {
 
             /* Get authorization header from strategy */
             const authHeader = requester.currentStrategy.buildAuthorizationHeader(root.apiKeyEnvVarName);
-            
-            /* Create command string */
+
+            /* Write JSON payload to temp file via FileView to avoid ARG_MAX limits.
+             * Large base64 image payloads can exceed the 2MB shell argument limit. */
+            const payloadJson = JSON.stringify(data);
+            requestPayloadFile.setText(payloadJson);
+            const payloadPath = requestPayloadFile.path;
+
+            /* Build curl command that reads POST body from file (-d @file) */
             const requestCommandString = `curl --no-buffer "${endpoint}"`
                 + ` ${headerString}`
                 + (authHeader ? ` ${authHeader}` : "")
-                + ` -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify(data))}'`
+                + ` -d @'${payloadPath}'`
             
             /* Send the request */
             requester.command = baseCommand.concat([requestCommandString]);
@@ -1863,10 +1877,12 @@ Singleton {
         blockLoading: true
     }
 
-    // Dedicated reader for session loading — path is set imperatively, never bound
+    // Dedicated reader for session loading — path is set imperatively, never bound.
+    // blockAllReads ensures text() always returns the NEW file content after a path change,
+    // not stale data from the previously loaded file.
     FileView {
         id: sessionReader
-        blockLoading: true
+        blockAllReads: true
     }
 
     /**
@@ -2377,8 +2393,9 @@ Singleton {
     }
 
     /**
-     * Stores clipboard image data (from wl-paste) as a PNG attachment.
-     * Runs wl-paste --type image/png to save to the attachments folder.
+     * Stores clipboard image data (from wl-paste) as a resized PNG attachment.
+     * Pipes wl-paste through magick to resize (max 1024px) before saving.
+     * This keeps base64 payloads well under ARG_MAX for curl commands.
      * @param callback Function called with the attachment metadata when done
      */
     function storeClipboardImage(callback) {
@@ -2388,7 +2405,11 @@ Singleton {
         clipboardImageSaver.destPath = destPath
         clipboardImageSaver.storedName = storedName
         clipboardImageSaver.callback = callback
-        clipboardImageSaver.command = ["bash", "-c", "wl-paste --type image/png > '" + destPath + "'"]
+        // Pipe clipboard image through magick to resize (max 1024x1024, preserve aspect ratio)
+        // and strip metadata to reduce file size. Output as PNG for lossless quality at reasonable size.
+        clipboardImageSaver.command = ["bash", "-c",
+            "wl-paste --type image/png | magick png:- -resize '1024x1024>' -strip png:'" + destPath + "'"
+        ]
         clipboardImageSaver.running = true
     }
 
@@ -2398,8 +2419,40 @@ Singleton {
         property string storedName: ""
         property var callback: null
 
-        onRunningChanged: {
-            if (!running && callback) {
+        onExited: (exitCode, exitStatus) => {
+            if (callback) {
+                if (exitCode !== 0) {
+                    console.log("[Ai] Clipboard image save failed (exit " + exitCode + "), trying fallback without resize");
+                    // Fallback: save raw without resize
+                    clipboardImageFallback.destPath = destPath;
+                    clipboardImageFallback.storedName = storedName;
+                    clipboardImageFallback.callback = callback;
+                    clipboardImageFallback.command = ["bash", "-c", "wl-paste --type image/png > '" + destPath + "'"];
+                    clipboardImageFallback.running = true;
+                    callback = null;
+                    return;
+                }
+                var meta = {
+                    "name": "clipboard-image.png",
+                    "path": storedName,
+                    "type": "image/png",
+                    "size": 0,
+                }
+                callback(meta)
+                callback = null
+            }
+        }
+    }
+
+    // Fallback process if magick resize fails (e.g., magick not installed)
+    Process {
+        id: clipboardImageFallback
+        property string destPath: ""
+        property string storedName: ""
+        property var callback: null
+
+        onExited: (exitCode, exitStatus) => {
+            if (callback) {
                 var meta = {
                     "name": "clipboard-image.png",
                     "path": storedName,
