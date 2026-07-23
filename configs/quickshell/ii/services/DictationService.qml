@@ -734,9 +734,10 @@ Singleton {
     // whenever speech activity is detected.
     Process {
         id: silenceMonitor
+        property string sourceTarget: Audio.source?.name ?? "@DEFAULT_SOURCE@"
         command: ["sh", "-c",
             "while true; do " +
-            "pw-cat --record --target=@DEFAULT_SOURCE@ --format=s16 --rate=16000 --channels=1 - 2>/dev/null | " +
+            "pw-cat --record --target=" + sourceTarget + " --format=s16 --rate=16000 --channels=1 - 2>/dev/null | " +
             "head -c 32000 | " +
             "od -A none -v -t d2 | " +
             "awk '{for(i=1;i<=NF;i++){s+=$i*$i;n++}} END{if(n>0){rms=sqrt(s/n); if(rms>250) print \"AUDIO\"; else print \"SILENCE\"}}'; " +
