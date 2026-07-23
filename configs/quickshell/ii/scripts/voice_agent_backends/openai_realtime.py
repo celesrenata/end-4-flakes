@@ -1,7 +1,8 @@
 """OpenAI Realtime API backend implementation.
 
 Connects to the OpenAI Realtime WebSocket at
-wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview
+wss://api.openai.com/v1/realtime?model=gpt-realtime-mini (voice agent mode)
+or wss://api.openai.com/v1/realtime?model=gpt-realtime-whisper (dictation mode)
 and translates between the internal voice agent protocol and the
 OpenAI Realtime event format.
 
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 _OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
-_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
+_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime?intent=transcription"
 _OPENAI_BETA_HEADER = "realtime=v1"
 
 
@@ -338,16 +339,25 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
         session_config: "dict[str, Any]"
 
         if self.config.dictation_mode:
-            # Dictation mode: use gpt-realtime-mini with input transcription enabled
-            # and response generation disabled (create_response: false)
+            # Dictation mode: gpt-realtime-whisper transcription-only session.
+            # Disable server VAD (turn_detection: null) so the session doesn't
+            # auto-commit on short pauses. User controls when to commit via
+            # END_TURN (tap to stop) or we flush on deactivate.
+            # Deltas still stream as audio arrives regardless of VAD setting.
             session_config = {
-                "type": "realtime",
-                "input_audio_transcription": {
-                    "model": "gpt-4o-mini-transcribe",
-                },
-                "turn_detection": {
-                    "type": "server_vad",
-                    "create_response": False,
+                "type": "transcription",
+                "audio": {
+                    "input": {
+                        "format": {
+                            "type": "audio/pcm",
+                            "rate": 24000,
+                        },
+                        "transcription": {
+                            "model": "gpt-realtime-whisper",
+                            "language": "en",
+                        },
+                        "turn_detection": None,
+                    },
                 },
             }
             event = {
@@ -486,6 +496,10 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
 
         Requirements: 6.4, 6.5, 6.6
         """
+        # Debug: log all event types for transcription session troubleshooting
+        if self.config.dictation_mode:
+            print(f"[openai-realtime] EVENT: {event_type}", file=sys.stderr)
+
         if event_type == "response.audio_transcript.delta":
             # Partial transcription of the AI's spoken response
             delta = event.get("delta", "")

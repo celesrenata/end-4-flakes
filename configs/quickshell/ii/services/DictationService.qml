@@ -764,6 +764,8 @@ Singleton {
     // Rapid-fire guard: ignore taps within 300ms of last processed tap
     // The Logi button sends multiple events per physical press (key down + up both fire the bind)
     property real _lastTapTime: 0
+    // Cooldown after dictation deactivation — swallow taps that leak from the same physical press
+    property real _dictationDeactivatedAt: 0
 
     // Called when dictation trigger fires (keyd dispatch via hyprctl global)
     function onKeyTap() {
@@ -775,6 +777,13 @@ Singleton {
             return
         }
         root._lastTapTime = now
+
+        // Dictation cooldown: after ending a dictation session, swallow taps
+        // for 500ms to prevent leaked key events from triggering other actions
+        if (root._dictationDeactivatedAt > 0 && (now - root._dictationDeactivatedAt) < 500) {
+            console.log("[DictationService] GATE_REJECT | reason=dictation_cooldown (" + (now - root._dictationDeactivatedAt) + "ms)")
+            return
+        }
 
         console.log("[DictationService] onKeyTap: state=" + root.state + " _waitingForSecondTap=" + root._waitingForSecondTap)
 
@@ -803,15 +812,17 @@ Singleton {
                 VoiceAgentService.bargeIn()
                 return
             } else if (vasState === VoiceAgentService.State.Listening) {
-                // Tap during listening: commit and deactivate (Requirement 7.4, 2.4)
-                console.log("[DictationService] Routing to VoiceAgentService.deactivate() from Listening")
+                // Tap during listening: commit any buffered audio and deactivate
+                console.log("[DictationService] Routing to VoiceAgentService.sendEndTurn() + deactivate()")
                 VoiceAgentService.sendEndTurn()
                 VoiceAgentService.deactivate()
+                root._dictationDeactivatedAt = Date.now()
                 return
             } else if (vasState !== VoiceAgentService.State.Idle) {
                 // Tap during Thinking, ToolExecuting, Error: deactivate
                 console.log("[DictationService] Routing to VoiceAgentService.deactivate()")
                 VoiceAgentService.deactivate()
+                root._dictationDeactivatedAt = Date.now()
                 return
             }
         }

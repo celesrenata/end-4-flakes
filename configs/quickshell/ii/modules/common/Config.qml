@@ -296,7 +296,7 @@ Singleton {
                 property string ttsHttpEndpoint: "" // HTTP endpoint for OpenAI-compatible TTS
                 property bool smartRouting: false // Smart Dictation Routing — route voice input by intent
                 property string voiceBackend: "none" // "none" | "nova-sonic" | "openai-realtime"
-                property string voiceSystemPrompt: "You are a helpful voice assistant on a Linux desktop (Hyprland + Quickshell). You can execute shell commands, control the desktop, check system info, get weather data, and launch apps. Keep answers concise and conversational — the user is listening, not reading. Current date & time: {DATETIME}. Respond in 1-3 sentences unless the user asks for detail."
+                property string voiceSystemPrompt: "You are a helpful voice assistant on a Linux desktop (Hyprland + Quickshell). You can execute shell commands, control the desktop, check system info, get weather data, and launch apps. Keep answers concise and conversational — the user is listening, not reading. For time/date queries, always use shell_exec with the 'date' command to get the current local time — never guess or use stale information. Respond in 1-3 sentences unless the user asks for detail."
 
                 // Local STT provider configurations
                 property JsonObject sttProviders: JsonObject {

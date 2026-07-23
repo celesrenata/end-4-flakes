@@ -49,6 +49,8 @@ Singleton {
     // Internal properties
     property string _fifoPath: ""
     property string _contextFilePath: ""  // Temp JSON file for session context
+    property string _savedWindowAddress: ""  // Window to restore focus to after deactivation
+    property string _deferredFlushText: ""   // Text to flush after focus settles
     property var _sessionTranscript: []   // Accumulated turns [{role, text}] during session
     property int _previousState: VoiceAgentService.State.Idle  // For ToolExecuting return
     property int _sampleRate: root.voiceBackend === "openai-realtime" ? 24000 : 16000
@@ -164,6 +166,14 @@ Singleton {
 
         // Transition to Connecting
         _setState(VoiceAgentService.State.Connecting, "activate()")
+
+        // Save the currently focused window so we can restore focus after deactivation
+        // (prevents workspace switching when the stop key triggers other handlers)
+        if (root.dictationToCursorMode) {
+            root._savedWindowAddress = ""
+            _saveFocusedWindow.command = ["hyprctl", "activewindow", "-j"]
+            _saveFocusedWindow.running = true
+        }
 
         // Create named FIFO for audio piping
         _createFifoAndLaunch()
@@ -414,6 +424,16 @@ Singleton {
         // Guard exit handlers from triggering error transitions during intentional shutdown
         root._shuttingDown = true
 
+        // In dictation-to-cursor mode, flush any un-injected text to cursor
+        // before tearing down. Use a delayed injection so it fires AFTER any
+        // focus-stealing key events from the activation key have settled.
+        if (root.dictationToCursorMode && root._pendingText.length > root._injectedText.length) {
+            var remaining = root._pendingText.substring(root._injectedText.length)
+            console.log("[VoiceAgentService] Flushing remaining text on deactivate: " + remaining.substring(0, 60))
+            root._deferredFlushText = remaining
+            _deferredFlushTimer.restart()
+        }
+
         // Send STOP to helper if it's running
         if (helperProcess.running) {
             var stopEvent = JSON.stringify({"type": "STOP"})
@@ -423,6 +443,7 @@ Singleton {
         // Stop all timers
         connectionTimeoutTimer.stop()
         errorDismissTimer.stop()
+        transcriptCompletionTimer.stop()
 
         // Kill processes
         captureProcess.running = false
@@ -435,6 +456,8 @@ Singleton {
 
         // Reset state
         root.partialText = ""
+        root._injectedText = ""
+        root._pendingText = ""
         root.responseText = ""
         root.currentToolName = ""
         root.audioLevel = 0.0
@@ -444,6 +467,7 @@ Singleton {
         _setState(VoiceAgentService.State.Idle, "deactivate()")
         root._shuttingDown = false
         root._helperStderr = ""
+
         root.dictationToCursorMode = false
         root.sessionEnded()
     }
@@ -498,6 +522,12 @@ Singleton {
         console.log("[VoiceAgentService] sendEndTurn()")
         var event = JSON.stringify({"type": "END_TURN"})
         helperProcess.write(event + "\n")
+
+        // In dictation-to-cursor mode with manual commits (no VAD),
+        // start a safety timeout in case the completed transcript never arrives.
+        if (root.dictationToCursorMode) {
+            transcriptCompletionTimer.restart()
+        }
     }
 
     /**
@@ -776,28 +806,66 @@ Singleton {
         }
     }
 
+    /**
+     * Injects text at the focused cursor position using wtype.
+     * Called with complete words (buffered one word behind the stream)
+     * to avoid race conditions from rapid concurrent calls.
+     */
+    function _injectText(text) {
+        if (!text || text.length === 0) return
+        Quickshell.execDetached(["wtype", "--", text])
+    }
+
     function _onUserTranscript(event) {
-        // User's speech transcribed by input_audio_transcription
+        // Completed event — flush the trailing word that hasn't been injected yet.
         var text = event.text || ""
+
+        // Stop the safety timeout — transcript arrived
+        transcriptCompletionTimer.stop()
+
         if (!text || text.trim().length === 0) return
 
         console.log("[VoiceAgentService] USER_TRANSCRIPT: " + text.substring(0, 60))
 
-        // In dictation-to-cursor mode, type the user's transcript at cursor
         if (root.dictationToCursorMode) {
-            console.log("[VoiceAgentService] Dictation-to-cursor: typing final via wtype")
-            // Final transcript — type with a trailing space
-            Quickshell.execDetached(["wtype", "--", text + " "])
+            // Inject any remaining un-injected text (the trailing word)
+            var remaining = root._pendingText.substring(root._injectedText.length)
+            if (remaining.length > 0) {
+                _injectText(remaining + " ")
+            } else {
+                _injectText(" ")
+            }
+            // Reset for next utterance
+            root._injectedText = ""
+            root._pendingText = ""
+            root.partialText = ""
         }
     }
 
+    // Track what's been injected vs what's pending
+    property string _injectedText: ""  // Text already typed at cursor
+    property string _pendingText: ""   // Full accumulated delta text (including un-injected trailing word)
+
     function _onUserTranscriptDelta(event) {
-        // Partial transcript delta — type incrementally at cursor
+        // Buffer deltas and inject complete words (one word behind the stream).
+        // The trailing partial word stays in the overlay until a space confirms it.
         var delta = event.delta || ""
         if (!delta) return
 
         if (root.dictationToCursorMode) {
-            Quickshell.execDetached(["wtype", "--", delta])
+            root._pendingText += delta
+            root.partialText = root._pendingText  // Overlay shows everything
+
+            // Find complete words: everything up to (and including) the last space
+            var lastSpace = root._pendingText.lastIndexOf(" ")
+            if (lastSpace > root._injectedText.length) {
+                // There are new complete words to inject
+                var toInject = root._pendingText.substring(root._injectedText.length, lastSpace + 1)
+                if (toInject.length > 0) {
+                    _injectText(toInject)
+                    root._injectedText = root._pendingText.substring(0, lastSpace + 1)
+                }
+            }
         }
     }
 
@@ -1030,6 +1098,72 @@ Singleton {
             if (root.voiceAgentState === VoiceAgentService.State.Error) {
                 root.errorMessage = ""
                 root._setState(VoiceAgentService.State.Idle, "error auto-dismiss (5s)")
+            }
+        }
+    }
+
+    // Safety timeout for dictation-to-cursor: if no completed transcript arrives
+    // within 5s after commit (sendEndTurn), deactivate to avoid hanging.
+    Timer {
+        id: transcriptCompletionTimer
+        interval: 5000
+        repeat: false
+        onTriggered: {
+            if (root.dictationToCursorMode && root.voiceAgentState === VoiceAgentService.State.Listening) {
+                console.warn("[VoiceAgentService] Transcript completion timeout — deactivating")
+                root.partialText = ""
+                root.deactivate()
+            }
+        }
+    }
+
+    // Deferred flush: types the last buffered word after a short delay,
+    // giving time for any focus-stealing key events to settle and for
+    // the focuswindow restore to take effect.
+    Timer {
+        id: _deferredFlushTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (root._deferredFlushText.length > 0) {
+                // Restore focus first, then type
+                if (root._savedWindowAddress) {
+                    Quickshell.execDetached(["hyprctl", "dispatch", "focuswindow", "address:" + root._savedWindowAddress])
+                }
+                // Small additional delay for focus to actually switch
+                _deferredTypeTimer.restart()
+            }
+        }
+    }
+
+    Timer {
+        id: _deferredTypeTimer
+        interval: 100
+        repeat: false
+        onTriggered: {
+            if (root._deferredFlushText.length > 0) {
+                Quickshell.execDetached(["wtype", "--", root._deferredFlushText])
+                root._deferredFlushText = ""
+                root._savedWindowAddress = ""
+            }
+        }
+    }
+
+    // Process to capture the focused window address on dictation start
+    Process {
+        id: _saveFocusedWindow
+        command: ["hyprctl", "activewindow", "-j"]
+        running: false
+
+        stdout: SplitParser {
+            onRead: data => {
+                try {
+                    var win = JSON.parse(data)
+                    if (win && win.address) {
+                        root._savedWindowAddress = win.address
+                        console.log("[VoiceAgentService] Saved focused window: " + win.address)
+                    }
+                } catch(e) {}
             }
         }
     }
