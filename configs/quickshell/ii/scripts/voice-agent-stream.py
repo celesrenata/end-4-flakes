@@ -142,6 +142,16 @@ def parse_args(argv: list[str] | None = None) -> VoiceAgentConfig:
         help="Path to named FIFO for PCM audio input from pw-cat",
     )
     parser.add_argument(
+        "--audio-source",
+        default="@DEFAULT_SOURCE@",
+        help="PipeWire source node name for audio capture (default: system default)",
+    )
+    parser.add_argument(
+        "--audio-sink",
+        default="@DEFAULT_SINK@",
+        help="PipeWire sink node name for audio playback (default: system default)",
+    )
+    parser.add_argument(
         "--sample-rate",
         type=int,
         default=16000,
@@ -198,6 +208,8 @@ def parse_args(argv: list[str] | None = None) -> VoiceAgentConfig:
         context=args.context,
         tools=args.tools,
         dictation_mode=args.dictation_mode,
+        audio_source=args.audio_source,
+        audio_sink=args.audio_sink,
     )
 
 
@@ -243,6 +255,7 @@ async def _read_audio_fifo(
     stop_event: asyncio.Event,
     tool_manager: ToolCallManager,
     sample_rate: int = 24000,
+    audio_source: str = "@DEFAULT_SOURCE@",
 ) -> None:
     """Async task: capture audio via pw-cat subprocess and forward to backend.
 
@@ -265,7 +278,7 @@ async def _read_audio_fifo(
 
     # Spawn pw-cat as subprocess, reading from its stdout
     pw_cat_cmd = [
-        "pw-cat", "--record", "--format=s16",
+        "pw-cat", "--record", f"--target={audio_source}", "--format=s16",
         f"--rate={sample_rate}", "--channels=1", "-"
     ]
     try:
@@ -492,7 +505,7 @@ async def run(config: VoiceAgentConfig) -> None:
 
     # Launch concurrent tasks
     audio_task = asyncio.create_task(
-        _read_audio_fifo(config.audio_fifo, backend, stop_event, tool_manager, config.sample_rate)
+        _read_audio_fifo(config.audio_fifo, backend, stop_event, tool_manager, config.sample_rate, config.audio_source)
     )
     stdin_task = asyncio.create_task(
         _read_stdin_events(backend, stop_event, tool_manager)

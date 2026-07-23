@@ -29,6 +29,8 @@ class VoiceAgentConfig:
     context: str  # Path to session context JSON file
     tools: str  # Path to tools definition JSON file
     dictation_mode: bool = False  # Use transcription-only session (gpt-realtime-whisper)
+    audio_source: str = "@DEFAULT_SOURCE@"  # PipeWire source node for capture
+    audio_sink: str = "@DEFAULT_SINK@"  # PipeWire sink node for playback
 
 
 # ---------------------------------------------------------------------------
