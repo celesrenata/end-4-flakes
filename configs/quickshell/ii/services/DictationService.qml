@@ -627,9 +627,12 @@ Singleton {
     }
 
     // Audio recording process (pw-record)
+    // NOTE: command is set IMPERATIVELY in activate() — NOT a binding.
+    // A binding on root._recordingPath causes the process to be killed on the
+    // next event-loop cycle when cascading property changes (state → timer running
+    // flags) trigger a re-evaluation of the command array.
     Process {
         id: recordProcess
-        command: ["pw-record", "--target=@DEFAULT_SOURCE@", root._recordingPath]
         onExited: (exitCode, exitStatus) => {
             // Recording stopped (either by us or by error)
             if (root.state === DictationService.State.Listening) {
@@ -729,17 +732,31 @@ Singleton {
         }
     }
 
-    // Silence detection monitor — periodically samples 1s of audio from the default
-    // source and prints "AUDIO" or "SILENCE" based on RMS level. Resets silenceTimer
-    // whenever speech activity is detected.
+    // Delay before starting pw-record — gives one event-loop cycle for all
+    // state-change bindings to settle, and lets Bluetooth SCO sources stabilize.
+    Timer {
+        id: recordStartDelay
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (root.state === DictationService.State.Listening) {
+                recordProcess.running = true
+            }
+        }
+    }
+
+    // Silence detection monitor — periodically samples audio from the default source
+    // and checks RMS level. Resets silenceTimer when speech is detected.
+    // Uses a SINGLE long-running pw-cat process (no reconnect loop) to avoid
+    // starving Bluetooth sources. Reads chunks via dd and checks RMS.
     Process {
         id: silenceMonitor
         command: ["sh", "-c",
-            "while true; do " +
             "pw-cat --record --target=@DEFAULT_SOURCE@ --format=s16 --rate=16000 --channels=1 - 2>/dev/null | " +
-            "head -c 32000 | " +
+            "while true; do " +
+            "dd bs=32000 count=1 2>/dev/null | " +
             "od -A none -v -t d2 | " +
-            "awk '{for(i=1;i<=NF;i++){s+=$i*$i;n++}} END{if(n>0){rms=sqrt(s/n); if(rms>200) print \"AUDIO\"; else print \"SILENCE\"}}'; " +
+            "awk '{for(i=1;i<=NF;i++){s+=$i*$i;n++}} END{if(n>0){rms=sqrt(s/n); if(rms>200) print \"AUDIO\"; else print \"SILENCE\"; fflush()}}'; " +
             "done"
         ]
         running: root.state === DictationService.State.Listening
@@ -988,11 +1005,14 @@ Singleton {
         root.transcriptionMode = mode
 
         if (mode === "batch") {
-            // Existing batch flow — unchanged
+            // Existing batch flow
             // Ensure temp directory exists
             Quickshell.execDetached(["mkdir", "-p", "/tmp/quickshell-dictation"])
             root._recordingPath = "/tmp/quickshell-dictation/" + Date.now() + ".wav"
-            recordProcess.running = true
+            // Set command IMPERATIVELY — no binding re-evaluation can kill the process
+            recordProcess.command = ["pw-record", "--target=@DEFAULT_SOURCE@", root._recordingPath]
+            // Small delay lets Bluetooth SCO channel stabilize after source switch
+            recordStartDelay.restart()
             root._setState(DictationService.State.Listening, "activate() batch mode")
             root.activated()
         } else {
@@ -1296,7 +1316,8 @@ Singleton {
         // Start batch recording
         Quickshell.execDetached(["mkdir", "-p", "/tmp/quickshell-dictation"])
         root._recordingPath = "/tmp/quickshell-dictation/" + Date.now() + ".wav"
-        recordProcess.running = true
+        recordProcess.command = ["pw-record", "--target=@DEFAULT_SOURCE@", root._recordingPath]
+        recordStartDelay.restart()
         root._setState(DictationService.State.Listening, "fallback to batch mode")
     }
 }
