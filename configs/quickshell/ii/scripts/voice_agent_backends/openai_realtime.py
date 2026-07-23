@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 _OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
-_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-whisper"
+_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
 _OPENAI_BETA_HEADER = "realtime=v1"
 
 
@@ -338,21 +338,16 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
         session_config: "dict[str, Any]"
 
         if self.config.dictation_mode:
-            # Transcription-only session: gpt-realtime-whisper with streaming deltas
+            # Dictation mode: use gpt-realtime-mini with input transcription enabled
+            # and response generation disabled (create_response: false)
             session_config = {
-                "type": "transcription",
-                "audio": {
-                    "input": {
-                        "format": {
-                            "type": "audio/pcm",
-                            "rate": self.config.sample_rate,
-                        },
-                        "transcription": {
-                            "model": "gpt-realtime-whisper",
-                            "language": "en",
-                            "delay": "low",
-                        },
-                    },
+                "type": "realtime",
+                "input_audio_transcription": {
+                    "model": "gpt-4o-mini-transcribe",
+                },
+                "turn_detection": {
+                    "type": "server_vad",
+                    "create_response": False,
                 },
             }
             event = {
