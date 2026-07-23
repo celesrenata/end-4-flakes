@@ -629,7 +629,8 @@ Singleton {
     // Audio recording process (pw-record)
     Process {
         id: recordProcess
-        command: ["pw-record", "--target=@DEFAULT_SOURCE@", root._recordingPath]
+        property string sourceTarget: Audio.source?.name ?? "@DEFAULT_SOURCE@"
+        command: ["pw-record", "--target=" + sourceTarget, root._recordingPath]
         onExited: (exitCode, exitStatus) => {
             // Recording stopped (either by us or by error)
             if (root.state === DictationService.State.Listening) {
@@ -916,7 +917,8 @@ Singleton {
 
         // Build the piped command
         var helperPath = Quickshell.shellPath("ii/scripts/dictation-stream.py")
-        var cmd = "pw-cat --record --target=@DEFAULT_SOURCE@ --format=s16 --rate=16000 --channels=1 - | " +
+        var sourceDevice = Audio.source?.name ?? "@DEFAULT_SOURCE@"
+        var cmd = "pw-cat --record --target=" + sourceDevice + " --format=s16 --rate=16000 --channels=1 - | " +
                   "python3 " + helperPath +
                   " --mode=" + mode +
                   " --endpoint=" + endpoint +
