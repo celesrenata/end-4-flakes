@@ -282,7 +282,7 @@ Singleton {
                 property string activationKey: "Control_R"
                 property int doubleTapMs: 600
                 property int debounceMs: 500 // Debounce window (ms) after activation; 0-2000, 0 disables
-                property int silenceTimeoutMs: 3000
+                property int silenceTimeoutMs: 5000
                 property int maxDurationMs: 60000
                 property string provider: "openai"
                 property string model: "whisper-1"
