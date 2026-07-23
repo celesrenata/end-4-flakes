@@ -745,6 +745,9 @@ Singleton {
         var reason = event.reason || "connection failed"
         console.log("[VoiceAgentService] FALLBACK | reason=" + reason + " — delegating to batch pipeline")
 
+        // Preserve dictation mode flag before reset
+        var wasDictationMode = root.dictationToCursorMode
+
         // Kill our processes
         captureProcess.running = false
         helperProcess.running = false
@@ -754,11 +757,13 @@ Singleton {
         _cleanupContextFile()
 
         _setState(VoiceAgentService.State.Idle, "FALLBACK → batch")
+        root.dictationToCursorMode = false
 
-        // Requirement 10.2: Delegate to DictationService batch pipeline.
-        // If the helper saved buffered audio to a temp file (audio_file field),
-        // DictationService could process it — but currently it starts fresh recording.
-        // The helper handles its own audio buffer cleanup.
+        // Delegate to DictationService batch pipeline.
+        // If we were in dictation-to-cursor mode, set the flag so batch types at cursor.
+        if (wasDictationMode) {
+            DictationService._dictationToCursor = true
+        }
         DictationService.activate()
     }
 

@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 _OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
-_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime/transcription_sessions?model=gpt-realtime-whisper"
+_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-whisper"
 _OPENAI_BETA_HEADER = "realtime=v1"
 
 
