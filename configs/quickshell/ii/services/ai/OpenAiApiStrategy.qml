@@ -56,15 +56,15 @@ ApiStrategy {
             }));
         }
 
-        // Apply per-model tuning: web search (injected as a tool entry)
+        // Web search: When enabled, override model to gpt-5-search-api which has
+        // built-in web search on Chat Completions. The model always searches before responding.
+        // Note: gpt-5-search-api doesn't support temperature, tools, or other tuning params.
         if (tuning && tuning.webSearch) {
-            if (!baseData["tools"]) {
-                baseData["tools"] = [];
-            }
-            baseData["tools"].push({
-                "type": "web_search_preview",
-                "search_context_size": tuning.searchContextSize || "medium",
-            });
+            baseData["model"] = "gpt-5-search-api";
+            delete baseData["temperature"];
+            delete baseData["tools"];
+            delete baseData["reasoning_effort"];
+            delete baseData["verbosity"];
         }
 
         return model.extraParams ? Object.assign({}, baseData, model.extraParams) : baseData;
