@@ -30,8 +30,9 @@
         });
         
         # Patch kde-material-you-colors for non-Plasma systems
-        kde-material-you-colors = (prev.python312Packages.kde-material-you-colors.overrideAttrs (old: {
+        kde-material-you-colors = (prev.python3Packages.kde-material-you-colors.overrideAttrs (old: {
           pname = "kde-material-you-colors-patched";
+          dontCheckPythonMetadata = true;
           nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ prev.makeWrapper ];
           
           postInstall = (old.postInstall or "") + ''
@@ -429,7 +430,7 @@ RULES
                 ExecStart = pkgs.writeShellScript "setup-venv" ''
                   VENV=/home/testuser/.local/state/quickshell/.venv/bin
                   mkdir -p $VENV
-                  PYPATH="${pkgs.python312.withPackages (ps: with ps; [ materialyoucolor material-color-utilities pillow numpy psutil ])}/bin/python3"
+                  PYPATH="${pkgs.python3.withPackages (ps: with ps; [ materialyoucolor material-color-utilities pillow numpy psutil ])}/bin/python3"
                   rm -f $VENV/python3 $VENV/python
                   printf '#!/bin/sh\nexec %s "$@"\n' "$PYPATH" > $VENV/python3
                   chmod +x $VENV/python3

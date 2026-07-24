@@ -155,7 +155,7 @@ in
     home.packages = (with pkgs; [
       # Voice agent helper with all Python deps baked in via nix
       (let
-        voiceAgentPython = python312.withPackages (ps: with ps; [
+        voiceAgentPython = python3.withPackages (ps: with ps; [
           websockets
           boto3
         ]);

@@ -23,8 +23,8 @@ let
     
     # Only create venv if it doesn't exist
     if [[ ! -d "$VENV_PATH" ]]; then
-      echo "🏗️  Creating Python 3.12 virtual environment..."
-      ${pkgs.python312}/bin/python -m venv "$VENV_PATH" --prompt .venv
+      echo "🏗️  Creating Python virtual environment..."
+      ${pkgs.python3}/bin/python -m venv "$VENV_PATH" --prompt .venv
     else
       echo "✅ Virtual environment already exists at $VENV_PATH"
     fi
@@ -183,9 +183,9 @@ in
   config = mkIf cfg.enable {
     # Install system Python and required build dependencies + test script
     home.packages = with pkgs; [
-      python312
-      python312Packages.pip
-      python312Packages.virtualenv
+      python3
+      python3Packages.pip
+      python3Packages.virtualenv
       
       # System dependencies for Python packages (from illogical-impulse-python PKGBUILD)
       clang
