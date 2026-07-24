@@ -582,6 +582,83 @@ Singleton {
         "none": Translation.tr("Disable tools")
     }
 
+    /**
+     * Rebuilds the tools property by merging MCP tool declarations into
+     * the static built-in tool declarations for each provider format.
+     * Called when McpClient.toolsChanged() fires.
+     */
+    function _rebuildTools() {
+        const mcpGemini = McpClient.getToolDeclarations("gemini");
+        const mcpOpenai = McpClient.getToolDeclarations("openai");
+        const mcpMistral = McpClient.getToolDeclarations("mistral");
+
+        // Gemini: merge MCP functionDeclarations into the existing functionDeclarations array
+        const builtinGeminiFuncDecls = [
+            { "name": "switch_to_search_mode", "description": "Search the web" },
+            { "name": "get_shell_config", "description": "Get the desktop shell config file contents" },
+            { "name": "set_shell_config", "description": "Set a field in the desktop graphical shell config file. Must only be used after `get_shell_config`.",
+              "parameters": { "type": "object", "properties": { "key": { "type": "string", "description": "The key to set, e.g. `bar.borderless`. MUST NOT BE GUESSED, use `get_shell_config` to see what keys are available before setting." }, "value": { "type": "string", "description": "The value to set, e.g. `true`" } }, "required": ["key", "value"] } },
+            { "name": "run_shell_command", "description": "Run a shell command in bash and get its output. Use this only for quick commands that don't require user interaction. For commands that require interaction, ask the user to run manually instead.",
+              "parameters": { "type": "object", "properties": { "command": { "type": "string", "description": "The bash command to run" } }, "required": ["command"] } },
+            { "name": "hypr_config_read", "description": "Read Quickshell or Hyprland configuration via HyprMCP. Returns current config state.",
+              "parameters": { "type": "object", "properties": { "namespace": { "type": "string", "description": "Dot-separated config namespace to read (e.g. 'bar.workspaces'). Empty string returns all config." } } } },
+            { "name": "hypr_config_set", "description": "Set a Quickshell config value via HyprMCP with read-back verification. Use hypr_config_read first to see available keys.",
+              "parameters": { "type": "object", "properties": { "key": { "type": "string", "description": "The dot-separated config key to set (e.g. 'bar.borderless')" }, "value": { "type": "string", "description": "The value to set" } }, "required": ["key", "value"] } },
+            { "name": "hypr_set_keyword", "description": "Set a Hyprland runtime keyword via HyprMCP with read-back verification. Used for Hyprland dynamic configuration.",
+              "parameters": { "type": "object", "properties": { "keyword": { "type": "string", "description": "The Hyprland keyword to set (e.g. 'general:gaps_in')" }, "value": { "type": "string", "description": "The value to set" } }, "required": ["keyword", "value"] } },
+        ];
+
+        // Merge MCP tools into Gemini functionDeclarations
+        let mergedGeminiDecls = builtinGeminiFuncDecls.slice();
+        if (mcpGemini.length > 0 && mcpGemini[0].functionDeclarations) {
+            mergedGeminiDecls = mergedGeminiDecls.concat(mcpGemini[0].functionDeclarations);
+        }
+
+        // Built-in OpenAI declarations
+        const builtinOpenaiDecls = [
+            { "name": "switch_to_search_mode", "description": "Search the web" },
+            { "name": "get_shell_config", "description": "Get the desktop shell config file contents" },
+            { "name": "set_shell_config", "description": "Set a field in the desktop graphical shell config file. Must only be used after `get_shell_config`.",
+              "parameters": { "type": "object", "properties": { "key": { "type": "string", "description": "The key to set, e.g. `bar.borderless`. MUST NOT BE GUESSED, use `get_shell_config` to see what keys are available before setting." }, "value": { "type": "string", "description": "The value to set, e.g. `true`" } }, "required": ["key", "value"] } },
+            { "name": "run_shell_command", "description": "Run a shell command in bash and get its output. Use this only for quick commands that don't require user interaction. For commands that require interaction, ask the user to run manually instead.",
+              "parameters": { "type": "object", "properties": { "command": { "type": "string", "description": "The bash command to run" } }, "required": ["command"] } },
+            { "name": "hypr_config_read", "description": "Read Quickshell or Hyprland configuration via HyprMCP. Returns current config state.",
+              "parameters": { "type": "object", "properties": { "namespace": { "type": "string", "description": "Dot-separated config namespace to read. Empty for all." } } } },
+            { "name": "hypr_config_set", "description": "Set a Quickshell config value via HyprMCP with read-back verification.",
+              "parameters": { "type": "object", "properties": { "key": { "type": "string", "description": "Config key to set" }, "value": { "type": "string", "description": "Value to set" } }, "required": ["key", "value"] } },
+            { "name": "hypr_set_keyword", "description": "Set a Hyprland runtime keyword via HyprMCP with read-back verification.",
+              "parameters": { "type": "object", "properties": { "keyword": { "type": "string", "description": "Hyprland keyword" }, "value": { "type": "string", "description": "Value to set" } }, "required": ["keyword", "value"] } },
+        ];
+
+        // Built-in Mistral declarations
+        const builtinMistralDecls = [
+            { "type": "function", "function": { "name": "get_shell_config", "description": "Get the desktop shell config file contents", "parameters": {} } },
+            { "type": "function", "function": { "name": "set_shell_config", "description": "Set a field in the desktop graphical shell config file. Must only be used after `get_shell_config`.", "parameters": { "type": "object", "properties": { "key": { "type": "string", "description": "The key to set, e.g. `bar.borderless`. MUST NOT BE GUESSED, use `get_shell_config` to see what keys are available before setting." }, "value": { "type": "string", "description": "The value to set, e.g. `true`" } }, "required": ["key", "value"] } } },
+            { "type": "function", "function": { "name": "run_shell_command", "description": "Run a shell command in bash and get its output. Use this only for quick commands that don't require user interaction. For commands that require interaction, ask the user to run manually instead.", "parameters": { "type": "object", "properties": { "command": { "type": "string", "description": "The bash command to run" } }, "required": ["command"] } } },
+            { "type": "function", "function": { "name": "hypr_config_read", "description": "Read Quickshell or Hyprland configuration via HyprMCP.", "parameters": { "type": "object", "properties": { "namespace": { "type": "string", "description": "Config namespace to read" } } } } },
+            { "type": "function", "function": { "name": "hypr_config_set", "description": "Set a Quickshell config value via HyprMCP with verification.", "parameters": { "type": "object", "properties": { "key": { "type": "string", "description": "Config key" }, "value": { "type": "string", "description": "Value to set" } }, "required": ["key", "value"] } } },
+            { "type": "function", "function": { "name": "hypr_set_keyword", "description": "Set a Hyprland runtime keyword via HyprMCP with verification.", "parameters": { "type": "object", "properties": { "keyword": { "type": "string", "description": "Hyprland keyword" }, "value": { "type": "string", "description": "Value to set" } }, "required": ["keyword", "value"] } } },
+        ];
+
+        root.tools = {
+            "gemini": {
+                "functions": [{"functionDeclarations": mergedGeminiDecls}],
+                "search": [{"google_search": {}}],
+                "none": []
+            },
+            "openai": {
+                "functions": builtinOpenaiDecls.concat(mcpOpenai),
+                "search": [],
+                "none": []
+            },
+            "mistral": {
+                "functions": builtinMistralDecls.concat(mcpMistral),
+                "search": [],
+                "none": []
+            }
+        };
+    }
+
     // Model properties:
     // - name: Name of the model
     // - icon: Icon name of the model
@@ -728,8 +805,17 @@ Singleton {
         }
     }
 
+    // Rebuild tool declarations when MCP tool registry changes
+    Connections {
+        target: McpClient
+        function onToolsChanged() {
+            root._rebuildTools();
+        }
+    }
+
     Component.onCompleted: {
         setModel(currentModelId, false, false); // Do necessary setup for model
+        McpClient.initialize();
         // Restore session state on startup
         root.loadSessionsIndex();
         root.ensureFreeDictationSession();
@@ -836,6 +922,8 @@ Singleton {
             // No persisted session, create a new default
             root.newSession();
         }
+        // Initial tool declarations build (includes any early MCP tools)
+        root._rebuildTools();
     }
 
     function guessModelLogo(model) {
@@ -1312,120 +1400,6 @@ Singleton {
         }
     }
 
-    Process {
-        id: hyprMcpProc
-        running: false
-        property string pendingTool: ""
-        property var pendingArgs: ({})
-        property string responseBuffer: ""
-
-        stdout: SplitParser {
-            onRead: data => {
-                hyprMcpProc.responseBuffer += data;
-            }
-        }
-
-        onExited: (exitCode, exitStatus) => {
-            const response = hyprMcpProc.responseBuffer.trim();
-            hyprMcpProc.responseBuffer = "";
-
-            if (exitCode !== 0 || response.length === 0) {
-                root.addFunctionOutputMessage(hyprMcpProc.pendingTool,
-                    Translation.tr("HyprMCP error: service unreachable or returned empty response (exit code: %1)").arg(exitCode));
-                requester.makeRequest();
-                return;
-            }
-
-            try {
-                const parsed = JSON.parse(response);
-                const content = parsed.result?.content?.[0]?.text || JSON.stringify(parsed);
-
-                if (hyprMcpProc.pendingTool === "hypr_config_read") {
-                    // Return config state to model
-                    root.addFunctionOutputMessage("hypr_config_read", content);
-                    requester.makeRequest();
-                } else {
-                    // For write operations: trigger read-back verification
-                    const key = hyprMcpProc.pendingArgs.key || hyprMcpProc.pendingArgs.keyword || "";
-                    const value = String(hyprMcpProc.pendingArgs.value || "");
-                    const namespace = key.split(".").slice(0, -1).join(".") || key;
-
-                    hyprMcpVerifyProc.originalTool = hyprMcpProc.pendingTool;
-                    hyprMcpVerifyProc.expectedValue = value;
-                    hyprMcpVerifyProc.verifyKey = key;
-                    hyprMcpVerifyProc.responseBuffer = "";
-                    hyprMcpVerifyProc.command = ["bash", "-c",
-                        `curl -s -X POST http://localhost:7580/mcp -H 'Content-Type: application/json' -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify({
-                            method: "tools/call",
-                            params: { name: "config_read", arguments: { namespace: namespace } }
-                        }))}'`
-                    ];
-                    hyprMcpVerifyProc.running = true;
-                }
-            } catch (e) {
-                root.addFunctionOutputMessage(hyprMcpProc.pendingTool,
-                    Translation.tr("HyprMCP error: could not parse response: %1").arg(String(e)));
-                requester.makeRequest();
-            }
-        }
-    }
-
-    Process {
-        id: hyprMcpVerifyProc
-        running: false
-        property string expectedValue: ""
-        property string verifyKey: ""
-        property string originalTool: ""
-        property string responseBuffer: ""
-
-        stdout: SplitParser {
-            onRead: data => {
-                hyprMcpVerifyProc.responseBuffer += data;
-            }
-        }
-
-        onExited: (exitCode, exitStatus) => {
-            const response = hyprMcpVerifyProc.responseBuffer.trim();
-            hyprMcpVerifyProc.responseBuffer = "";
-
-            if (exitCode !== 0 || response.length === 0) {
-                // Read-back failed — report error but don't claim success
-                root.addFunctionOutputMessage(hyprMcpVerifyProc.originalTool,
-                    Translation.tr("Write appeared to succeed but verification read-back failed (exit code: %1). Cannot confirm change was applied.").arg(exitCode));
-                requester.makeRequest();
-                return;
-            }
-
-            try {
-                const parsed = JSON.parse(response);
-                const content = parsed.result?.content?.[0]?.text || JSON.stringify(parsed);
-
-                // Check if the expected value appears in the read-back
-                const actualStr = String(content);
-                const expectedStr = String(hyprMcpVerifyProc.expectedValue);
-
-                if (actualStr.indexOf(expectedStr) !== -1) {
-                    // Match — report verified success
-                    root.addFunctionOutputMessage(hyprMcpVerifyProc.originalTool,
-                        Translation.tr("Verified: %1 = %2").arg(hyprMcpVerifyProc.verifyKey).arg(expectedStr));
-                } else {
-                    // Mismatch — report both expected and actual to model and user
-                    root.addFunctionOutputMessage(hyprMcpVerifyProc.originalTool,
-                        "Verification failed: expected " + expectedStr + ", got " + actualStr);
-                    root.addMessage(
-                        Translation.tr("⚠️ Config verification mismatch for \"%1\": expected \"%2\", actual value: %3")
-                            .arg(hyprMcpVerifyProc.verifyKey).arg(expectedStr).arg(actualStr),
-                        root.interfaceRole
-                    );
-                }
-            } catch (e) {
-                root.addFunctionOutputMessage(hyprMcpVerifyProc.originalTool,
-                    Translation.tr("Verification read-back parse error: %1").arg(String(e)));
-            }
-
-            requester.makeRequest();
-        }
-    }
 
     function handleFunctionCall(name, args: var, message: AiMessageData) {
         if (name === "switch_to_search_mode") {
@@ -1456,46 +1430,81 @@ Singleton {
             message.content += contentToAppend;
             message.functionPending = true; // Use thinking to indicate the command is waiting for approval
         } else if (name === "hypr_config_read") {
-            const namespace = args.namespace || "";
-            hyprMcpProc.pendingTool = "hypr_config_read";
-            hyprMcpProc.pendingArgs = { namespace: namespace };
-            hyprMcpProc.command = ["bash", "-c",
-                `curl -s -X POST http://localhost:7580/mcp -H 'Content-Type: application/json' -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify({
-                    method: "tools/call",
-                    params: { name: "config_read", arguments: { namespace: namespace } }
-                }))}'`
-            ];
-            hyprMcpProc.running = true;
+            // Route through McpClient (ii-desktop MCP path with HTTP/stdio hybrid)
+            root.executeMcpTool("mcp_ii_desktop_config_read", { namespace: args.namespace || "" }, "hypr_config_read");
         } else if (name === "hypr_config_set") {
             if (!args.key || !args.value) {
                 addFunctionOutputMessage(name, Translation.tr("Invalid arguments. Must provide `key` and `value`."));
                 return;
             }
-            hyprMcpProc.pendingTool = "hypr_config_set";
-            hyprMcpProc.pendingArgs = { key: args.key, value: args.value };
-            hyprMcpProc.command = ["bash", "-c",
-                `curl -s -X POST http://localhost:7580/mcp -H 'Content-Type: application/json' -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify({
-                    method: "tools/call",
-                    params: { name: "config_set", arguments: { key: args.key, value: args.value } }
-                }))}'`
-            ];
-            hyprMcpProc.running = true;
+            root.executeMcpTool("mcp_ii_desktop_config_set", { key: args.key, value: args.value }, "hypr_config_set");
         } else if (name === "hypr_set_keyword") {
             if (!args.keyword || !args.value) {
                 addFunctionOutputMessage(name, Translation.tr("Invalid arguments. Must provide `keyword` and `value`."));
                 return;
             }
-            hyprMcpProc.pendingTool = "hypr_set_keyword";
-            hyprMcpProc.pendingArgs = { keyword: args.keyword, value: args.value };
-            hyprMcpProc.command = ["bash", "-c",
-                `curl -s -X POST http://localhost:7580/mcp -H 'Content-Type: application/json' -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify({
-                    method: "tools/call",
-                    params: { name: "set_keyword", arguments: { keyword: args.keyword, value: args.value } }
-                }))}'`
-            ];
-            hyprMcpProc.running = true;
+            root.executeMcpTool("mcp_ii_desktop_set_keyword", { keyword: args.keyword, value: args.value }, "hypr_set_keyword");
         }
-        else root.addMessage(Translation.tr("Unknown function call: %1").arg(name), "assistant");
+        else if (McpClient.toolRegistry[name]) {
+            handleMcpToolCall(name, args, message);
+        }
+        else {
+            root.addMessage(Translation.tr("Unknown function call: %1").arg(name), "assistant");
+        }
+    }
+
+    /**
+     * Handles an MCP tool call — checks auto-approve, otherwise prompts user.
+     */
+    function handleMcpToolCall(name, args, message) {
+        if (McpClient.isToolAutoApproved(name)) {
+            executeMcpTool(name, args);
+        } else {
+            // Require user approval — set pending state on the message
+            message.functionPending = true;
+            message.pendingMcpTool = name;
+            message.pendingMcpArgs = args;
+        }
+    }
+
+    /**
+     * Dispatches an MCP tool call to McpClient and handles the response.
+     * @param name — the MCP tool name to call (prefixed, e.g., "mcp_ii_desktop_config_read")
+     * @param args — the arguments to pass to the tool
+     * @param outputName — optional name to use in the function output message (defaults to name)
+     */
+    function executeMcpTool(name, args, outputName) {
+        const displayName = outputName || name;
+        const promise = McpClient.callTool(name, args);
+        promise.then(result => {
+            root.addFunctionOutputMessage(displayName, result);
+            requester.makeRequest();
+        });
+        promise.catch(err => {
+            root.addFunctionOutputMessage(displayName, Translation.tr("MCP tool error: %1").arg(String(err)));
+            requester.makeRequest();
+        });
+    }
+
+    /**
+     * Approves a pending MCP tool call (called from UI).
+     */
+    function approveMcpTool(message) {
+        message.functionPending = false;
+        executeMcpTool(message.pendingMcpTool, message.pendingMcpArgs);
+    }
+
+    /**
+     * Rejects a pending MCP tool call (called from UI).
+     * Delivers a rejection notice as the function response so the LLM
+     * knows the tool was not executed and can continue the conversation.
+     */
+    function rejectMcpTool(message) {
+        const toolName = message.pendingMcpTool;
+        message.functionPending = false;
+        root.addFunctionOutputMessage(toolName,
+            Translation.tr("Tool execution rejected by user"));
+        requester.makeRequest();
     }
 
     function chatToJson() {

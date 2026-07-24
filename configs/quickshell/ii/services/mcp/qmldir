@@ -1,0 +1,3 @@
+module qs.services.mcp
+
+McpServerBridge 1.0 McpServerBridge.qml

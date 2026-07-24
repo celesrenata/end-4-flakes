@@ -46,6 +46,9 @@ bindd = Ctrl+Super+Shift, D, Toggle light/dark mode, global, quickshell:toggleLi
 bind = Ctrl+Super+Shift, D, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || ~/.config/quickshell/$qsConfig/scripts/colors/switchwall.sh --mode "$(if [ "$(gsettings get org.gnome.desktop.interface color-scheme)" = "'prefer-dark'" ]; then echo light; else echo dark; fi)" # [hidden] Toggle light/dark (fallback)
 bind = Ctrl+Super, R, exec, killall ydotool qs quickshell; @QUICKSHELL_BIN@ -c $qsConfig & # Restart widgets
 
+# Demo Driver
+bindd = Super+Alt, F10, Toggle desktop demo, global, quickshell:demoToggle # Toggle desktop demo
+
 ##! Utilities
 # Screenshot, Record, OCR, Color picker, Clipboard history
 bindd = Super, V, Copy clipboard history entry, exec, @QUICKSHELL_BIN@ -c $qsConfig ipc call TEST_ALIVE || pkill fuzzel || @CLIPHIST_BIN@ list | @FUZZEL_BIN@ --match-mode fzf --dmenu | @CLIPHIST_BIN@ decode | @WL_COPY_BIN@ # [hidden] Clipboard history >> clipboard (fallback)

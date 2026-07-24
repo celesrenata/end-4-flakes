@@ -12,6 +12,8 @@ BooruResponseData 1.0 BooruResponseData.qml
 singleton Brightness 1.0 Brightness.qml
 singleton Cliphist 1.0 Cliphist.qml
 singleton DateTime 1.0 DateTime.qml
+singleton DemoDriverService 1.0 DemoDriverService.qml
+singleton DemoScenes 1.0 DemoScenes.qml
 singleton DictationService 1.0 DictationService.qml
 singleton EasyEffects 1.0 EasyEffects.qml
 singleton Emojis 1.0 Emojis.qml
@@ -23,6 +25,7 @@ singleton Hyprsunset 1.0 Hyprsunset.qml
 singleton KeyringStorage 1.0 KeyringStorage.qml
 singleton LatexRenderer 1.0 LatexRenderer.qml
 singleton MaterialThemeLoader 1.0 MaterialThemeLoader.qml
+singleton McpClient 1.0 McpClient.qml
 singleton ModelDiscoveryService 1.0 ModelDiscoveryService.qml
 singleton MprisController 1.0 MprisController.qml
 singleton Network 1.0 Network.qml

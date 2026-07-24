@@ -29,6 +29,42 @@ Item {
     property bool _scrollToMatchActive: false
     property int highlightedMessageIndex: -1
 
+    // URL detection state — stores detected URLs from the last user message
+    property var lastDetectedUrls: []
+
+    // Detect URLs in text matching https://, http://, www. prefixes (max 2048 chars)
+    function detectUrls(text) {
+        const regex = /(?:https?:\/\/|www\.)[^\s<>"']{1,2048}/gi;
+        const matches = [];
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            matches.push({ url: match[0], start: match.index, end: match.index + match[0].length });
+        }
+        return matches;
+    }
+
+    // Handle "Fetch with AI" — fetch URL content, truncate to 8000 chars, summarize
+    function handleFetchUrl(url) {
+        const promise = McpClient.callTool("mcp_fetch_fetch", { url: url, max_length: 8000 });
+        promise.then(function(content) {
+            // Truncate to 8000 characters
+            const truncated = (typeof content === "string" && content.length > 8000)
+                ? content.substring(0, 8000) : (content || "");
+            // Add fetched content to conversation and instruct LLM to summarize
+            Ai.sendUserMessage("Fetched content from " + url + ":\n\n" + truncated + "\n\nPlease summarize this content.");
+            // Clear the chip for this URL
+            root.lastDetectedUrls = root.lastDetectedUrls.filter(function(u) { return u.url !== url; });
+        });
+        promise.catch(function(err) {
+            // Display error message and offer "Open in browser" fallback
+            Ai.addMessage(
+                Translation.tr("Failed to fetch %1: %2\n\nYou can try opening it in the browser instead.")
+                    .arg(url).arg(err),
+                Ai.interfaceRole
+            );
+        });
+    }
+
     // Clipboard image type checker — runs wl-paste --list-types to see if clipboard has image
     Process {
         id: clipboardTypeChecker
@@ -415,6 +451,14 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             }
         }
         else {
+            // Detect URLs in user message before sending
+            const urls = root.detectUrls(inputText);
+            if (urls.length > 0) {
+                root.lastDetectedUrls = urls;
+            } else {
+                root.lastDetectedUrls = [];
+            }
+
             // Use attachment-aware send if there are pending attachments
             if (Ai.pendingAttachments.length > 0) {
                 Ai.sendUserMessageWithAttachments(inputText);
@@ -667,6 +711,56 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     text: "search"
                     iconSize: Appearance.font.pixelSize.normal
                     color: root.searchOpen ? Appearance.m3colors.m3primary : Appearance.m3colors.m3onSurface
+                }
+            }
+            StatusSeparator {
+                visible: Object.keys(McpClient.serverStates).length > 0
+            }
+            // MCP Server Status Indicators
+            Flow {
+                spacing: 4
+                visible: Object.keys(McpClient.serverStates).length > 0
+                Repeater {
+                    model: Object.keys(McpClient.serverStates)
+                    delegate: MouseArea {
+                        id: mcpDot
+                        required property int index
+                        required property string modelData
+                        width: 10
+                        height: 10
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+
+                        onClicked: {
+                            const currentState = McpClient.serverStates[modelData];
+                            McpClient.setServerDisabled(modelData, currentState !== "disabled");
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: width / 2
+                            color: {
+                                const state = McpClient.serverStates[mcpDot.modelData];
+                                switch (state) {
+                                    case "connected": return Appearance.m3colors.m3primary;
+                                    case "connecting": return Appearance.m3colors.m3tertiary;
+                                    case "error": return Appearance.m3colors.m3error;
+                                    case "disabled": return Appearance.m3colors.m3outlineVariant;
+                                    default: return Appearance.m3colors.m3outline; // disconnected
+                                }
+                            }
+                            opacity: McpClient.serverStates[mcpDot.modelData] === "disabled" ? 0.5 : 1.0
+
+                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                        }
+
+                        StyledToolTip {
+                            content: mcpDot.modelData + ": " + (McpClient.serverStates[mcpDot.modelData] || "unknown")
+                            extraVisibleCondition: false
+                            alternativeVisibleCondition: mcpDot.containsMouse
+                        }
+                    }
                 }
             }
         }
@@ -1892,6 +1986,31 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             }
         }
 
+        // URL action chips — shown when user message contains detected URLs
+        Flow {
+            id: urlChipsRow
+            visible: root.lastDetectedUrls.length > 0
+            Layout.fillWidth: true
+            spacing: 6
+
+            Repeater {
+                model: root.lastDetectedUrls.length
+
+                UrlActionChip {
+                    required property int index
+                    url: root.lastDetectedUrls[index]?.url ?? ""
+
+                    onFetchRequested: function(chipUrl) {
+                        root.handleFetchUrl(chipUrl);
+                    }
+                    onOpenRequested: function(chipUrl) {
+                        // Remove chip after opening
+                        root.lastDetectedUrls = root.lastDetectedUrls.filter(function(u) { return u.url !== chipUrl; });
+                    }
+                }
+            }
+        }
+
         // AutoCompactNotification banner
         Rectangle {
             id: autoCompactBanner
@@ -2233,6 +2352,52 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                     description: Translation.tr("Switch to session \"%1\" (last modified: %2)").arg(session.name).arg(date.toLocaleString()),
                                 }
                             })
+                        } else if (messageInputField.text.startsWith(`${root.commandPrefix}tune`)) {
+                            const parts = messageInputField.text.trim().split(" ");
+                            const subCmd = parts[1] ?? "";
+                            const subVal = parts[2] ?? "";
+
+                            if (parts.length <= 2 && !subVal) {
+                                // Show sub-command options
+                                const tuning = Ai.getModelTuning();
+                                const options = [
+                                    { name: `${root.commandPrefix}tune get`, displayName: "get", description: Translation.tr("Show current tuning settings") },
+                                    { name: `${root.commandPrefix}tune temp `, displayName: "temp", description: Translation.tr("Temperature: %1").arg(tuning.temperature) },
+                                    { name: `${root.commandPrefix}tune reasoning `, displayName: "reasoning", description: Translation.tr("Effort: %1").arg(tuning.reasoningEffort || "default") },
+                                    { name: `${root.commandPrefix}tune websearch `, displayName: "websearch", description: Translation.tr("Web search: %1").arg(tuning.webSearch ? "on" : "off") },
+                                    { name: `${root.commandPrefix}tune context `, displayName: "context", description: Translation.tr("Search context: %1").arg(tuning.searchContextSize) },
+                                    { name: `${root.commandPrefix}tune verbosity `, displayName: "verbosity", description: Translation.tr("Verbosity: %1").arg(tuning.verbosity || "default") },
+                                ];
+                                root.suggestionList = options.filter(o => o.displayName.startsWith(subCmd));
+                            } else if (subCmd === "reasoning" || subCmd === "reason") {
+                                const vals = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "off"];
+                                root.suggestionList = vals.filter(v => v.startsWith(subVal)).map(v => ({
+                                    name: `${root.commandPrefix}tune reasoning ${v}`,
+                                    displayName: v,
+                                    description: v === "off" ? Translation.tr("Clear reasoning setting") : Translation.tr("Set reasoning effort to %1").arg(v),
+                                }));
+                            } else if (subCmd === "websearch" || subCmd === "web") {
+                                const vals = ["on", "off"];
+                                root.suggestionList = vals.filter(v => v.startsWith(subVal)).map(v => ({
+                                    name: `${root.commandPrefix}tune websearch ${v}`,
+                                    displayName: v,
+                                    description: v === "on" ? Translation.tr("Enable web search") : Translation.tr("Disable web search"),
+                                }));
+                            } else if (subCmd === "context" || subCmd === "searchcontext") {
+                                const vals = ["low", "medium", "high"];
+                                root.suggestionList = vals.filter(v => v.startsWith(subVal)).map(v => ({
+                                    name: `${root.commandPrefix}tune context ${v}`,
+                                    displayName: v,
+                                    description: Translation.tr("Set search context size to %1").arg(v),
+                                }));
+                            } else if (subCmd === "verbosity" || subCmd === "verbose") {
+                                const vals = ["low", "medium", "high", "off"];
+                                root.suggestionList = vals.filter(v => v.startsWith(subVal)).map(v => ({
+                                    name: `${root.commandPrefix}tune verbosity ${v}`,
+                                    displayName: v,
+                                    description: v === "off" ? Translation.tr("Clear verbosity setting") : Translation.tr("Set verbosity to %1").arg(v),
+                                }));
+                            }
                         } else if (messageInputField.text.startsWith(`${root.commandPrefix}delete`)) {
                             root.suggestionQuery = messageInputField.text.split(" ").slice(1).join(" ") ?? ""
                             const sessions = Ai.listSessions();

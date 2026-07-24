@@ -24,6 +24,14 @@ Rectangle {
 
     property list<var> messageBlocks: StringUtils.splitMarkdownBlocks(root.messageData?.content)
 
+    // MCP tool block detection: show a tool block when message has an MCP function result or is pending
+    property bool hasMcpToolBlock: {
+        const fn = root.messageData?.functionName ?? "";
+        if (!fn.startsWith("mcp_")) return false;
+        return (root.messageData?.functionPending ?? false) || (root.messageData?.functionResponse ?? "").length > 0;
+    }
+    property real toolBlockStartTime: root.messageData?.functionPending ? Date.now() : 0
+
     anchors.left: parent?.left
     anchors.right: parent?.right
     implicitHeight: columnLayout.implicitHeight + root.messagePadding * 2
@@ -364,6 +372,19 @@ Rectangle {
                         }
                     }
                 }
+            }
+
+            // MCP Tool Result Block — rendered when message carries an MCP function response or is pending
+            MessageToolBlock {
+                visible: root.hasMcpToolBlock
+                Layout.fillWidth: true
+                toolName: root.messageData?.functionName ?? ""
+                content: root.messageData?.functionResponse ?? ""
+                isError: (root.messageData?.functionResponse ?? "").startsWith("MCP tool error:") ||
+                         (root.messageData?.functionResponse ?? "").startsWith("Error:")
+                pending: root.messageData?.functionPending ?? false
+                startTime: root.toolBlockStartTime
+                messageData: root.messageData
             }
 
             Repeater {

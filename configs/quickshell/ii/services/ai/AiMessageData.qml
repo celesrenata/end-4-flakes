@@ -17,6 +17,8 @@ QtObject {
     property var functionCall
     property string functionResponse
     property bool functionPending: false
+    property string pendingMcpTool: ""
+    property var pendingMcpArgs: ({})
     property bool visibleToUser: true
     // Legacy: base64-encoded image thumbnails (Context Lens)
     property var images: []

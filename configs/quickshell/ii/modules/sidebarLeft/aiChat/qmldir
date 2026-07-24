@@ -6,4 +6,6 @@ AnnotationSourceButton 1.0 AnnotationSourceButton.qml
 MessageCodeBlock 1.0 MessageCodeBlock.qml
 MessageTextBlock 1.0 MessageTextBlock.qml
 MessageThinkBlock 1.0 MessageThinkBlock.qml
+MessageToolBlock 1.0 MessageToolBlock.qml
 SearchQueryButton 1.0 SearchQueryButton.qml
+UrlActionChip 1.0 UrlActionChip.qml
