@@ -44,11 +44,27 @@ ApiStrategy {
             baseData["verbosity"] = tuning.verbosity;
         }
 
-        // Apply per-model tuning: web_search_options
+        // Add function tools to request (OpenAI chat completions format)
+        if (tools && tools.length > 0) {
+            baseData["tools"] = tools.map(t => ({
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description || "",
+                    "parameters": t.parameters || { "type": "object", "properties": {} }
+                }
+            }));
+        }
+
+        // Apply per-model tuning: web search (injected as a tool entry)
         if (tuning && tuning.webSearch) {
-            baseData["web_search_options"] = {
+            if (!baseData["tools"]) {
+                baseData["tools"] = [];
+            }
+            baseData["tools"].push({
+                "type": "web_search_preview",
                 "search_context_size": tuning.searchContextSize || "medium",
-            };
+            });
         }
 
         return model.extraParams ? Object.assign({}, baseData, model.extraParams) : baseData;
