@@ -315,6 +315,7 @@ bindd = Ctrl+Shift, 4, Screen snip >> clipboard, exec, grim -g "$(slurp -d -c D1
 bindd = Ctrl+Shift, 5, Record region, exec, ~/.config/quickshell/ii/scripts/record.sh # Record region (no sound)
 bindd = Ctrl+Alt, 5, Record with sound, exec, ~/.config/quickshell/ii/scripts/record --sound # Record with sound
 bindd = Ctrl+Shift+Alt, 5, Record fullscreen + sound, exec, ~/.config/quickshell/ii/scripts/record.sh --fullscreen-sound # Record fullscreen + sound
+bindd = Ctrl+Super+Shift+Alt, 5, Record fullscreen + mic + system, exec, ~/.config/quickshell/ii/scripts/record.sh --fullscreen-mixed # Record fullscreen with mic + system audio
 bindd = Ctrl+Alt, C, Color picker, exec, hyprpicker -a # Color picker >> clipboard
 bindd = Ctrl+Super+Shift, S, OCR >> clipboard, exec, grim -g "$(slurp -d -c D1E5F4BB -b 1B232866 -s 00000000)" "tmp.png" && tesseract "tmp.png" - | wl-copy && rm "tmp.png" # OCR >> clipboard
 
