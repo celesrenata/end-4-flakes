@@ -40,6 +40,11 @@ Singleton {
         obj[keys[keys.length - 1]] = convertedValue;
     }
 
+    // Set a nested value using an array of keys (e.g., ["ai", "customProviders"])
+    function setNestedField(path, value) {
+        root.setNestedValue(path.join("."), value);
+    }
+
     FileView {
         path: root.filePath
         watchChanges: true
@@ -77,6 +82,7 @@ Singleton {
                         "requires_key": true
                     }
                 ]
+                property list<var> customProviders: []
             }
 
             property JsonObject appearance: JsonObject {
