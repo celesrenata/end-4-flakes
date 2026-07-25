@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 _OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-mini"
-_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime?intent=transcription"
+_OPENAI_TRANSCRIPTION_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-whisper"
 _OPENAI_BETA_HEADER = "realtime=v1"
 
 
@@ -167,7 +167,7 @@ class OpenAIRealtimeBackend(BaseVoiceBackend):
     async def connect(self) -> None:
         """Establish WebSocket connection and send session.update.
 
-        Connects to wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview
+        Connects to wss://api.openai.com/v1/realtime?model=gpt-realtime
         with the API key and OpenAI-Beta header. Sends a session.update event
         to configure VAD, audio formats, system prompt, and tools.
 

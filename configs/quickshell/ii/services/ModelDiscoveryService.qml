@@ -341,7 +341,22 @@ Singleton {
             endpoint = config.chat_endpoint_template.split("{model}").join(modelId);
         }
 
-        return {
+        // Extract context length from response metadata
+        var contextLength = 0;
+        if (modelData.meta && modelData.meta.n_ctx_train) {
+            // llama.cpp / custom OpenAI-compat servers
+            contextLength = modelData.meta.n_ctx_train;
+        } else if (modelData.context_length) {
+            // OpenRouter, some providers
+            contextLength = modelData.context_length;
+        } else if (modelData.context_window) {
+            // Anthropic, some providers
+            contextLength = modelData.context_window;
+        } else if (providerId === "gemini" && modelData.inputTokenLimit) {
+            contextLength = modelData.inputTokenLimit;
+        }
+
+        var result = {
             name: displayName,
             icon: config.icon,
             description: config.name + " | " + modelId,
@@ -351,6 +366,10 @@ Singleton {
             key_id: config.key_id,
             api_format: config.api_format
         };
+        if (contextLength > 0) {
+            result.context_length = contextLength;
+        }
+        return result;
     }
 
     // --- Imperative side-effect functions ---

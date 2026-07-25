@@ -960,10 +960,13 @@ Singleton {
                 try {
                     if (data.length === 0) return;
                     const dataJson = JSON.parse(data);
-                    root.modelList = [...root.modelList, ...dataJson];
-                    dataJson.forEach(model => {
+                    const modelNames = dataJson.map(entry => typeof entry === "string" ? entry : entry.name);
+                    root.modelList = [...root.modelList, ...modelNames];
+                    dataJson.forEach(entry => {
+                        const model = typeof entry === "string" ? entry : entry.name;
+                        const contextLength = (typeof entry === "object" && entry.context_length) ? entry.context_length : 0;
                         const safeModelName = root.safeModelName(model);
-                        root.addModel(safeModelName, {
+                        const modelData = {
                             "name": guessModelName(model),
                             "icon": guessModelLogo(model),
                             "description": Translation.tr("Local Ollama model | %1").arg(model),
@@ -971,7 +974,11 @@ Singleton {
                             "endpoint": "http://localhost:11434/v1/chat/completions",
                             "model": model,
                             "requires_key": false,
-                        })
+                        };
+                        if (contextLength > 0) {
+                            modelData.context_length = contextLength;
+                        }
+                        root.addModel(safeModelName, modelData);
                     });
 
                     root.modelList = Object.keys(root.models);
@@ -1081,9 +1088,10 @@ Singleton {
 
     function setModel(modelId, feedback = true, setPersistentState = true) {
         if (!modelId) modelId = ""
-        modelId = modelId.toLowerCase()
-        if (modelList.indexOf(modelId) !== -1) {
-            const model = models[modelId]
+        // Case-insensitive lookup: find the actual key in modelList
+        const matchedId = modelList.find(m => m.toLowerCase() === modelId.toLowerCase()) || "";
+        if (matchedId) {
+            const model = models[matchedId]
             // Fetch API keys if needed
             if (model?.requires_key) KeyringStorage.fetchKeyringData();
             // See if policy prevents online models
@@ -1094,8 +1102,8 @@ Singleton {
                 );
                 return;
             }
-            root.currentModelId = modelId;
-            if (setPersistentState) Persistent.states.ai.model = modelId;
+            root.currentModelId = matchedId;
+            if (setPersistentState) Persistent.states.ai.model = matchedId;
             if (feedback) root.addMessage(Translation.tr("Model set to %1").arg(model.name), root.interfaceRole);
             if (model.requires_key) {
                 // If key not there show advice
@@ -1104,7 +1112,16 @@ Singleton {
                 }
             }
         } else {
-            if (feedback) root.addMessage(Translation.tr("Invalid model. Supported: \n```\n") + modelList.join("\n```\n```\n"), Ai.interfaceRole) + "\n```"
+            // Show top fuzzy matches (max 5)
+            if (feedback) {
+                const fuzzyResults = CF.Fuzzy.go(modelId, modelList.map(m => ({ name: CF.Fuzzy.prepare(m), obj: m })), { key: "name", limit: 5 });
+                let msg = Translation.tr("Model not found: `%1`").arg(modelId);
+                if (fuzzyResults.length > 0) {
+                    msg += "\n\n" + Translation.tr("Did you mean:") + "\n" + fuzzyResults.map(r => "- `" + r.target + "`").join("\n");
+                }
+                msg += "\n\n" + Translation.tr("Use `/model` to see suggestions, or check the Providers tab.");
+                root.addMessage(msg, Ai.interfaceRole);
+            }
         }
     }
 

@@ -1266,7 +1266,11 @@ Rules:
             description: m.description || ""
         }));
         const activeWorkspace = HyprlandData.activeWorkspace?.id ?? 1;
+        const now = new Date();
         return {
+            currentTime: now.toLocaleString(),
+            currentDate: now.toLocaleDateString("en-US", {weekday: "long", year: "numeric", month: "long", day: "numeric"}),
+            hostname: "esnixi",
             config: config,
             windows: windows,
             monitors: monitors,

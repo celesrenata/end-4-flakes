@@ -1208,7 +1208,6 @@ Singleton {
             root._dictationToCursor = false
             console.log("[DictationService] Typing at cursor: " + text.substring(0, 50) + "...")
             Quickshell.execDetached(["wtype", "--", text])
-            root.transcriptionComplete(text)
             Quickshell.execDetached(["rm", "-f", root._recordingPath])
             root._setState(DictationService.State.Idle, "dictation-to-cursor complete")
             return

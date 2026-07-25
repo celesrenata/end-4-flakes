@@ -655,12 +655,8 @@ Singleton {
         // TURN_COMPLETE carries the finalized user utterance
         if (event.text) {
             root._sessionTranscript.push({"role": "user", "content": event.text})
-
-            // Dictation-to-cursor mode: type user transcript at cursor
-            if (root.dictationToCursorMode && event.text.trim().length > 0) {
-                console.log("[VoiceAgentService] Dictation-to-cursor: typing '" + event.text.substring(0, 40) + "'...")
-                Quickshell.execDetached(["wtype", "--", event.text])
-            }
+            // Note: cursor typing is handled by _onUserTranscriptDelta (word-by-word)
+            // and _onUserTranscript (trailing word flush). Do NOT type here to avoid duplicates.
         }
 
         if (root.voiceAgentState === VoiceAgentService.State.Speaking ||

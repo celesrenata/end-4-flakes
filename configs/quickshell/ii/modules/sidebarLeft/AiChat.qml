@@ -143,7 +143,8 @@ Item {
     }
 
     Keys.onPressed: (event) => {
-        if (!messageInputField.activeFocus) {
+        // Only steal focus if no other text input currently has focus
+        if (!messageInputField.activeFocus && !root.Window.activeFocusItem?.hasOwnProperty("text")) {
             messageInputField.forceActiveFocus()
         }
         if (event.modifiers === Qt.NoModifier) {

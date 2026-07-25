@@ -90,12 +90,12 @@ Singleton {
             if (escaped.length > 4000) escaped = escaped.substring(0, 4000)
             var selectedVoice = voice || "nova"
             // Use a temp file approach to avoid shell quoting issues
-            var jsonPayload = JSON.stringify({"model": "tts-1", "input": escaped, "voice": selectedVoice})
+            var jsonPayload = JSON.stringify({"model": "tts-1", "input": escaped, "voice": selectedVoice, "response_format": "pcm"})
             // Escape single quotes in JSON for shell embedding
             var shellSafeJson = jsonPayload.split("'").join("'\\''")
             var ttsEndpoint = Config.options.dictation.ttsHttpEndpoint || "https://api.openai.com/v1/audio/speech"
             command = ["sh", "-c",
-                "curl -s " + ttsEndpoint + " -H 'Authorization: Bearer " + _apiKey + "' -H 'Content-Type: application/json' -d '" + shellSafeJson + "' | pw-play -"]
+                "curl -s " + ttsEndpoint + " -H 'Authorization: Bearer " + _apiKey + "' -H 'Content-Type: application/json' -d '" + shellSafeJson + "' | aplay -f S16_LE -r 24000 -c 1 -q -"]
         } else if (provider === "bedrock") {
             // AWS Polly via CLI — uses credentials from ~/.aws or environment
             var cleanText = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "").replace(/#{1,6}\s/g, "").replace(/- /g, "")

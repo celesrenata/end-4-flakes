@@ -22,20 +22,25 @@ Singleton {
     property var layers: ({})
 
     function updateWindowList() {
-        getClients.running = true;
+        if (!getClients.running)
+            getClients.running = true;
     }
 
     function updateLayers() {
-        getLayers.running = true;
+        if (!getLayers.running)
+            getLayers.running = true;
     }
 
     function updateMonitors() {
-        getMonitors.running = true;
+        if (!getMonitors.running)
+            getMonitors.running = true;
     }
 
     function updateWorkspaces() {
-        getWorkspaces.running = true;
-        getActiveWorkspace.running = true;
+        if (!getWorkspaces.running)
+            getWorkspaces.running = true;
+        if (!getActiveWorkspace.running)
+            getActiveWorkspace.running = true;
     }
 
     function updateAll() {
@@ -43,6 +48,13 @@ Singleton {
         updateMonitors();
         updateLayers();
         updateWorkspaces();
+    }
+
+    Timer {
+        id: updateDebounce
+        interval: 100
+        repeat: false
+        onTriggered: root.updateAll()
     }
 
     function biggestWindowForWorkspace(workspaceId) {
@@ -63,75 +75,95 @@ Singleton {
 
         function onRawEvent(event) {
             // console.log("Hyprland raw event:", event.name);
-            updateAll()
+            updateDebounce.restart()
         }
+    }
+
+    // Use Hyprland socket directly (hyprctl binary may have library issues)
+    readonly property string _hyprSocket: "/run/user/" + Quickshell.processId.toString().replace(/.*/, () => {
+        // Get UID via env
+        return "";
+    }) + ""
+
+    function _socketCommand(query) {
+        return ["bash", "-c", 'echo -n "j/' + query + '" | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock']
     }
 
     Process {
         id: getClients
-        command: ["hyprctl", "clients", "-j"]
+        command: root._socketCommand("clients")
         stdout: StdioCollector {
             id: clientsCollector
             onStreamFinished: {
-                root.windowList = JSON.parse(clientsCollector.text)
-                let tempWinByAddress = {};
-                for (var i = 0; i < root.windowList.length; ++i) {
-                    var win = root.windowList[i];
-                    tempWinByAddress[win.address] = win;
-                }
-                root.windowByAddress = tempWinByAddress;
-                root.addresses = root.windowList.map(win => win.address);
+                try {
+                    root.windowList = JSON.parse(clientsCollector.text)
+                    let tempWinByAddress = {};
+                    for (var i = 0; i < root.windowList.length; ++i) {
+                        var win = root.windowList[i];
+                        tempWinByAddress[win.address] = win;
+                    }
+                    root.windowByAddress = tempWinByAddress;
+                    root.addresses = root.windowList.map(win => win.address);
+                } catch (e) {}
             }
         }
     }
 
     Process {
         id: getMonitors
-        command: ["hyprctl", "monitors", "-j"]
+        command: root._socketCommand("monitors")
         stdout: StdioCollector {
             id: monitorsCollector
             onStreamFinished: {
-                root.monitors = JSON.parse(monitorsCollector.text);
+                try {
+                    root.monitors = JSON.parse(monitorsCollector.text);
+                } catch (e) {}
             }
         }
     }
 
     Process {
         id: getLayers
-        command: ["hyprctl", "layers", "-j"]
+        command: root._socketCommand("layers")
         stdout: StdioCollector {
             id: layersCollector
             onStreamFinished: {
-                root.layers = JSON.parse(layersCollector.text);
+                try {
+                    root.layers = JSON.parse(layersCollector.text);
+                } catch (e) {}
             }
         }
     }
 
     Process {
         id: getWorkspaces
-        command: ["hyprctl", "workspaces", "-j"]
+        command: root._socketCommand("workspaces")
         stdout: StdioCollector {
             id: workspacesCollector
             onStreamFinished: {
-                root.workspaces = JSON.parse(workspacesCollector.text);
-                let tempWorkspaceById = {};
-                for (var i = 0; i < root.workspaces.length; ++i) {
-                    var ws = root.workspaces[i];
-                    tempWorkspaceById[ws.id] = ws;
-                }
-                root.workspaceById = tempWorkspaceById;
-                root.workspaceIds = root.workspaces.map(ws => ws.id);
+                try {
+                    root.workspaces = JSON.parse(workspacesCollector.text);
+                    let tempWorkspaceById = {};
+                    for (var i = 0; i < root.workspaces.length; ++i) {
+                        var ws = root.workspaces[i];
+                        tempWorkspaceById[ws.id] = ws;
+                    }
+                    root.workspaceById = tempWorkspaceById;
+                    root.workspaceIds = root.workspaces.map(ws => ws.id);
+                } catch (e) {}
             }
         }
     }
 
     Process {
         id: getActiveWorkspace
-        command: ["hyprctl", "activeworkspace", "-j"]
+        command: root._socketCommand("activeworkspace")
         stdout: StdioCollector {
             id: activeWorkspaceCollector
             onStreamFinished: {
-                root.activeWorkspace = JSON.parse(activeWorkspaceCollector.text);
+                try {
+                    root.activeWorkspace = JSON.parse(activeWorkspaceCollector.text);
+                } catch (e) {}
             }
         }
     }
