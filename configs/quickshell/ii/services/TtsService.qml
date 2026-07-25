@@ -95,7 +95,7 @@ Singleton {
             var shellSafeJson = jsonPayload.split("'").join("'\\''")
             var ttsEndpoint = Config.options.dictation.ttsHttpEndpoint || "https://api.openai.com/v1/audio/speech"
             command = ["sh", "-c",
-                "curl -s " + ttsEndpoint + " -H 'Authorization: Bearer " + _apiKey + "' -H 'Content-Type: application/json' -d '" + shellSafeJson + "' | aplay -f S16_LE -r 24000 -c 1 -q -"]
+                "curl -s " + ttsEndpoint + " -H 'Authorization: Bearer " + _apiKey + "' -H 'Content-Type: application/json' -d '" + shellSafeJson + "' | paplay --format=s16le --rate=24000 --channels=1 --raw"]
         } else if (provider === "bedrock") {
             // AWS Polly via CLI — uses credentials from ~/.aws or environment
             var cleanText = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "").replace(/#{1,6}\s/g, "").replace(/- /g, "")
@@ -103,7 +103,7 @@ Singleton {
             if (escaped.length > 3000) escaped = escaped.substring(0, 3000)
             var selectedVoice = voice || "Joanna"
             command = ["sh", "-c",
-                'aws polly synthesize-speech --output-format pcm --sample-rate 16000 --voice-id ' + selectedVoice + ' --text "' + escaped + '" /dev/stdout | pw-play --format=s16 --rate=16000 --channels=1 -']
+                'aws polly synthesize-speech --output-format pcm --sample-rate 16000 --voice-id ' + selectedVoice + ' --text "' + escaped + '" /dev/stdout | paplay --format=s16le --rate=16000 --channels=1 --raw']
         } else {
             console.log("[TtsService] speak() called with unknown provider=" + provider)
             return

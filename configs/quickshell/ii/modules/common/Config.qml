@@ -294,7 +294,7 @@ Singleton {
                 property string model: "whisper-1"
                 property string streamingEndpoint: ""
                 property int chunkDurationMs: 3000
-                property string ttsProvider: "openai" // none, piper, espeak-ng, openai
+                property string ttsProvider: "bedrock" // none, piper, espeak-ng, openai, bedrock
                 property string ttsVoice: "nova" // Provider-specific voice ID
                 property bool talkback: true // Enable TTS playback
                 property string verbosity: "concise" // concise, normal, detailed
