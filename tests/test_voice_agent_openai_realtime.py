@@ -287,7 +287,7 @@ class TestSessionUpdate:
 
     @pytest.mark.asyncio
     async def test_session_update_basic_structure(self) -> None:
-        """session.update should include modalities, audio formats, and VAD config."""
+        """session.update should include type=realtime for voice agent sessions."""
         backend = _make_backend(system_prompt="You are a helpful assistant.")
         mock_ws = backend._ws
 
@@ -298,21 +298,20 @@ class TestSessionUpdate:
 
         assert sent_data["type"] == "session.update"
         session = sent_data["session"]
-        assert "text" in session["modalities"]
-        assert "audio" in session["modalities"]
-        assert session["input_audio_format"] == "pcm16"
-        assert session["output_audio_format"] == "pcm16"
+        assert session["type"] == "realtime"
+        assert "instructions" in session
 
     @pytest.mark.asyncio
     async def test_session_update_vad_enabled(self) -> None:
-        """session.update should have server_vad turn detection enabled."""
+        """session.update for GA API uses server defaults for VAD (no explicit field needed)."""
         backend = _make_backend()
 
         await backend._send_session_update()
 
         sent_data = json.loads(backend._ws.send.call_args[0][0])
         session = sent_data["session"]
-        assert session["turn_detection"]["type"] == "server_vad"
+        # GA API: turn_detection is optional; server defaults to semantic_vad
+        assert session["type"] == "realtime"
 
     @pytest.mark.asyncio
     async def test_session_update_includes_instructions(self) -> None:
