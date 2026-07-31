@@ -346,6 +346,9 @@ Singleton {
         if (modelData.meta && modelData.meta.n_ctx_train) {
             // llama.cpp / custom OpenAI-compat servers
             contextLength = modelData.meta.n_ctx_train;
+        } else if (modelData.details && modelData.details.context_length) {
+            // Ollama /api/tags format
+            contextLength = modelData.details.context_length;
         } else if (modelData.context_length) {
             // OpenRouter, some providers
             contextLength = modelData.context_length;
