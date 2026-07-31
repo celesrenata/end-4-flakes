@@ -4,20 +4,29 @@ This document provides a comprehensive reference for all keyboard shortcuts in t
 
 ## Legend
 
-| Symbol | Meaning |
-|--------|---------|
-| `Super` | Windows/Meta key |
-| `$Secondary` | Usually maps to Super (configurable in env.conf) |
-| `Ctrl` / `Control` | Control key |
-| `Alt` | Alt/Option key |
-| `Shift` | Shift key |
-| `XF86*` | Hardware media keys (brightness, volume, etc.) |
-| `bindd` | Key **down** triggers the action |
-| `bindl` | Key **hold** triggers the action (repeat while held) |
-| `binde` | Key **hold + repeat** (auto-repeating) |
-| `bindm` | **Mouse drag** motion binding |
-| `bindrit` | Key **release** triggers on Super release |
-| `binditn` | **Ignore** all other keys while this combo is active |
+```mermaid
+flowchart LR
+    subgraph Modifiers["Modifier Keys"]
+        M1["Super\nWindows/Meta key"]
+        M2["$Secondary\nUsually Super (configurable)"]
+        M3["Ctrl / Control"]
+        M4["Alt"]
+        M5["Shift"]
+        M6["XF86*\nHardware media keys"]
+    end
+
+    subgraph BindTypes["Bind Types"]
+        B1["bindd\nKey down triggers action"]
+        B2["bindl\nHold triggers action (repeat)"]
+        B3["binde\nHold + auto-repeat"]
+        B4["bindm\nMouse drag motion"]
+        B5["bindrit\nRelease triggers action"]
+        B6["binditn\nIgnore all other keys while active"]
+    end
+
+    style Modifiers fill:#5c6bc0,color:#fff
+    style BindTypes fill:#26a69a,color:#fff
+```
 
 ---
 

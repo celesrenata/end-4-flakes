@@ -10,30 +10,16 @@ This project implements a declarative NixOS desktop environment using:
 
 ## Component Layers
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    User Configuration                       │
-│  (flake.nix → programs.dots-hyprland options)              │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   Nix Module System                         │
-│  modules/home-manager.nix                                   │
-│  modules/components/ (quickshell-config, hyprland-config)   │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    Config Generation                        │
-│  templates/*.conf.template → @VARIABLE@ substitution        │
-│  Config.qml generation from Nix options                     │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    Runtime Deployment                       │
-│  ~/.config/hypr/ (Hyprland configs)                        │
-│  ~/.config/quickshell/ii/ (Quickshell QML)                 │
-│  systemd user services                                      │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A["User Configuration\nflake.nix → programs.dots-hyprland options"] --> B["Nix Module System\nmodules/home-manager.nix + components/"]
+    B --> C["Config Generation\n.conf.template @VARIABLE@ substitution\nConfig.qml from Nix options"]
+    C --> D["Runtime Deployment\n~/.config/hypr/\n~/.config/quickshell/ii/\nsystemd user services"]
+
+    style A fill:#4f378b,stroke:#3e2723,color:#fff
+    style B fill:#5c6bc0,stroke:#1a237e,color:#fff
+    style C fill:#26a69a,stroke:#004d40,color:#fff
+    style D fill:#ef6c00,stroke:#bf360c,color:#fff
 ```
 
 ## Data Flow
@@ -64,38 +50,85 @@ This project implements a declarative NixOS desktop environment using:
 
 ### Theming Pipeline
 
-```
-Wallpaper Image
-       ↓
-   matugen (color extraction)
-       ↓
-Material You Palette (primary, secondary, surface, etc.)
-       ↓
-┌─────────────┬──────────────┬──────────────┐
-│  foot.ini   │ fuzzel.ini   │ Hyprland     │
-│  terminal   │ launcher     │ borders/shadows│
-└─────────────┴──────────────┴──────────────┘
-       ↓
- kde-material-you-colors (Qt/KDE apps)
+```mermaid
+flowchart TD
+    W["Wallpaper Image\n(~/.config/quickshell/user/wallpaper.jpg)"] --> M["matugen\nColor extraction + palette generation"]
+    M --> P["Material You Palette\nprimary, secondary, surface, onSurface, ..."]
+    P --> T1["foot.ini\nTerminal colors"]
+    P --> T2["fuzzel.ini\nLauncher theme"]
+    P --> T3["Hyprland borders/shadows\ncolors.conf"]
+    P --> T4["kde-material-you-colors\nQt/KDE app theming"]
+
+    style W fill:#7e57c2,color:#fff
+    style M fill:#5c6bc0,color:#fff
+    style P fill:#26a69a,color:#fff
+    style T1 fill:#43a047,color:#fff
+    style T2 fill:#1e88e5,color:#fff
+    style T3 fill:#e53935,color:#fff
+    style T4 fill:#fb8c00,color:#fff
 ```
 
 ### Quickshell Service Flow
 
-1. **systemd user service** starts on Hyprland session
-2. **Environment setup**:
-   - Python venv for color scripts
-   - Full PATH for app launching
-   - QML import paths for Qt modules
-3. **QML runtime**:
-   - `Config.qml` reads Nix-generated options
-   - Services (Ai.qml, Audio.qml, etc.) provide data to UI
-   - Modules render bar, sidebars, launcher
+```mermaid
+sequenceDiagram
+    participant HM as Home Manager
+    participant systemd as quickshell.service
+    participant QS as Quickshell QML Runtime
+    participant Svc as Services (Ai, Audio, etc.)
+    participant UI as UI Modules (Bar, Sidebar, etc.)
+
+    HM->>systemd: Deploy configs + env vars
+    systemd->>QS: Start with full PATH/QML_IMPORT_PATH
+    QS->>Svc: Load singleton services
+    Svc-->>QS: Provide data (Hyprland state, audio, AI)
+    QS->>UI: Render bar, sidebars, launcher
+    UI-->>QS: User interactions → dispatch commands
+```
 
 ## Module System
 
 ### Home Manager Module (`modules/home-manager.nix`)
 
 Main entry point. Imports all component modules:
+
+```mermaid
+graph TD
+    subgraph HM["Home Manager Module"]
+        H["programs.dots-hyprland.enable = true;"]
+    end
+
+    subgraph Components["Component Modules"]
+        QSC["quickshell-config.nix\nConfig.qml generation"]
+        QSS["quickshell-service.nix\nsystemd service + PATH setup"]
+        HC["hyprland-config.nix\ngeneral.conf generation"]
+        TC["terminal-config.nix\nfoot.ini options"]
+        TE["touchegg.nix\nGesture config"]
+        CO["config-override.nix\nEscape hatch"]
+    end
+
+    subgraph Support["Supporting Modules"]
+        PE["python-environment.nix\nVenv management"]
+        CN["configuration.nix\nFile copying + placeholders"]
+        WM["writable-mode.nix\nStaging + setup script"]
+    end
+
+    H --> QSC
+    H --> QSS
+    H --> HC
+    H --> TC
+    H --> TE
+    H --> CO
+    H --> PE
+    H --> CN
+    H --> WM
+
+    style HM fill:#5c6bc0,color:#fff
+    style Components fill:#26a69a,color:#fff
+    style Support fill:#ef6c00,color:#fff
+```
+
+Imports:
 
 ```nix
 imports = [
@@ -122,20 +155,90 @@ Example: `quickshell-config.nix` generates `Config.qml` from Nix options.
 
 ## Deployment Modes
 
-### Hybrid Mode (Recommended)
-- Hyprland configs: declarative (Nix-managed)
-- Quickshell configs: copied to home (editable at runtime)
-- Best of both worlds: stable compositor, flexible UI
+```mermaid
+graph LR
+    subgraph HM["Home Manager Activation"]
+        A["flake.nix\nprograms.dots-hyprland"] --> B{"Deployment Mode?"}
+    end
 
-### Declarative Mode
-- Everything managed by Nix
-- Read-only in store
-- Requires rebuild for changes
+    B -->|Hybrid| C["Hybrid Mode (Recommended)"]
+    B -->|Declarative| D["Declarative Mode"]
+    B -->|Writable| E["Writable Mode"]
 
-### Writable Mode
-- Staging directory for manual editing
-- Setup script copies files to `~/.config/`
-- Useful for development/testing
+    subgraph C ["Hybrid Mode — Best of Both"]
+        H1["Hyprland configs → Nix store\n(declarative, stable)"]
+        H2["Quickshell QML → ~/.config/\n(copy-on-build, editable)"]
+        H3["Custom overrides → ~/.config/hypr/custom/\n(survive rebuilds)"]
+    end
+
+    subgraph D ["Declarative Mode — Full Nix Control"]
+        D1["All configs in Nix store\n(read-only)"]
+        D2["Changes require rebuild\n(home-manager switch)"]
+        D3["Maximum reproducibility"]
+    end
+
+    subgraph E ["Writable Mode — Development Friendly"]
+        W1["Staging dir: ~/.configstaging/"]
+        W2["Setup script copies to ~/.config/"]
+        W3["Edit configs freely\nrestart Quickshell to apply"]
+    end
+
+    H1 --> C
+    H2 --> C
+    H3 --> C
+    D1 --> D
+    D2 --> D
+    D3 --> D
+    W1 --> E
+    W2 --> E
+    W3 --> E
+
+    style B fill:#5c6bc0,color:#fff
+    style C fill:#43a047,color:#fff
+    style D fill:#e53935,color:#fff
+    style E fill:#fb8c00,color:#fff
+```
+
+### Mode Comparison
+
+| Aspect | Hybrid (Recommended) | Declarative | Writable |
+|--------|---------------------|-------------|----------|
+| Hyprland configs | Nix store (read-only) | Nix store (read-only) | Nix store (read-only) |
+| Quickshell QML | Copy to `~/.config/` | Nix store (read-only) | Staging → copy to `~/.config/` |
+| Edit at runtime | Yes | No — rebuild required | Yes |
+| Reproducibility | High | Maximum | Medium |
+| Best for | Production use | CI/testing | Development iteration |
+
+### How Hybrid Mode Works
+
+```mermaid
+flowchart LR
+    subgraph Nix["Nix Store (immutable)"]
+        T1["configs/hypr/*.conf.template"]
+        T2["configs/quickshell/**/*.qml"]
+    end
+
+    subgraph Build["home-manager switch"]
+        S1["Template substitution\n@VARIABLE@ → store paths"]
+        S2["Copy QML to ~/.config/\n(editable copy)"]
+    end
+
+    subgraph Runtime["~/.config/ (mutable)"]
+        R1["hyprland.conf — resolved from templates"]
+        R2["quickshell/ii/ — editable QML"]
+        R3["custom/ — user overrides"]
+    end
+
+    T1 --> S1
+    T2 --> S2
+    S1 --> R1
+    S2 --> R2
+    R3 -.->|survives rebuilds| R1
+
+    style Nix fill:#5c6bc0,color:#fff
+    style Build fill:#26a69a,color:#fff
+    style Runtime fill:#ef6c00,color:#fff
+```
 
 ## Key Files
 

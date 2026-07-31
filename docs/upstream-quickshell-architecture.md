@@ -13,143 +13,134 @@ The entire desktop UI lives in QML under `.config/quickshell/ii/`. Quickshell ru
 
 ## Directory Structure
 
-```
-.config/quickshell/ii/
-├── shell.qml                    # Entry point — loads all modules
-├── GlobalStates.qml             # Shared application state
-├── ReloadPopup.qml              # Visual reload confirmation
-├── settings.qml                 # Settings UI
-├── screenshot.qml               # Screenshot tool UI
-├── welcome.qml                  # First-run welcome screen
-├── contextlens.qml              # Context Lens (AI vision)
-├── Translation.qml              # Translator widget
-│
-├── modules/                     # UI components (lazy-loaded)
-│   ├── common/                  # Shared: Config, Appearance, widgets
-│   │   ├── Config.qml           # Central config singleton (JSON adapter)
-│   │   ├── Persistent.qml       # Persistent state storage
-│   │   ├── Appearance.qml       # Dark/light mode management
-│   │   └── widgets/             # Reusable UI components (40+)
-│   │       ├── ButtonGroup.qml, MaterialSymbol.qml, etc.
-│   │       └── NavigationRail*.qml  # Sidebar tab navigation
-│   │
-│   ├── bar/                     # Status bar
-│   │   ├── Bar.qml              # Main bar container
-│   │   ├── BarContent.qml       # Left/center/right sections
-│   │   ├── Workspaces.qml       # Workspace indicators
-│   │   ├── Media.qml            # Now-playing widget
-│   │   ├── BatteryIndicator.qml # Battery status
-│   │   ├── ClockWidget.qml      # Time display
-│   │   ├── SysTray.qml          # System tray icons
-│   │   └── weather/             # Weather widget (optional)
-│   │
-│   ├── sidebarLeft/             # Left swipeable sidebar
-│   │   ├── SidebarLeft.qml      # Tab container: AI, Providers, Translator, Anime
-│   │   ├── AiChat.qml           # Full AI chat with streaming
-│   │   ├── Translator.qml       # Bidirectional translation
-│   │   └── Anime.qml            # Booru image browser
-│   │
-│   ├── sidebarRight/            # Right sidebar
-│   │   ├── SidebarRight.qml     # Tab container: Toggles, Notifications, Volume, Calendar, Todo
-│   │   ├── quickToggles/        # Network, Bluetooth, Night Light, etc.
-│   │   ├── notifications/       # Notification list view
-│   │   ├── volumeMixer/         # PipeWire device mixer
-│   │   ├── calendar/            # Calendar widget
-│   │   └── pomodoro/            # Pomodoro timer + stopwatch
-│   │
-│   ├── overview/                # Full-screen launcher (Super tap)
-│   │   ├── Overview.qml         # Launcher container with search bar
-│   │   ├── SearchWidget.qml     # Multi-mode search (apps, math, commands, web, clipboard, emoji, AI)
-│   │   └── OverviewWindow.qml   # Window preview thumbnails
-│   │
-│   ├── cheatsheet/              # Keybind reference (Super+/)
-│   │   ├── Cheatsheet.qml       # Organized by section headers
-│   │   └── periodic_table.js    # Keyboard key visualizations
-│   │
-│   ├── dock/                    # Auto-hide application dock
-│   │   └── DockButton.qml       # Pinned app buttons with hover reveal
-│   │
-│   ├── session/                 # Power menu (Super+L)
-│   │   └── Session.qml          # Shutdown, reboot, suspend, lock options
-│   │
-│   ├── mediaControls/           # Media player controls overlay
-│   │   └── MediaControls.qml    # Play/pause, next, prev, progress bar
-│   │
-│   ├── notificationPopup/       # Toast notifications
-│   │   └── NotificationPopup.qml  # Grouped by app, action buttons
-│   │
-│   ├── onScreenKeyboard/        # Virtual keyboard (Super+K)
-│   │   └── OnScreenKeyboard.qml # QWERTY full layout, pinnable
-│   │
-│   ├── screenCorners/           # Per-monitor rounded corners
-│   ├── lock/                    # Lock screen integration
-│   ├── background/              # Wallpaper parallax background
-│   └── onScreenDisplay/         # OSD for brightness/volume changes
-│
-├── services/                    # Singleton data providers (QML)
-│   ├── Ai.qml                   # AI chat session management
-│   ├── AppSearch.qml            # Fuzzy desktop entry search
-│   ├── Audio.qml                # PipeWire audio state
-│   ├── Battery.qml              # UPower battery info
-│   ├── Bluetooth.qml            # Bluez device scanning
-│   ├── Booru.qml                # Image board API client
-│   ├── Brightness.qml           # Screen brightness control
-│   ├── Cliphist.qml             # Clipboard history (cliphist)
-│   ├── DateTime.qml             # Time formatting service
-│   ├── Emojis.qml               # Unicode 17.0 emoji database
-│   ├── HyprlandData.qml         # Hyprland IPC queries
-│   ├── HyprlandKeybinds.qml     # Parsed keybind list for cheatsheet
-│   ├── Hyprsunset.qml           # Night light temperature control
-│   ├── MaterialThemeLoader.qml  # Wallpaper color extraction
-│   ├── MprisController.qml      # Media player (MPRIS/D-Bus)
-│   ├── Network.qml              # NetworkManager state
-│   ├── Notifications.qml        # Freedesktop notification daemon
-│   ├── ResourceUsage.qml        # CPU/RAM/swap monitoring
-│   ├── SystemInfo.qml           # OS, kernel, hostname info
-│   ├── Todo.qml                 # Persistent todo list
-│   ├── Weather.qml              # Open-Meteo API client
-│   ├── Ydotool.qml              # Input emulation (ydotool)
-│   └── ai/                      # AI provider strategies
-│       ├── AiModel.qml          # Model metadata
-│       ├── ApiStrategy.qml      # Base API interface
-│       ├── OpenAiApiStrategy.qml
-│       ├── GeminiApiStrategy.qml
-│       ├── MistralApiStrategy.qml
-│       └── BedrockApiStrategy.qml (added in NixOS fork)
-│
-├── scripts/                     # Shell + Python helpers
-│   ├── colors/                  # Material You pipeline
-│   │   ├── switchwall.sh        # Wallpaper change → color regeneration
-│   │   ├── applycolor.sh        # Apply extracted colors to apps
-│   │   ├── generate_colors_material.py  # matugen wrapper
-│   │   └── scheme_for_image.py  # Color scheme extraction
-│   ├── images/                  # Wallpaper region detection
-│   │   ├── find_regions.py      # Content-aware image analysis
-│   │   └── least_busy_region.py # Optimal crop region finder
-│   ├── wayland-idle-inhibitor.py  # Idle inhibition for Quickshell
-│   └── ai/                      # AI helper scripts
-│       └── show-installed-ollama-models.sh
-│
-├── translations/                # i18n JSON files
-│   ├── en_US.json               # English (source)
-│   ├── it_IT.json, ru_RU.json, uk_UA.json, vi_VN.json, zh_CN.json
-│   └── tools/                   # Translation management scripts
-│       ├── manage-translations.sh
-│       ├── translation-manager.py
-│       └── guide/translation-tools-guide.md
-│
-├── defaults/ai/prompts/         # AI system prompts per profile
-│   ├── ii-Default.md            # Default assistant prompt
-│   ├── ii-Imouto.md             # Anime-style persona
-│   ├── nyarch-Acchan.md         # Nyarch mascot
-│   └── w-FourPointedSparkle.md  # Sparkle theme
-│
-└── assets/                      # Icons and images
-    ├── icons/                   # Material Symbols (SVG, symbolic)
-    │   ├── openai-symbolic.svg, gemini-symbolic.svg, ollama-symbolic.svg
-    │   └── distro icons: nixos, arch, debian, fedora, etc.
-    └── images/
-        └── default_wallpaper.png  # Seed wallpaper for first install
+```mermaid
+mindmap
+  root((Quickshell ii))
+    shell.qml
+      Entry point — loads all modules
+    GlobalStates.qml
+      Shared application state
+    ReloadPopup.qml
+      Visual reload confirmation
+    settings.qml
+      Settings UI
+    screenshot.qml
+      Screenshot tool UI
+    welcome.qml
+      First-run welcome screen
+    contextlens.qml
+      AI vision (Context Lens)
+    Translation.qml
+      Translator widget
+
+    modules
+      UI components (lazy-loaded)
+        common
+          Config.qml — central config singleton
+          Persistent.qml — state storage
+          Appearance.qml — dark/light mode
+          widgets/ — 40+ reusable components
+        bar
+          Bar.qml — main container
+          BarContent.qml — sections
+          Workspaces.qml — indicators
+          Media.qml — now-playing
+          BatteryIndicator.qml
+          ClockWidget.qml
+          SysTray.qml
+          weather/
+        sidebarLeft
+          SidebarLeft.qml — AI, Providers, Translator, Anime tabs
+          AiChat.qml — streaming chat
+          Translator.qml
+          Anime.qml — Booru browser
+        sidebarRight
+          SidebarRight.qml — Toggles, Notifications, Volume, Calendar, Todo
+          quickToggles/ — Network, Bluetooth, Night Light
+          notifications/
+          volumeMixer/ — PipeWire mixer
+          calendar/
+          pomodoro/
+        overview
+          Overview.qml — full-screen launcher
+          SearchWidget.qml — multi-mode search
+          OverviewWindow.qml — window previews
+        cheatsheet
+          Cheatsheet.qml — keybind reference
+          periodic_table.js
+        dock
+          DockButton.qml — pinned apps
+        session
+          Session.qml — power menu
+        mediaControls
+          MediaControls.qml — play/pause/next/prev
+        notificationPopup
+          NotificationPopup.qml — grouped toasts
+        onScreenKeyboard
+          OnScreenKeyboard.qml — QWERTY layout
+
+    services
+      Singleton data providers (QML)
+        Ai.qml — AI chat sessions
+        AppSearch.qml — fuzzy search
+        Audio.qml — PipeWire state
+        Battery.qml — UPower info
+        Bluetooth.qml — Bluez scanning
+        Booru.qml — image board API
+        Brightness.qml — screen brightness
+        Cliphist.qml — clipboard history
+        DateTime.qml — time formatting
+        Emojis.qml — Unicode 17.0 database
+        HyprlandData.qml — IPC queries
+        HyprlandKeybinds.qml — parsed keybinds
+        Hyprsunset.qml — night light control
+        MaterialThemeLoader.qml — color extraction
+        MprisController.qml — media player
+        Network.qml — NetworkManager state
+        Notifications.qml — notification daemon
+        ResourceUsage.qml — CPU/RAM monitoring
+        SystemInfo.qml — OS info
+        Todo.qml — todo list
+        Weather.qml — Open-Meteo API
+        Ydotool.qml — input emulation
+        ai/
+          AiModel.qml — model metadata
+          ApiStrategy.qml — base interface
+          OpenAiApiStrategy.qml
+          GeminiApiStrategy.qml
+          MistralApiStrategy.qml
+          BedrockApiStrategy.qml
+
+    scripts
+      Shell + Python helpers
+        colors/
+          switchwall.sh — wallpaper → color regen
+          applycolor.sh — apply to apps
+          generate_colors_material.py — matugen wrapper
+          scheme_for_image.py — color extraction
+        images/
+          find_regions.py — content-aware analysis
+          least_busy_region.py — optimal crop
+        wayland-idle-inhibitor.py
+        ai/
+
+    translations
+      i18n JSON files
+        en_US.json (source)
+        it_IT, ru_RU, uk_UA, vi_VN, zh_CN
+        tools/
+
+    defaults/ai/prompts
+      AI system prompts per profile
+        ii-Default.md
+        ii-Imouto.md
+        nyarch-Acchan.md
+        w-FourPointedSparkle.md
+
+    assets
+      Icons and images
+        icons/ — Material Symbols SVG
+        images/ — default_wallpaper.png
 ```
 
 ## Module Loading (shell.qml)
@@ -164,9 +155,79 @@ LazyLoader { active: enableSidebarLeft; component: SidebarLeft {} }
 
 Each module has its own `qmldir` file declaring QML types for import resolution. The [`generate-qmldir.sh`](../packages/scripts/generate-qmldir.sh) script in the NixOS fork auto-generates these from directory structure.
 
+```mermaid
+flowchart TD
+    subgraph Shell["shell.qml — Entry Point"]
+        S["GlobalStates\nReloadPopup\nsettings.qml\nscreenshot.qml\nwelcome.qml\ncontextlens.qml\nTranslation.qml"]
+    end
+
+    subgraph LazyModules["Lazy-Loaded Modules (initialized on trigger)"]
+        M1["bar/"]
+        M2["sidebarLeft/"]
+        M3["sidebarRight/"]
+        M4["overview/"]
+        M5["cheatsheet/"]
+        M6["dock/"]
+        M7["session/"]
+        M8["mediaControls/"]
+        M9["notificationPopup/"]
+        M10["onScreenKeyboard/"]
+    end
+
+    subgraph Common["common/ (always loaded)"]
+        C1["Config.qml — central config singleton"]
+        C2["Persistent.qml — state storage"]
+        C3["Appearance.qml — dark/light mode"]
+        C4["widgets/ — 40+ reusable components"]
+    end
+
+    S -->|triggers| M1
+    S -->|triggers| M2
+    S -->|triggers| M3
+    S -->|triggers| M4
+    S -.->|shared| Common
+
+    style Shell fill:#5c6bc0,color:#fff
+    style LazyModules fill:#26a69a,color:#fff
+    style Common fill:#ef6c00,color:#fff
+```
+
 ## Service Architecture
 
 Services are **QML singletons** that provide data to modules via D-Bus, IPC, or file I/O:
+
+```mermaid
+graph TD
+    subgraph Services["QML Singleton Services"]
+        S1["HyprlandData.qml\nhyprctl JSON output"]
+        S2["Ai.qml\nLLM API (OpenAI/Gemini/Ollama)"]
+        S3["MaterialThemeLoader.qml\nWallpaper → matugen → colors.json"]
+        S4["MprisController.qml\nD-Bus MPRIS2 interface"]
+        S5["Network.qml\nNetworkManager D-Bus"]
+        S6["Audio.qml\nPipeWire/WirePlumber D-Bus"]
+        S7["Booru.qml\nYandere/Konachan APIs"]
+    end
+
+    subgraph Modules["Consuming Modules"]
+        M1["bar/Workspaces.qml"]
+        M2["sidebarLeft/AiChat.qml"]
+        M3["bar/Media.qml"]
+        M4["sidebarRight/quickToggles/NetworkToggle.qml"]
+        M5["sidebarRight/volumeMixer/VolumeMixer.qml"]
+        M6["sidebarLeft/Anime.qml"]
+    end
+
+    S1 --> M1
+    S2 --> M2
+    S3 -.->|theming| M1
+    S4 --> M3
+    S5 --> M4
+    S6 --> M5
+    S7 --> M6
+
+    style Services fill:#7e57c2,color:#fff
+    style Modules fill:#43a047,color:#fff
+```
 
 | Service | Data Source | Used By |
 |---------|-------------|---------|
@@ -181,6 +242,44 @@ Services are **QML singletons** that provide data to modules via D-Bus, IPC, or 
 ## Configuration System (Config.qml)
 
 [`Config.qml`](../configs/quickshell/modules/common/Config.qml) is the **central configuration singleton**. It uses a `JsonAdapter` to read/write settings from `~/.config/quickshell/ii/user/generated/colors.json` and related state files.
+
+```mermaid
+flowchart TD
+    subgraph Config["Config.qml — Central Singleton"]
+        CA["JsonAdapter\n(read/write JSON state)"]
+    end
+
+    subgraph StateFiles["State Files (~/.local/state/quickshell/)"]
+        SF1["colors.json — Material You palette"]
+        SF2["darkmode.json — dark/light toggle"]
+        SF3["user/generated/ — generated assets"]
+    end
+
+    subgraph Sections["Config Sections"]
+        SE1["appearance\ntransparency, rounding, theming"]
+        SE2["bar\nposition, corners, buttons"]
+        SE3["battery\nthresholds, auto-suspend"]
+        SE4["apps\nterminal, browser, settings commands"]
+        SE5["time\nformat strings"]
+        SE6["search\nprefixes, excluded sites"]
+        SE7["sidebar\nbooru, translator config"]
+    end
+
+    CA --> SF1
+    CA --> SF2
+    CA --> SF3
+    CA --> SE1
+    CA --> SE2
+    CA --> SE3
+    CA --> SE4
+    CA --> SE5
+    CA --> SE6
+    CA --> SE7
+
+    style Config fill:#7e57c2,color:#fff
+    style StateFiles fill:#26a69a,color:#fff
+    style Sections fill:#ef6c00,color:#fff
+```
 
 Key config sections:
 - `appearance` — transparency, rounding, anti-flashbang, wallpaper theming

@@ -4,76 +4,158 @@ This document describes how Hyprland configuration is organized in both the **up
 
 ## Upstream Configuration Layout
 
-```
-.config/hypr/
-├── hyprland.conf              # Entry point — sources all other .conf files
-├── general.conf               # Layout, decoration, animations, input settings
-├── keybinds.conf               # ~200+ keybind entries (Lua hl.bind() in upstream)
-├── rules.conf                  # Window rules, layer rules, workspace rules
-├── colors.conf                 # Border colors, hyprbars plugin styling
-├── env.conf                    # Environment variables (IM, themes, venv path)
-├── execs.conf                  # Autostart programs (Quickshell, hypridle, clipboard)
-├── hypridle.conf               # Idle/power cascade timeouts
-├── hyprlock/
-│   ├── check-capslock.sh       # Caps Lock status indicator script
-│   └── status.sh               # Battery status display for lock screen
-├── custom/                     # User overrides (survive reinstall)
-│   ├── env.conf
-│   ├── execs.conf
-│   ├── general.conf
-│   ├── keybinds.conf
-│   └── rules.conf
-├── scripts/                    # Helper shell scripts
-│   ├── launch_first_available.sh  # Try multiple app commands, run first found
-│   ├── workspace_action.sh        # Workspace focus/send via hyprctl dispatch
-│   ├── zoom.sh                   # Zoom in/out fallback script
-│   ├── record.sh                 # Screen recording (ffmpeg + slurp)
-│   ├── fuzzel-emoji.sh           # Emoji search → clipboard copy
-│   ├── start_geoclue_agent.sh    # Location service for weather widget
-│   └── ai/
-│       ├── primary-buffer-query.sh  # AI summary of selected text
-│       └── show-loaded-ollama-models.sh
-├── shaders/                    # Custom Hyprland shaders
-│   ├── chromatic_abberation.frag
-│   ├── crt.frag
-│   ├── drugs.frag
-│   ├── extradark.frag
-│   ├── invert.frag
-│   └── solarized.frag
+```mermaid
+mindmap
+  root((.config/hypr))
+    hyprland.conf
+      Entry point — sources all .conf files
+    general.conf
+      Layout, decoration, animations, input
+    keybinds.conf
+      ~200+ keybind entries (Lua hl.bind)
+    rules.conf
+      Window rules, layer rules, workspace rules
+    colors.conf
+      Border colors, hyprbars plugin styling
+    env.conf
+      Environment variables (IM, themes, venv path)
+    execs.conf
+      Autostart programs (Quickshell, hypridle, clipboard)
+    hypridle.conf
+      Idle/power cascade timeouts
+    hyprlock
+      check-capslock.sh
+      status.sh
+    custom
+      User overrides survive reinstall
+        env.conf
+        execs.conf
+        general.conf
+        keybinds.conf
+        rules.conf
+    scripts
+      launch_first_available.sh
+      workspace_action.sh
+      zoom.sh
+      record.sh
+      fuzzel-emoji.sh
+      start_geoclue_agent.sh
+      ai/
+        primary-buffer-query.sh
+        show-loaded-ollama-models.sh
+    shaders
+      chromatic_aberration.frag
+      crt.frag
+      drugs.frag
+      extradark.frag
+      invert.frag
+      solarized.frag
 ```
 
 ## NixOS Fork Configuration Layout
 
+```mermaid
+mindmap
+  root((NixOS Fork Configs))
+    configs/hypr
+      Source templates (Nix build-time)
+        hyprland.conf.template
+          Entry point — sources all .conf.template files
+        general.conf.template
+          Gaps, borders, blur, animations, input
+        keybinds.conf.template
+          ~145 keybind entries with @VARIABLE@ paths
+        rules.conf.template
+          Window/layer/workspace rules
+        colors.conf.template
+          Material You border/plugin colors
+        env.conf.template
+          Environment variables (IM, themes, venv)
+        execs.conf.template
+          Autostart programs
+        hypridle.conf.template
+          Idle/power cascade
+        scripts
+          workspace_action.sh
+          launch_first_available.sh
+        custom
+          User overrides survive rebuilds
+            env.conf
+            general.conf
+            keybinds.conf
+            rules.conf
+            scripts/
+    Runtime: ~/.config/hypr
+      Generated from templates at build time
+        hyprland.conf
+          Resolved entry point
+        general.conf
+          Resolved general settings
+        keybinds.conf
+          Resolved keybinds with Nix store paths
+        rules.conf
+          Resolved window/layer rules
+        colors.conf
+          Resolved Material You colors
+        env.conf
+          Resolved environment variables
+        execs.conf
+          Resolved autostart programs
+        hypridle.conf
+          Idle/power cascade config
+        custom
+          User overrides preserved across rebuilds
 ```
-configs/hypr/                          # Source templates (Nix build-time)
-├── hyprland.conf.template             # Entry point — sources all .conf.template files
-├── general.conf.template              # Gaps, borders, blur, animations, input
-├── keybinds.conf.template             # ~145 keybind entries with @VARIABLE@ paths
-├── rules.conf.template                # Window/layer/workspace rules
-├── colors.conf.template               # Material You border/plugin colors
-├── env.conf.template                  # Environment variables (IM, themes, venv)
-├── execs.conf.template                # Autostart programs
-├── hypridle.conf.template             # Idle/power cascade
-├── scripts/                           # Helper shell scripts (same as upstream)
-│   ├── workspace_action.sh
-│   └── launch_first_available.sh
-└── custom/                            # User overrides (survive rebuilds)
-    ├── env.conf
-    ├── general.conf
-    ├── keybinds.conf
-    ├── rules.conf
-    └── scripts/
 
-~/.config/hypr/                        # Runtime (generated from templates)
-├── hyprland.conf                      # Resolved entry point
-├── general.conf                       # Resolved general settings
-├── keybinds.conf                      # Resolved keybinds with Nix store paths
-├── rules.conf                         # Resolved window/layer rules
-├── colors.conf                        # Resolved Material You colors
-├── env.conf                           # Resolved environment variables
-├── execs.conf                         # Resolved autostart programs
-├── hypridle.conf                      # Idle/power cascade config
-└── custom/                            # User overrides (preserved across rebuilds)
+## Template Resolution Flow
+
+The NixOS fork uses a build-time template system to resolve `@VARIABLE@` placeholders:
+
+```mermaid
+flowchart LR
+    subgraph Source["Source Templates (configs/hypr/)"]
+        T1["hyprland.conf.template"]
+        T2["general.conf.template"]
+        T3["keybinds.conf.template"]
+        T4["rules.conf.template"]
+        T5["colors.conf.template"]
+        T6["env.conf.template"]
+        T7["execs.conf.template"]
+    end
+
+    subgraph Nix["Nix Module System (home-manager.nix)"]
+        S1["@VARIABLE@ → store paths\n(QUICKSHELL_BIN, TERMINAL_APPS, etc.)"]
+        S2["@VARIABLE@ → user options\n(monitors, keybinds, custom content)"]
+    end
+
+    subgraph Runtime["Runtime (~/.config/hypr/)"]
+        R1["hyprland.conf — resolved entry point"]
+        R2["general.conf — resolved settings"]
+        R3["keybinds.conf — store paths resolved"]
+        R4["rules.conf — resolved rules"]
+        R5["colors.conf — Material You colors"]
+        R6["env.conf — resolved env vars"]
+        R7["execs.conf — resolved autostart"]
+    end
+
+    T1 --> S1
+    T2 --> S1
+    T3 --> S2
+    T4 --> S2
+    T5 --> S1
+    T6 --> S2
+    T7 --> S1
+    S1 --> R1
+    S1 --> R2
+    S2 --> R3
+    S2 --> R4
+    S1 --> R5
+    S2 --> R6
+    S1 --> R7
+
+    style Source fill:#5c6bc0,color:#fff
+    style Nix fill:#26a69a,color:#fff
+    style Runtime fill:#ef6c00,color:#fff
 ```
 
 ## Configuration File Details

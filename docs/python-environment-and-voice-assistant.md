@@ -95,38 +95,39 @@ The voice assistant provides **three interaction modes**:
 
 ### Component Diagram
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    User Speaks into Mic                      │
-└────────────────────────┬────────────────────────────────────┘
-                         │ Audio Stream
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Streaming Dictation (STT)                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ OpenAI Realtime│  │ Local Whisper│  │ Chunked HTTP STT │  │
-│  │ (WebSocket)   │  │ (via ydotool)│  │ (fallback)       │  │
-│  └──────────────┘  └──────────────┘  └──────────────────┘  │
-└────────────────────────┬────────────────────────────────────┘
-                         │ Transcribed Text
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Intent Classifier (Heuristic or AI)             │
-│  - Commands: "open terminal", "take screenshot" → execute   │
-│  - Dictation: transcribe to text → insert into focused app  │
-└────────────────────────┬────────────────────────────────────┘
-                         │ Action
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Bidirectional Voice Agent (Optional)            │
-│  ┌──────────────────┐  ┌──────────────────┐                 │
-│  │ Amazon Nova Sonic │  │ OpenAI Realtime  │                 │
-│  │ (HTTP/2 bidir)   │  │ (WebSocket)      │                 │
-│  └──────────────────┘  └──────────────────┘                 │
-│  - Tool calling mid-conversation                            │
-│  - Barge-in (interrupt AI while speaking)                   │
-│  - RMS waveform amplitude indicator                         │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Input["Audio Input"]
+        U["User Speaks into Mic"] -->|Audio Stream| STT["Streaming Dictation (STT)"]
+    end
+
+    subgraph STT["Streaming Dictation Backends"]
+        ST1["OpenAI Realtime\n(WebSocket)"]
+        ST2["Local Whisper\n(via ydotool)"]
+        ST3["Chunked HTTP STT\n(fallback)"]
+    end
+
+    STT -->|Transcribed Text| IC["Intent Classifier\n(Heuristic or AI)"]
+
+    subgraph Intent["Intent Classification"]
+        IC -->|"Commands"\n"open terminal", "take screenshot"| EXEC["Execute Action"]
+        IC -->|"Dictation"\ntranscribe to text| INSERT["Insert into Focused App"]
+    end
+
+    subgraph Agent["Bidirectional Voice Agent (Optional)"]
+        A1["Amazon Nova Sonic\n(HTTP/2 bidirectional)"]
+        A2["OpenAI Realtime\n(WebSocket)"]
+        A1 -.->|"Tool calling mid-conversation"| A2
+        A2 -.->|"Barge-in support\n(interrupt AI while speaking)"| U
+    end
+
+    EXEC --> Agent
+    INSERT --> Agent
+
+    style Input fill:#5c6bc0,color:#fff
+    style STT fill:#26a69a,color:#fff
+    style Intent fill:#ef6c00,color:#fff
+    style Agent fill:#7e57c2,color:#fff
 ```
 
 ### Scripts & Files
@@ -226,8 +227,16 @@ Sessions can be:
 
 ### Input (Microphone)
 
-```
-Mic → PipeWire → Python venv (voice_agent_stream.py) → STT backend
+```mermaid
+flowchart LR
+    Mic["Microphone"] -->|Audio capture| PW["PipeWire"]
+    PW -->|Raw audio stream| VA["voice_agent_stream.py\n(Python venv)"]
+    VA -->|Chunked audio| STT["STT Backend\n(OpenAI Realtime / Whisper / HTTP)"]
+    
+    style Mic fill:#5c6bc0,color:#fff
+    style PW fill:#26a69a,color:#fff
+    style VA fill:#ef6c00,color:#fff
+    style STT fill:#7e57c2,color:#fff
 ```
 
 1. PipeWire captures audio from the active input device
@@ -236,8 +245,14 @@ Mic → PipeWire → Python venv (voice_agent_stream.py) → STT backend
 
 ### Output (Speaker/TTS)
 
-```
-TTS engine → PipeWire → Speaker/Headphones
+```mermaid
+flowchart LR
+    TTS["TTS Engine\n(Piper / espeak-ng / Coqui)"] -->|Audio waveform| PW2["PipeWire"]
+    PW2 -->|Playback| Spk["Speaker/Headphones"]
+    
+    style TTS fill:#ef6c00,color:#fff
+    style PW2 fill:#26a69a,color:#fff
+    style Spk fill:#5c6bc0,color:#fff
 ```
 
 1. TTS engine generates audio waveform

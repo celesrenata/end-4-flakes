@@ -29,33 +29,72 @@ When syncing, the following upstream elements are adapted for NixOS:
 
 ## Sync Procedure
 
-### 1. Fetch Upstream Changes
+```mermaid
+flowchart TD
+    subgraph Step1["Step 1: Fetch Upstream"]
+        A["git fetch origin\ngit log --oneline -20"] --> B{"Review recent commits"}
+    end
 
+    subgraph Step2["Step 2: Compare with Fork"]
+        B --> C["Use analysis docs:\nkeybind-analysis.md\nkeybind-equivalence-verification.md"]
+    end
+
+    subgraph Step3["Step 3: Adapt Changes"]
+        C --> D{"Change type?"}
+        D -->|Keybind (Lua)| E["Translate to .conf.template format\nReplace hl.bind with bindd/bindle/etc."]
+        D -->|Path reference| F["Replace hardcoded paths with @VARIABLE@ placeholders"]
+        D -->|New feature| G["Update Nix module options in components/"]
+        D -->|Python script| H["Check venv deps in python-environment.nix\nVerify no system Python references"]
+    end
+
+    subgraph Step4["Step 4: Update Flake Input"]
+        E --> I["Update flake.nix:\ndots-hyprland = { url = github:end-4/dots-hyprland/<hash>; };"]
+        F --> I
+        G --> I
+        H --> I
+        I --> J["nix flake lock --update-input dots-hyprland"]
+    end
+
+    subgraph Step5["Step 5: Test Sync"]
+        J --> K["Run VM test:\nnix build .#checks.x86_64-linux.vm-integration"]
+        K --> L{"Tests pass?"}
+        L -->|yes| M["Sync complete ✓"]
+        L -->|no| N["Debug failures\nCheck template substitution\nVerify keybind equivalence"]
+    end
+
+    style Step1 fill:#5c6bc0,color:#fff
+    style Step2 fill:#26a69a,color:#fff
+    style Step3 fill:#ef6c00,color:#fff
+    style Step4 fill:#7e57c2,color:#fff
+    style Step5 fill:#43a047,color:#fff
+```
+
+### Detailed Steps
+
+**1. Fetch Upstream Changes:**
 ```bash
-# Clone or fetch upstream
 cd /path/to/dots-hyprland
 git fetch origin
 git log --oneline -20  # Review recent commits
 ```
 
-### 2. Compare with Our Fork
-
+**2. Compare with Our Fork:**
 Use the analysis docs to understand differences:
 - [`docs/keybind-analysis.md`](./keybind-analysis.md) — Keybind comparison
 - [`docs/keybind-equivalence-verification.md`](./keybind-equivalence-verification.md) — Detailed bind-by-bind verification
 
-### 3. Cherry-pick Adaptations
+**3. Cherry-pick Adaptations:**
 
-For each upstream change:
+For each upstream change, follow this decision tree:
 
-1. **Identify the change** in upstream Lua/config
-2. **Translate to `.conf.template` format** (if keybinds)
-3. **Replace hardcoded paths** with `@VARIABLE@` placeholders
-4. **Verify equivalence** using the verification matrix
-5. **Update Nix module options** if new config features are added
+| Change Type | Adaptation Required |
+|-------------|-------------------|
+| New keybind (Lua `hl.bind`) | Translate to `.conf.template` format with proper flags (`bindd`, `bindle`, etc.) |
+| Path reference | Replace hardcoded paths with `@VARIABLE@` placeholders |
+| New config feature | Update Nix module options in relevant `components/*.nix` |
+| Python script added | Check deps in `modules/python-environment.nix`; verify no system Python refs |
 
-### 4. Update Flake Input
-
+**4. Update Flake Input:**
 ```nix
 # In flake.nix, update the dots-hyprland input:
 dots-hyprland = {
@@ -69,10 +108,9 @@ Then run:
 nix flake lock --update-input dots-hyprland
 ```
 
-### 5. Test the Sync
-
+**5. Test the Sync:**
 ```bash
-# Run VM test
+# Run VM test (headless)
 nix build .#checks.x86_64-linux.vm-integration
 
 # Or interactive testing
@@ -114,6 +152,33 @@ When upstream adds a new Python script:
 1. Check if dependencies are in the managed venv (`modules/python-environment.nix`)
 2. Add missing deps to `python-environment.nix` buildInputs
 3. Verify the script works with Nix store paths (no hardcoded `/usr/bin/python3`)
+
+### Sync Pattern Decision Tree
+
+```mermaid
+flowchart TD
+    A["Upstream change detected"] --> B{"Change type?"}
+    
+    B -->|Keybind (Lua)| C["Translate to .conf.template\nhl.bind → bindd/bindle/binde/etc."]
+    B -->|Path reference| D["Replace hardcoded paths with @VARIABLE@ placeholders"]
+    B -->|New Python script| E["Check venv deps in python-environment.nix\nVerify no system Python refs"]
+    B -->|Config feature| F["Update Nix module options in components/"]
+    B -->|Removed feature| G["Remove from .conf.template and Nix modules"]
+    
+    C --> H["Verify equivalence with keybind-equivalence-verification.md"]
+    D --> H
+    E --> H
+    F --> H
+    G --> H
+    
+    style A fill:#5c6bc0,color:#fff
+    style B fill:#7e57c2,color:#fff
+    style C fill:#26a69a,color:#fff
+    style D fill:#ef6c00,color:#fff
+    style E fill:#fb8c00,color:#fff
+    style F fill:#43a047,color:#fff
+    style G fill:#e53935,color:#fff
+```
 
 ## Verification Checklist
 
