@@ -3,6 +3,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
 import QtQuick
+import QtQuick.Controls
 
 /**
  * A ListView with animations.
@@ -22,6 +23,27 @@ ListView {
 
     maximumFlickVelocity: 3500
     boundsBehavior: Flickable.DragOverBounds
+
+    ScrollBar.vertical: ScrollBar {
+        padding: 3
+        policy: ScrollBar.AsNeeded
+        opacity: active || size < 1 ? 1 : 0
+        visible: opacity > 0
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: Appearance.animation.elementMoveFast.duration
+                easing.type: Appearance.animation.elementMoveFast.type
+                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+            }
+        }
+
+        contentItem: Rectangle {
+            implicitWidth: 6
+            radius: Appearance.rounding.small
+            color: Appearance.colors.colLayer2Active
+        }
+    }
 
     add: Transition {
         animations: [

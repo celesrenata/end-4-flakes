@@ -11,10 +11,124 @@ import QtQuick
 import "./ai/"
 
 /**
- * Basic service to handle LLM chats. Supports Google's and OpenAI's API formats.
- * Supports Gemini and OpenAI models.
+ * Ai.qml — Singleton service managing the LLM chat system.
+ *
+ * Supports Google Gemini, OpenAI, and Mistral API formats with streaming responses.
+ * Provides function calling (tool use) via built-in tools and MCP server integration.
+ *
+ * ## Architecture Overview
+ *
+ * ### Session Lifecycle
+ *
+ * Sessions are the top-level unit of conversation state. Each session has a name,
+ * a JSON message file, and metadata in the sessions index.
+ *
+ * - newSession(name)      — validates name, saves current session, clears messages,
+ *                           creates index entry with timestamps, persists index
+ * - switchSession(name)   — saves current session, emits sessionSwitchStarted,
+ *                           calls loadSession, updates activeSessionName + Persistent
+ *                           state, emits sessionSwitchCompleted
+ * - saveCurrentSession()  — serializes messages via chatToJson() → writes to
+ *                           {aiChats}/{activeSessionName}.json, updates lastModified
+ * - loadSession(name)     — reads {aiChats}/{name}.json via sessionReader FileView,
+ *                           parses JSON array, recreates AiMessageData objects into
+ *                           messageByID map, assigns messageIDs, increments messageVersion
+ * - deleteSession(name)   — switches away if active, removes .json file via Process,
+ *                           removes entry from sessionsIndex, persists index
+ * - renameSession(old,new)— validates, updates index entry, moves file on disk,
+ *                           updates activeSessionName if renaming the current session
+ * - archiveSession(name)  — sets archived=true in index (hides from active list)
+ * - purgeSession(name)    — writes empty array to session file, preserves index entry
+ *
+ * On startup (Component.onCompleted): loads sessionsIndex, ensures "Free Dictation"
+ * session exists, attempts to load the persisted active session (with fallback to
+ * most-recently-modified session, or creates a new default session).
+ *
+ * ### Message Flow
+ *
+ * 1. User input arrives via sendUserMessage(text) or sendUserMessageWithAttachments(text)
+ * 2. A "user" role AiMessageData is created and added to messageByID/messageIDs
+ * 3. requester.makeRequest() is called:
+ *    a. Builds endpoint URL via currentApiStrategy.buildEndpoint(model)
+ *    b. Filters out interface-role messages, builds request payload via
+ *       currentApiStrategy.buildRequestData(model, messages, systemPrompt, temperature, tools, tuning)
+ *    c. Writes JSON payload to /tmp/ii-ai-request-payload.json (avoids ARG_MAX)
+ *    d. Creates an "assistant" role AiMessageData (thinking=true, done=false)
+ *    e. Fires curl --no-buffer via Process, streaming response lines
+ * 4. Each response line is parsed by currentApiStrategy.parseResponseLine(data, message)
+ *    - Content tokens are appended to message.rawContent / message.content
+ *    - Function calls are dispatched to handleFunctionCall()
+ *    - Token usage is recorded in tokenCount QtObject
+ * 5. On completion (finished signal or process exit): markDone() sets message.done=true,
+ *    fires postResponseHook if set, calls saveCurrentSession()
+ *
+ * ### Context Management
+ *
+ * - estimateTokens(text)     — approximates token count as ceil(text.length / 4)
+ * - contextTokens (readonly) — sum of estimated tokens across systemPrompt + all messages
+ * - contextLimit (readonly)  — from current model's context_length (default 128000)
+ * - contextUsageRatio        — contextTokens / contextLimit (0.0 to 1.0+)
+ * - contextFull              — true when contextUsageRatio >= 1.0 (blocks sending)
+ * - Auto-compact threshold   — onContextUsageRatioChanged fires at 0.85 crossing,
+ *                              sets autoCompactShown=true to show UI notification
+ * - compactChat(focus)       — sends entire conversation to model with a summarization
+ *                              prompt, replaces all messages with a single system-role
+ *                              summary on success
+ * - largerContextModels      — lists models with context_length > current, used by
+ *                              AI_Doctor suggestions when context is full
+ *
+ * ### Message Versioning
+ *
+ * The `messageVersion` property (int, starts at 0) is incremented inside loadSession()
+ * after messages are populated. UI components (e.g., the message ListView delegate)
+ * bind to messageVersion to force a complete view refresh on session switch, ensuring
+ * stale delegates from the previous session are discarded and new delegates are created
+ * from the fresh messageIDs/messageByID state.
+ *
+ * ### Persistence Model
+ *
+ * - Sessions index: {XDG_STATE_HOME}/user/ai/chats/sessions-index.json
+ *   Format: { "sessions": [{ name, createdAt, lastModified, archived, group, subject, protected? }] }
+ *   Loaded/saved via sessionsIndexFile FileView. Rebuilt from filesystem scan if missing/corrupt.
+ *
+ * - Per-session messages: {XDG_STATE_HOME}/user/ai/chats/{sessionName}.json
+ *   Format: JSON array of message objects with fields:
+ *   { role, rawContent, model, thinking, done, annotations, annotationSources,
+ *     functionName, functionCall, functionResponse, visibleToUser, attachments? }
+ *   Read/written via chatSaveFile and sessionReader FileViews.
+ *
+ * - Attachments: {XDG_STATE_HOME}/user/ai/chats/attachments/{timestamp}-{safeName}
+ *   Images are base64-encoded at request time (not stored in chat JSON).
+ *
+ * - Auto-save triggers: messageIDs change (when not switching), markDone() after
+ *   API response completes, session switch (saves outgoing session before loading new one)
+ *
+ * ### Command System
+ *
+ * Commands are defined in AiChat.qml's `allCommands` array and dispatched by
+ * handleInput() when input starts with the commandPrefix ("/"). Each command
+ * object has { name, description, execute(args) }. Key commands:
+ *
+ * - /model [name]    — switch active LLM model (fuzzy match with suggestions)
+ * - /save [name]     — save current chat to a named JSON file
+ * - /load [name]     — load a previously saved chat by name
+ * - /new [name]      — create a new session (auto-names "Chat N" if no name given)
+ * - /switch [name]   — switch to an existing session by name
+ * - /delete [name]   — delete a session (file + index entry)
+ * - /list            — list all sessions with timestamps
+ * - /test            — render a markdown test message (tables, code, LaTeX)
+ * - /clear           — clear all messages from the current view
+ * - /key [key|get]   — set or display the API key for the current model
+ * - /tool [name]     — set the active tool mode (functions/search/none)
+ * - /prompt [path]   — load a system prompt from file, or display current
+ * - /temp [value]    — set global temperature (0-2)
+ * - /tune [...]      — per-model tuning (temp, reasoning, websearch, context, verbosity)
+ * - /compact [focus] — summarize conversation to free context space
+ * - /summarize [focus] — summarize into a new session (original unchanged)
+ *
  * Limitations:
- * - For now functions only work with Gemini API format
+ * - Function calling (tool use) only works fully with Gemini API format;
+ *   OpenAI and Mistral have partial support
  */
 Singleton {
     id: root

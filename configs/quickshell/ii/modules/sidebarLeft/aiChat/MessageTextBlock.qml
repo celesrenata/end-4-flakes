@@ -104,39 +104,87 @@ ColumnLayout {
         }
     }
 
-    TextArea {
-        id: textArea
-
+    ScrollView {
+        id: textScrollView
         Layout.fillWidth: true
-        readOnly: !editing
-        selectByMouse: enableMouseSelection || editing
-        renderType: Text.NativeRendering
-        font.family: Appearance.font.family.reading
-        font.hintingPreference: Font.PreferNoHinting // Prevent weird bold text
-        font.pixelSize: Appearance.font.pixelSize.small
-        selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
-        selectionColor: Appearance.colors.colSecondaryContainer
-        wrapMode: TextEdit.Wrap
-        color: messageData.thinking ? Appearance.colors.colSubtext : Appearance.colors.colOnLayer1
-        textFormat: renderMarkdown ? TextEdit.MarkdownText : TextEdit.PlainText
-        text: Translation.tr("Waiting for response...")
+        contentWidth: textArea.implicitWidth
+        clip: true
 
-        onTextChanged: {
-            if (!root.editing) return
-            segmentContent = text
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AlwaysOff
         }
 
-        onLinkActivated: (link) => {
-            Qt.openUrlExternally(link)
-            GlobalStates.sidebarLeftOpen = false
+        ScrollBar.horizontal: ScrollBar {
+            padding: 3
+            policy: ScrollBar.AsNeeded
+            opacity: visualSize == 1 ? 0 : 1
+            visible: opacity > 0
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Appearance.animation.elementMoveFast.type
+                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                }
+            }
+
+            contentItem: Rectangle {
+                implicitHeight: 6
+                radius: Appearance.rounding.small
+                color: Appearance.colors.colLayer2Active
+            }
         }
 
-        MouseArea { // Pointing hand for links
-            anchors.fill: parent
-            acceptedButtons: Qt.NoButton // Only for hover
-            hoverEnabled: true
-            cursorShape: parent.hoveredLink !== "" ? Qt.PointingHandCursor : 
-                (enableMouseSelection || editing) ? Qt.IBeamCursor : Qt.ArrowCursor
+        TextArea {
+            id: textArea
+
+            readOnly: !editing
+            selectByMouse: enableMouseSelection || editing
+            renderType: Text.NativeRendering
+            font.family: Appearance.font.family.reading
+            font.hintingPreference: Font.PreferNoHinting // Prevent weird bold text
+            font.pixelSize: Appearance.font.pixelSize.small
+            selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
+            selectionColor: Appearance.colors.colSecondaryContainer
+            wrapMode: TextEdit.Wrap
+            color: messageData.thinking ? Appearance.colors.colSubtext : Appearance.colors.colOnLayer1
+            textFormat: renderMarkdown ? TextEdit.MarkdownText : TextEdit.PlainText
+            text: Translation.tr("Waiting for response...")
+
+            onTextChanged: {
+                if (!root.editing) return
+                segmentContent = text
+            }
+
+            onLinkActivated: (link) => {
+                Qt.openUrlExternally(link)
+                GlobalStates.sidebarLeftOpen = false
+            }
+
+            MouseArea { // Pointing hand for links + vertical scroll forwarding
+                anchors.fill: parent
+                acceptedButtons: Qt.NoButton // Only for hover and wheel
+                hoverEnabled: true
+                cursorShape: parent.hoveredLink !== "" ? Qt.PointingHandCursor : 
+                    (enableMouseSelection || editing) ? Qt.IBeamCursor : Qt.ArrowCursor
+
+                onWheel: (event) => {
+                    // Forward vertical scroll to parent message list
+                    if (event.angleDelta.y !== 0) {
+                        let item = root.parent
+                        while (item && !item.hasOwnProperty("contentY")) {
+                            item = item.parent
+                        }
+                        if (item && item.hasOwnProperty("flickableDirection")) {
+                            item.contentY -= event.angleDelta.y
+                            item.returnToBounds()
+                        }
+                        event.accepted = true
+                    } else {
+                        event.accepted = false
+                    }
+                }
+            }
         }
     }
 }

@@ -282,6 +282,28 @@ ColumnLayout {
                 }
             }
 
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.NoButton
+                onWheel: (event) => {
+                    // Forward vertical scroll to parent message list
+                    if (event.angleDelta.y !== 0) {
+                        // Traverse up to find the ListView (we're inside Loader → delegate → ListView)
+                        let item = root.parent
+                        while (item && !item.hasOwnProperty("contentY")) {
+                            item = item.parent
+                        }
+                        if (item && item.hasOwnProperty("flickableDirection")) {
+                            item.contentY -= event.angleDelta.y
+                            item.returnToBounds()
+                        }
+                        event.accepted = true
+                    } else {
+                        event.accepted = false
+                    }
+                }
+            }
+
             // MouseArea to block scrolling
             // MouseArea {
             //     id: codeBlockMouseArea
