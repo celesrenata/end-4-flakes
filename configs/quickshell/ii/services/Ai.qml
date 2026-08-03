@@ -1604,7 +1604,11 @@ Singleton {
         } else if (name === "run_shell_command") {
             if (!args.command || args.command.trim().length === 0) {
                 addFunctionOutputMessage(name, Translation.tr("Error: empty command. Please provide the actual shell command to run."));
-                requester.makeRequest();
+                if (!root.yoloMode) {
+                    // In safe mode, let the model retry on next turn
+                    requester.makeRequest();
+                }
+                // In YOLO mode, stop the chain to avoid infinite loops
                 return;
             }
             const contentToAppend = `\n\n**Command execution request**\n\n\`\`\`command\n${args.command}\n\`\`\``;
@@ -1613,11 +1617,9 @@ Singleton {
             message.functionName = name;
             message.functionCall = { name: name, args: args };
             if (root.yoloMode) {
-                // YOLO: auto-execute without asking
                 message.functionPending = true;
                 root.approveCommand(message);
             } else {
-                // Normal: wait for user approval
                 message.functionPending = true;
             }
         } else if (name === "hypr_config_read") {
