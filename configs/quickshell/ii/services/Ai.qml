@@ -1450,8 +1450,28 @@ Singleton {
             }
 
             // Handle error responses
-            if (requester.message.content.includes("API key not valid")) {
+            const msgContent = (requester.message.rawContent || "").trim();
+            if (msgContent.includes("API key not valid")) {
                 root.addApiKeyAdvice(models[requester.message.model]);
+            }
+
+            // If assistant message is empty or contains only error JSON, remove it and show error
+            if (msgContent.length === 0 || (msgContent.includes('"error"') && !msgContent.includes("</think>"))) {
+                // Remove the broken assistant message
+                const msgId = root.idForMessage(requester.message);
+                const idx = root.messageIDs.indexOf(msgId);
+                if (idx !== -1) {
+                    root.messageIDs.splice(idx, 1);
+                    root.messageIDs = [...root.messageIDs];
+                    delete root.messageByID[msgId];
+                }
+                // Show a useful error
+                if (msgContent.length === 0) {
+                    root.addMessage(Translation.tr("No response from model. Check API key or network connection."), root.interfaceRole);
+                } else {
+                    const errorText = msgContent.replace(/[\n\r]+/g, " ").substring(0, 300);
+                    root.addMessage(Translation.tr("API error: %1").arg(errorText), root.interfaceRole);
+                }
             }
         }
     }
