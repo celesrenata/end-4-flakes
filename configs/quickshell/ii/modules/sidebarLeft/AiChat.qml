@@ -143,6 +143,8 @@ Item {
     }
 
     Keys.onPressed: (event) => {
+        // Close session drawer on any keypress
+        if (root.sessionDrawerOpen) root.sessionDrawerOpen = false;
         // Only steal focus if no other text input currently has focus
         if (!messageInputField.activeFocus && !root.Window.activeFocusItem?.hasOwnProperty("text")) {
             messageInputField.forceActiveFocus()
@@ -1771,6 +1773,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 onMovementStarted: {
                     messageListView.userScrolling = true;
                     scrollAnim.stop();
+                    if (root.sessionDrawerOpen) root.sessionDrawerOpen = false;
                 }
                 onMovementEnded: {
                     messageListView.userScrolling = false;
@@ -2809,6 +2812,15 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
         } // end inputAreaWrapper
         
+    }
+
+    // Dismiss overlay — covers entire chat, sits above columnLayout
+    // Only intercepts clicks when session drawer is open
+    MouseArea {
+        anchors.fill: parent
+        visible: root.sessionDrawerOpen
+        z: 50
+        onClicked: root.sessionDrawerOpen = false
     }
 
 }
