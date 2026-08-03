@@ -1366,8 +1366,15 @@ Singleton {
             // Append fresh timestamp to system prompt so the model always has accurate current time
             const now = new Date();
             const freshDatetime = Qt.locale().toString(now, "hh:mm:ss, dddd dd MMMM yyyy");
-            const liveSystemPrompt = root.systemPrompt + `\n\n[Current local time at moment of request: ${freshDatetime}]`;
-            const data = root.currentApiStrategy.buildRequestData(model, filteredMessageArray, liveSystemPrompt, tuning.temperature, root.tools[model.api_format][root.currentTool], tuning);
+            let liveSystemPrompt = root.systemPrompt + `\n\n[Current local time at moment of request: ${freshDatetime}]`;
+
+            // Append tool usage instructions when function calling is active
+            const activeTools = root.tools[model.api_format]?.[root.currentTool] ?? [];
+            if (activeTools.length > 0) {
+                liveSystemPrompt += `\n\n## Tool Usage\n- You have access to tools. Use them proactively to answer questions — don't guess when you can look it up.\n- You may call multiple tools in sequence to gather comprehensive information before responding. After receiving a tool result, you can call another tool if more info is needed.\n- Prefer gathering real data over speculating. If the user asks about their system, network, or environment, run commands to get actual information.\n- When a single command isn't sufficient, make additional tool calls until you have enough data to give a complete answer.`;
+            }
+
+            const data = root.currentApiStrategy.buildRequestData(model, filteredMessageArray, liveSystemPrompt, tuning.temperature, activeTools, tuning);
             // console.log("[Ai] Request data: ", JSON.stringify(data, null, 2));
 
             let requestHeaders = {
