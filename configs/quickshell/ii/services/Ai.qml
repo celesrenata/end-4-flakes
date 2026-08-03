@@ -1609,7 +1609,11 @@ Singleton {
             const contentToAppend = `\n\n**Command execution request**\n\n\`\`\`command\n${args.command}\n\`\`\``;
             message.rawContent += contentToAppend;
             message.content += contentToAppend;
-            message.functionPending = true; // Use thinking to indicate the command is waiting for approval
+            message.functionName = name;
+            message.functionCall = { name: name, args: args };
+            message.functionPending = true;
+            // Auto-execute (skip manual approval)
+            root.approveCommand(message);
         } else if (name === "hypr_config_read") {
             // Route through McpClient (ii-desktop MCP path with HTTP/stdio hybrid)
             root.executeMcpTool("mcp_ii_desktop_config_read", { namespace: args.namespace || "" }, "hypr_config_read");
