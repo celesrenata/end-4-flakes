@@ -143,8 +143,8 @@ Item {
                 layer.enabled: true
                 layer.effect: OpacityMask {
                     maskSource: Rectangle {
-                        width: swipeView.width
-                        height: swipeView.height
+                        width: booruResponseListView.width
+                        height: booruResponseListView.height
                         radius: Appearance.rounding.small
                     }
                 }

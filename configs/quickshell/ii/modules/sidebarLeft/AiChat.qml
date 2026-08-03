@@ -542,7 +542,9 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         target: Ai
         function onMessageIDsChanged() {
             if (messageListView.isNearBottom && !messageListView.userScrolling) {
+                scrollBehavior.enabled = false;
                 messageListView.contentY = 0;
+                scrollBehavior.enabled = true;
             }
         }
     }
@@ -770,7 +772,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         Rectangle {
             id: sessionDrawer
             Layout.fillWidth: true
-            visible: root.sessionDrawerOpen
+            visible: root.sessionDrawerOpen || closeAnim.running
             clip: true
             implicitHeight: root.sessionDrawerOpen ? sessionDrawerColumn.implicitHeight + 12 : 0
             radius: Appearance.rounding.small
@@ -780,8 +782,16 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
             Behavior on implicitHeight {
                 NumberAnimation {
-                    duration: Appearance.animation.elementMove.duration
-                    easing.type: Appearance.animation.elementMove.type
+                    id: closeAnim
+                    duration: root.sessionDrawerOpen
+                        ? Appearance.animation.elementMoveEnter.duration
+                        : Appearance.animation.elementMoveExit.duration
+                    easing.type: root.sessionDrawerOpen
+                        ? Appearance.animation.elementMoveEnter.type
+                        : Appearance.animation.elementMoveExit.type
+                    easing.bezierCurve: root.sessionDrawerOpen
+                        ? Appearance.animation.elementMoveEnter.bezierCurve
+                        : Appearance.animation.elementMoveExit.bezierCurve
                 }
             }
 
@@ -1707,12 +1717,39 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             visible: !root.searchOpen
             Layout.fillWidth: true
             Layout.fillHeight: true
+
             StyledListView { // Message list
                 id: messageListView
                 anchors.fill: parent
                 spacing: 10
                 popin: false
                 verticalLayoutDirection: ListView.BottomToTop
+
+                // Override scrollbar — always visible when content overflows
+                ScrollBar.vertical: ScrollBar {
+                    id: chatScrollBar
+                    padding: 2
+                    policy: ScrollBar.AlwaysOn
+                    visible: size < 1
+
+                    contentItem: Rectangle {
+                        implicitWidth: 6
+                        radius: 3
+                        color: chatScrollBar.active
+                            ? Appearance.colors.colPrimary
+                            : Qt.alpha(Appearance.colors.colOnLayer1, 0.35)
+
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
+                        }
+                    }
+
+                    background: Rectangle {
+                        implicitWidth: 10
+                        radius: 5
+                        color: Qt.alpha(Appearance.colors.colLayer1, 0.3)
+                    }
+                }
 
                 property int lastResponseLength: 0
 
