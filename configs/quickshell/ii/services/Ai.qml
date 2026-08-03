@@ -1412,6 +1412,7 @@ Singleton {
             onRead: data => {
                 if (data.length === 0) return;
                 if (requester.message.thinking) requester.message.thinking = false;
+                // console.log("[Ai] Raw response line: ", data);
 
                 // Handle response line
                 try {
@@ -1448,17 +1449,9 @@ Singleton {
                 requester.markDone();
             }
 
-            // Handle error responses — show as visible interface message
-            const content = requester.message.rawContent || "";
-            if (content.includes("API key not valid")) {
+            // Handle error responses
+            if (requester.message.content.includes("API key not valid")) {
                 root.addApiKeyAdvice(models[requester.message.model]);
-            } else if (content.includes("PERMISSION_DENIED") || content.includes("403") || content.includes("401")) {
-                root.addMessage(Translation.tr("API error: Permission denied. Check your API key for %1.").arg(models[requester.message.model]?.name ?? requester.message.model), root.interfaceRole);
-            } else if (exitCode !== 0 && content.trim().length === 0) {
-                root.addMessage(Translation.tr("Request failed (exit code %1). Check network connection or model endpoint.").arg(exitCode), root.interfaceRole);
-            } else if (content.includes('"error"') && content.trim().length < 500) {
-                // Generic API error — show the raw error content
-                root.addMessage(Translation.tr("API error: %1").arg(content.replace(/[\n\r]+/g, " ").trim()), root.interfaceRole);
             }
         }
     }
