@@ -12,6 +12,7 @@ import Quickshell
 Rectangle {
     id: root
     property int messageIndex
+    property string messageId: ""
     property var messageData
     property var messageInputField
 
@@ -232,7 +233,7 @@ Rectangle {
                     id: deleteButton
                     buttonIcon: "close"
                     onClicked: {
-                        Ai.removeMessage(root.messageIndex)
+                        Ai.removeMessage(root.messageId)
                     }
                     StyledToolTip {
                         content: Translation.tr("Delete")

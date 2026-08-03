@@ -1176,14 +1176,21 @@ Singleton {
             "done": true,
         });
         const id = idForMessage(aiMessage);
-        root.messageIDs = [...root.messageIDs, id];
         root.messageByID[id] = aiMessage;
+        root.messageIDs = [...root.messageIDs, id];
     }
 
-    function removeMessage(index) {
-        if (index < 0 || index >= messageIDs.length) return;
-        const id = root.messageIDs[index];
-        root.messageIDs.splice(index, 1);
+    function removeMessage(indexOrId) {
+        // Accept either a numeric index or a message ID string
+        var idx;
+        if (typeof indexOrId === "string") {
+            idx = root.messageIDs.indexOf(indexOrId);
+        } else {
+            idx = indexOrId;
+        }
+        if (idx < 0 || idx >= messageIDs.length) return;
+        const id = root.messageIDs[idx];
+        root.messageIDs.splice(idx, 1);
         root.messageIDs = [...root.messageIDs];
         delete root.messageByID[id];
     }
@@ -1330,6 +1337,7 @@ Singleton {
         id: requester
         property list<string> baseCommand: ["bash", "-c"]
         property AiMessageData message
+        property string messageId: ""
         property ApiStrategy currentStrategy
 
         function markDone() {
@@ -1376,10 +1384,11 @@ Singleton {
                 "done": false,
             });
             const id = idForMessage(requester.message);
-            root.messageIDs = [...root.messageIDs, id];
+            requester.messageId = id;
             root.messageByID[id] = requester.message;
+            root.messageIDs = [...root.messageIDs, id];
 
-            /* Build header string for curl */ 
+            /* Build header string for curl */
             let headerString = Object.entries(requestHeaders)
                 .filter(([k, v]) => v && v.length > 0)
                 .map(([k, v]) => `-H '${k}: ${v}'`)
@@ -1443,22 +1452,18 @@ Singleton {
         onExited: (exitCode, exitStatus) => {
             const result = requester.currentStrategy.onRequestFinished(requester.message);
             
-            if (result.finished) {
-                requester.markDone();
-            } else if (!requester.message.done) {
-                requester.markDone();
-            }
-
-            // Handle error responses
+            // Check if the message ended up empty or errored
             const msgContent = (requester.message.rawContent || "").trim();
-            if (msgContent.includes("API key not valid")) {
-                root.addApiKeyAdvice(models[requester.message.model]);
-            }
+            // Strip think blocks to check if there's any visible content
+            const visibleContent = msgContent.replace(/<think>[\s\S]*?<\/think>/g, "")
+                                             .replace(/<think>[\s\S]*$/, "")  // unclosed think block
+                                             .trim();
+            const isEmpty = msgContent.length === 0 || visibleContent.length === 0;
+            const isError = msgContent.includes('"error"') && !msgContent.includes("</think>");
 
-            // If assistant message is empty or contains only error JSON, remove it and show error
-            if (msgContent.length === 0 || (msgContent.includes('"error"') && !msgContent.includes("</think>"))) {
-                // Remove the broken assistant message
-                const msgId = root.idForMessage(requester.message);
+            if (isEmpty || isError) {
+                // Remove the broken/empty assistant message BEFORE saving
+                const msgId = requester.messageId;
                 const idx = root.messageIDs.indexOf(msgId);
                 if (idx !== -1) {
                     root.messageIDs.splice(idx, 1);
@@ -1468,9 +1473,26 @@ Singleton {
                 // Show a useful error
                 if (msgContent.length === 0) {
                     root.addMessage(Translation.tr("No response from model. Check API key or network connection."), root.interfaceRole);
-                } else {
+                } else if (isError) {
                     const errorText = msgContent.replace(/[\n\r]+/g, " ").substring(0, 300);
                     root.addMessage(Translation.tr("API error: %1").arg(errorText), root.interfaceRole);
+                } else {
+                    root.addMessage(Translation.tr("Model returned only internal reasoning with no visible response. Try again."), root.interfaceRole);
+                }
+                // Handle API key advice
+                if (msgContent.includes("API key not valid")) {
+                    root.addApiKeyAdvice(models[requester.message.model]);
+                }
+            } else {
+                // Valid response — mark done and save
+                if (result.finished) {
+                    requester.markDone();
+                } else if (!requester.message.done) {
+                    requester.markDone();
+                }
+                // Handle API key advice even for non-empty responses
+                if (msgContent.includes("API key not valid")) {
+                    root.addApiKeyAdvice(models[requester.message.model]);
                 }
             }
         }
@@ -1506,8 +1528,8 @@ Singleton {
     function addFunctionOutputMessage(name, output) {
         const aiMessage = createFunctionOutputMessage(name, output);
         const id = idForMessage(aiMessage);
-        root.messageIDs = [...root.messageIDs, id];
         root.messageByID[id] = aiMessage;
+        root.messageIDs = [...root.messageIDs, id];
     }
 
     function rejectCommand(message: AiMessageData) {
@@ -1522,8 +1544,8 @@ Singleton {
 
         const responseMessage = createFunctionOutputMessage(message.functionName, "", false);
         const id = idForMessage(responseMessage);
-        root.messageIDs = [...root.messageIDs, id];
         root.messageByID[id] = responseMessage;
+        root.messageIDs = [...root.messageIDs, id];
 
         commandExecutionProc.message = responseMessage;
         commandExecutionProc.baseMessageContent = responseMessage.content;
@@ -2752,8 +2774,8 @@ Singleton {
                 "images": encodedImages,
             });
             var id = root.idForMessage(aiMessage);
-            root.messageIDs = [...root.messageIDs, id];
             root.messageByID[id] = aiMessage;
+            root.messageIDs = [...root.messageIDs, id];
             requester.makeRequest();
         }
     }

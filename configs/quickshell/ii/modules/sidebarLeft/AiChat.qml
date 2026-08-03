@@ -1817,9 +1817,15 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         return Ai.messageIDs.filter(id => {
                             const message = Ai.messageByID[id];
                             if (!(message?.visibleToUser ?? true)) return false;
-                            // Hide finished assistant messages with empty content (failed API calls)
-                            // But keep ones still streaming (done=false) so thinking indicator shows
-                            if (message?.role === "assistant" && message?.done === true && (message?.content ?? "").trim().length === 0) return false;
+                            // Hide finished assistant messages with no visible content
+                            if (message?.role === "assistant" && message?.done === true) {
+                                const raw = (message?.rawContent ?? "").trim();
+                                if (raw.length === 0) return false;
+                                const visible = raw.replace(/<think>[\s\S]*?<\/think>/g, "")
+                                                   .replace(/<think>[\s\S]*$/, "")
+                                                   .trim();
+                                if (visible.length === 0) return false;
+                            }
                             return true;
                         }).slice().reverse();
                     }
@@ -1840,6 +1846,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         anchors.left: parent.left
                         anchors.right: parent.right
                         messageIndex: parent.index
+                        messageId: parent.modelData
                         messageData: Ai.messageByID[parent.modelData]
                         messageInputField: root.inputField
                     }
