@@ -543,9 +543,9 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
     Connections {
         target: Ai
         function onMessageIDsChanged() {
-            if (messageListView.isNearBottom && !messageListView.userScrolling) {
+            if (messageListView._shouldStickToBottom && !messageListView.userScrolling) {
                 scrollBehavior.enabled = false;
-                messageListView.contentY = 0;
+                messageListView.positionViewAtBeginning();
                 scrollBehavior.enabled = true;
             }
         }
@@ -1759,13 +1759,18 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 readonly property real scrollThreshold: 10
                 readonly property bool isNearBottom: contentY <= scrollThreshold
                 property bool userScrolling: false
+                property bool _shouldStickToBottom: true
 
                 // Snap to bottom when content first loads after becoming visible
                 onContentHeightChanged: {
                     if (root._needsInitialScroll && height > 0 && contentHeight > 0) {
                         root._needsInitialScroll = false
                         scrollBehavior.enabled = false
-                        contentY = 0
+                        positionViewAtBeginning()
+                        scrollBehavior.enabled = true
+                    } else if (_shouldStickToBottom && !userScrolling) {
+                        scrollBehavior.enabled = false
+                        positionViewAtBeginning()
                         scrollBehavior.enabled = true
                     }
                 }
@@ -1777,6 +1782,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 }
                 onMovementEnded: {
                     messageListView.userScrolling = false;
+                    _shouldStickToBottom = isNearBottom;
                 }
 
                 clip: true
@@ -2814,13 +2820,16 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         
     }
 
-    // Dismiss overlay — covers entire chat, sits above columnLayout
-    // Only intercepts clicks when session drawer is open
+    // Dismiss overlay — click-away closes session drawer
     MouseArea {
         anchors.fill: parent
         visible: root.sessionDrawerOpen
         z: 50
-        onClicked: root.sessionDrawerOpen = false
+        propagateComposedEvents: true
+        onPressed: (mouse) => {
+            root.sessionDrawerOpen = false
+            mouse.accepted = false
+        }
     }
 
 }
