@@ -1604,14 +1604,13 @@ Singleton {
             Config.setNestedValue(key, value);
         } else if (name === "run_shell_command") {
             if (!args.command || args.command.trim().length === 0) {
-                // Empty command — tell the model and let it continue (but cap retries)
                 root._emptyCommandRetries = (root._emptyCommandRetries || 0) + 1;
                 if (root._emptyCommandRetries > 3) {
-                    addFunctionOutputMessage(name, Translation.tr("Error: repeated empty commands. Stopping."));
+                    addFunctionOutputMessage(name, Translation.tr("Tool calling failed repeatedly (empty command). Respond to the user with what you know so far instead of calling tools."));
                     root._emptyCommandRetries = 0;
-                    return;
+                } else {
+                    addFunctionOutputMessage(name, Translation.tr("Error: empty command received. Your tool call had no arguments. Try again with the actual bash command."));
                 }
-                addFunctionOutputMessage(name, Translation.tr("Error: empty command received. Please provide the actual bash command to execute."));
                 requester.makeRequest();
                 return;
             }
