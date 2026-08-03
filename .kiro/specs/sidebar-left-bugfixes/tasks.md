@@ -146,7 +146,7 @@ Bugfix implementation for the left sidebar AI chat panel addressing three usabil
     - Send multiple messages → confirm auto-scroll to bottom still works
   - _Note: This is temporary local testing per NixOS workflow. Final deployment requires commit → push → `nix flake update dots-hyprland` → `nixos-rebuild switch`_
 
-- [-] 5. Checkpoint - Ensure all tests pass
+- [x] 5. Checkpoint - Ensure all tests pass
   - Ensure all property tests pass (bug condition test passes after fix, preservation tests pass throughout)
   - Ensure no Quickshell runtime errors in journal logs after restart
   - Ensure no visual regressions in the sidebar AI chat
