@@ -416,6 +416,7 @@ Singleton {
     // OpenAI: https://platform.openai.com/docs/guides/function-calling
     property string currentTool: Config?.options.ai.tool ?? "search"
     property bool yoloMode: false  // Auto-execute commands without approval
+    property int _emptyCommandRetries: 0
     property var tools: {
         "gemini": {
             "functions": [{"functionDeclarations": [
@@ -1603,14 +1604,18 @@ Singleton {
             Config.setNestedValue(key, value);
         } else if (name === "run_shell_command") {
             if (!args.command || args.command.trim().length === 0) {
-                addFunctionOutputMessage(name, Translation.tr("Error: empty command. Please provide the actual shell command to run."));
-                if (!root.yoloMode) {
-                    // In safe mode, let the model retry on next turn
-                    requester.makeRequest();
+                // Empty command — tell the model and let it continue (but cap retries)
+                root._emptyCommandRetries = (root._emptyCommandRetries || 0) + 1;
+                if (root._emptyCommandRetries > 3) {
+                    addFunctionOutputMessage(name, Translation.tr("Error: repeated empty commands. Stopping."));
+                    root._emptyCommandRetries = 0;
+                    return;
                 }
-                // In YOLO mode, stop the chain to avoid infinite loops
+                addFunctionOutputMessage(name, Translation.tr("Error: empty command received. Please provide the actual bash command to execute."));
+                requester.makeRequest();
                 return;
             }
+            root._emptyCommandRetries = 0;
             const contentToAppend = `\n\n**Command execution request**\n\n\`\`\`command\n${args.command}\n\`\`\``;
             message.rawContent += contentToAppend;
             message.content += contentToAppend;
