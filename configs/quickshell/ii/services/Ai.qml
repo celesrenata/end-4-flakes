@@ -1371,7 +1371,14 @@ Singleton {
             let liveSystemPrompt = root.systemPrompt + `\n\n[Current local time at moment of request: ${freshDatetime}]`;
 
             // Append tool usage instructions when function calling is active
-            const activeTools = root.tools[model.api_format]?.[root.currentTool] ?? [];
+            let activeTools = root.tools[model.api_format]?.[root.currentTool] ?? [];
+
+            // If tool calls have been failing, temporarily suppress tools to force a text response
+            if (root._emptyCommandRetries < 0) {
+                activeTools = [];
+                root._emptyCommandRetries = 0;
+            }
+
             if (activeTools.length > 0) {
                 liveSystemPrompt += `\n\n## Tool Usage\n- You have access to tools. Use them proactively to answer questions — don't guess when you can look it up.\n- You may call multiple tools in sequence to gather comprehensive information before responding. After receiving a tool result, you can call another tool if more info is needed.\n- Prefer gathering real data over speculating. If the user asks about their system, network, or environment, run commands to get actual information.\n- When a single command isn't sufficient, make additional tool calls until you have enough data to give a complete answer.`;
             }
@@ -1605,12 +1612,13 @@ Singleton {
         } else if (name === "run_shell_command") {
             if (!args.command || args.command.trim().length === 0) {
                 root._emptyCommandRetries = (root._emptyCommandRetries || 0) + 1;
-                if (root._emptyCommandRetries > 3) {
-                    addFunctionOutputMessage(name, Translation.tr("Tool calling failed repeatedly (empty command). Respond to the user with what you know so far instead of calling tools."));
-                    root._emptyCommandRetries = 0;
-                } else {
-                    addFunctionOutputMessage(name, Translation.tr("Error: empty command received. Your tool call had no arguments. Try again with the actual bash command."));
+                if (root._emptyCommandRetries > 2) {
+                    addFunctionOutputMessage(name, Translation.tr("Tool calling failed repeatedly (empty command). Stop calling tools and respond to the user with what you have gathered so far."));
+                    root._emptyCommandRetries = -1; // Signal to suppress tools on next request
+                    requester.makeRequest();
+                    return;
                 }
+                addFunctionOutputMessage(name, Translation.tr("Error: your tool call had empty arguments. Provide the command as: {\"command\": \"your_bash_command_here\"}"));
                 requester.makeRequest();
                 return;
             }
