@@ -1601,8 +1601,9 @@ Singleton {
             const value = args.value;
             Config.setNestedValue(key, value);
         } else if (name === "run_shell_command") {
-            if (!args.command || args.command.length === 0) {
-                addFunctionOutputMessage(name, Translation.tr("Invalid arguments. Must provide `command`."));
+            if (!args.command || args.command.trim().length === 0) {
+                addFunctionOutputMessage(name, Translation.tr("Error: empty command. Please provide the actual shell command to run."));
+                requester.makeRequest();
                 return;
             }
             const contentToAppend = `\n\n**Command execution request**\n\n\`\`\`command\n${args.command}\n\`\`\``;
