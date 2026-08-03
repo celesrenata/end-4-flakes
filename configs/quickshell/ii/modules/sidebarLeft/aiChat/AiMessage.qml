@@ -26,6 +26,7 @@ Rectangle {
     property list<var> messageBlocks: StringUtils.splitMarkdownBlocks(root.messageData?.content ?? "")
 
     // MCP tool block detection: show a tool block when message has an MCP function result or is pending
+    property bool showRawOutput: false
     property bool hasMcpToolBlock: {
         const fn = root.messageData?.functionName ?? "";
         if (!fn.startsWith("mcp_")) return false;
@@ -185,7 +186,9 @@ Rectangle {
                     buttonIcon: activated ? "inventory" : "content_copy"
 
                     onClicked: {
-                        Quickshell.clipboardText = root.messageData?.content
+                        // Copy without thinking blocks
+                        const content = root.messageData?.content ?? "";
+                        Quickshell.clipboardText = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
                         copyButton.activated = true
                         copyIconTimer.restart()
                     }
@@ -201,6 +204,44 @@ Rectangle {
                     
                     StyledToolTip {
                         content: Translation.tr("Copy")
+                    }
+                }
+                AiMessageControlButton {
+                    id: copyFullButton
+                    visible: (root.messageData?.content ?? "").indexOf("<think>") !== -1
+                    buttonIcon: activated ? "inventory" : "copy_all"
+
+                    onClicked: {
+                        Quickshell.clipboardText = root.messageData?.content ?? ""
+                        copyFullButton.activated = true
+                        copyFullIconTimer.restart()
+                    }
+
+                    Timer {
+                        id: copyFullIconTimer
+                        interval: 1500
+                        repeat: false
+                        onTriggered: {
+                            copyFullButton.activated = false
+                        }
+                    }
+
+                    StyledToolTip {
+                        content: Translation.tr("Copy with thinking")
+                    }
+                }
+                AiMessageControlButton {
+                    id: viewOutputButton
+                    visible: (root.messageData?.functionResponse ?? "").length > 0
+                    buttonIcon: "terminal"
+                    activated: root.showRawOutput
+
+                    onClicked: {
+                        root.showRawOutput = !root.showRawOutput
+                    }
+
+                    StyledToolTip {
+                        content: root.showRawOutput ? Translation.tr("Hide console output") : Translation.tr("View console output")
                     }
                 }
                 AiMessageControlButton {
@@ -412,6 +453,95 @@ Rectangle {
 
                 }
             }
+            // Raw console output panel — toggle via terminal button
+            Rectangle {
+                visible: root.showRawOutput && (root.messageData?.functionResponse ?? "").length > 0
+                Layout.fillWidth: true
+                implicitHeight: rawOutputColumn.implicitHeight
+                radius: Appearance.rounding.small
+                color: Appearance.colors.colLayer2
+                clip: true
+
+                ColumnLayout {
+                    id: rawOutputColumn
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    spacing: 0
+
+                    // Header
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: rawOutputHeaderRow.implicitHeight + 6
+                        color: Appearance.colors.colSurfaceContainerHighest
+
+                        RowLayout {
+                            id: rawOutputHeaderRow
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            spacing: 8
+
+                            MaterialSymbol {
+                                text: "terminal"
+                                iconSize: Appearance.font.pixelSize.normal
+                                color: Appearance.colors.colOnLayer2
+                            }
+
+                            StyledText {
+                                text: Translation.tr("Console Output")
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                color: Appearance.colors.colOnLayer2
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            // Copy raw output button
+                            RippleButton {
+                                implicitWidth: 22
+                                implicitHeight: 22
+                                colBackground: ColorUtils.transparentize(Appearance.colors.colLayer2, 1)
+                                colBackgroundHover: Appearance.colors.colLayer2Hover
+                                colRipple: Appearance.colors.colLayer2Active
+
+                                onClicked: {
+                                    Quickshell.clipboardText = root.messageData?.functionResponse ?? ""
+                                }
+
+                                contentItem: MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "content_copy"
+                                    iconSize: Appearance.font.pixelSize.small
+                                    color: Appearance.colors.colOnLayer2
+                                }
+                            }
+                        }
+                    }
+
+                    // Output content
+                    ScrollView {
+                        Layout.fillWidth: true
+                        implicitHeight: Math.min(rawOutputText.implicitHeight + 8, 400)
+                        clip: true
+
+                        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
+
+                        TextArea {
+                            id: rawOutputText
+                            readOnly: true
+                            selectByMouse: true
+                            renderType: Text.NativeRendering
+                            font.family: Appearance.font.family.monospace
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: Appearance.colors.colOnLayer1
+                            wrapMode: TextEdit.Wrap
+                            text: root.messageData?.functionResponse ?? ""
+                        }
+                    }
+                }
+            }
+
         }
 
         Flow { // Annotations
