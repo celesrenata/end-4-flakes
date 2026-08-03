@@ -4,6 +4,30 @@ ApiStrategy {
     property bool isReasoning: false
     // Accumulator for streaming tool_calls (arguments arrive in chunks)
     property var _pendingToolCall: null
+
+    // Parse tool call arguments, handling concatenated JSON objects from parallel calls
+    function _parseToolArgs(rawArgs) {
+        const trimmed = (rawArgs || "").trim();
+        if (trimmed.length === 0) return {};
+        
+        // Try direct parse first
+        try { return JSON.parse(trimmed); } catch (e) {}
+
+        // Handle concatenated JSON objects: {"cmd":"a"}{"cmd":"b"} → take first
+        const firstBrace = trimmed.indexOf('{');
+        if (firstBrace !== -1) {
+            let depth = 0;
+            for (let i = firstBrace; i < trimmed.length; i++) {
+                if (trimmed[i] === '{') depth++;
+                else if (trimmed[i] === '}') { depth--; if (depth === 0) {
+                    try { return JSON.parse(trimmed.substring(firstBrace, i + 1)); } catch (e2) {}
+                    break;
+                }}
+            }
+        }
+        console.warn("[AI] OpenAI: Unparseable tool_call arguments: " + trimmed.substring(0, 200));
+        return {};
+    }
     
     function buildEndpoint(model: AiModel): string {
         // console.log("[AI] Endpoint: " + model.endpoint);
@@ -110,13 +134,8 @@ ApiStrategy {
         if (!cleanData || cleanData.startsWith(":")) return {};
         if (cleanData === "[DONE]") {
             // If we have a pending tool call that wasn't flushed by finish_reason
-            if (_pendingToolCall) {
-                let args = {};
-                try {
-                    args = JSON.parse(_pendingToolCall.arguments);
-                } catch (e) {
-                    console.warn("[AI] OpenAI: Could not parse tool_call arguments on DONE: " + e);
-                }
+            if (_pendingToolCall && _pendingToolCall.name) {
+                const args = _parseToolArgs(_pendingToolCall.arguments);
                 const result = { functionCall: { name: _pendingToolCall.name, args: args }, finished: true };
                 _pendingToolCall = null;
                 return result;
@@ -135,6 +154,7 @@ ApiStrategy {
 
             // Handle streaming tool_calls
             if (responseToolCalls && responseToolCalls.length > 0) {
+                // Only track the first tool call (index 0) — we execute one at a time
                 const tc = responseToolCalls[0];
                 if (tc.function) {
                     // Start or accumulate tool call
@@ -144,8 +164,11 @@ ApiStrategy {
                     if (tc.function.name && tc.function.name.length > 0) {
                         _pendingToolCall.name = tc.function.name;
                     }
-                    if (tc.function.arguments !== undefined && tc.function.arguments !== null) {
-                        _pendingToolCall.arguments += tc.function.arguments;
+                    // Only accumulate arguments for index 0
+                    if (tc.index === 0 || tc.index === undefined) {
+                        if (tc.function.arguments !== undefined && tc.function.arguments !== null) {
+                            _pendingToolCall.arguments += tc.function.arguments;
+                        }
                     }
                 }
                 // Close reasoning block if open
@@ -162,15 +185,7 @@ ApiStrategy {
             const finishReason = dataJson.choices[0]?.finish_reason;
             if ((finishReason === "tool_calls" || finishReason === "function_call" || (finishReason === "stop" && _pendingToolCall))) {
                 if (_pendingToolCall && _pendingToolCall.name) {
-                    let args = {};
-                    try {
-                        if (_pendingToolCall.arguments.trim().length > 0) {
-                            args = JSON.parse(_pendingToolCall.arguments);
-                        }
-                    } catch (e) {
-                        console.warn("[AI] OpenAI: Could not parse tool_call arguments: " + e + " raw: " + _pendingToolCall.arguments.substring(0, 200));
-                        args = { _parseError: true, _raw: _pendingToolCall.arguments };
-                    }
+                    const args = _parseToolArgs(_pendingToolCall.arguments);
                     const result = { functionCall: { name: _pendingToolCall.name, args: args } };
                     _pendingToolCall = null;
                     return result;
@@ -181,12 +196,7 @@ ApiStrategy {
             if (dataJson.message?.tool_calls && dataJson.message.tool_calls.length > 0) {
                 const tc = dataJson.message.tool_calls[0];
                 if (tc.function) {
-                    let args = {};
-                    try {
-                        args = JSON.parse(tc.function.arguments || "{}");
-                    } catch (e) {
-                        console.warn("[AI] OpenAI: Could not parse tool_call arguments: " + e);
-                    }
+                    const args = _parseToolArgs(tc.function.arguments || "{}");
                     return { functionCall: { name: tc.function.name, args: args } };
                 }
             }
@@ -225,13 +235,8 @@ ApiStrategy {
 
             if (dataJson.done) {
                 // Flush any pending tool call before marking finished
-                if (_pendingToolCall) {
-                    let args = {};
-                    try {
-                        args = JSON.parse(_pendingToolCall.arguments);
-                    } catch (e) {
-                        console.warn("[AI] OpenAI: Could not parse tool_call arguments on done: " + e);
-                    }
+                if (_pendingToolCall && _pendingToolCall.name) {
+                    const args = _parseToolArgs(_pendingToolCall.arguments);
                     const result = { functionCall: { name: _pendingToolCall.name, args: args }, finished: true };
                     _pendingToolCall = null;
                     return result;
