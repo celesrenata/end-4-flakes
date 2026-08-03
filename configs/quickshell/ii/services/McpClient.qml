@@ -66,7 +66,10 @@ Singleton {
     // Config file path
     readonly property string _configPath: {
         const home = StandardPaths.standardLocations(StandardPaths.HomeLocation)[0];
-        return CF.FileUtils.trimFileProtocol(home) + "/.kiro/settings/mcp.json";
+        // StandardPaths returns QUrl objects; convert to string first
+        const homeStr = String(home);
+        const homePath = homeStr.startsWith("file://") ? homeStr.slice(7) : homeStr;
+        return homePath + "/.kiro/settings/mcp.json";
     }
 
     // Bridge component for dynamic instantiation
@@ -172,8 +175,11 @@ Singleton {
             });
 
             spawnPromise.catch(err => {
-                // If HTTP transport failed, try stdio fallback for ii-desktop
-                if (bridge.transport === "http" || (bridge.httpEndpoint && bridge.state === "error")) {
+                // If HTTP transport failed, try stdio fallback only if we have a command to run
+                const config = root._serverConfigs[serverName];
+                const hasCommand = config && config.command && config.command.length > 0;
+
+                if ((bridge.transport === "http" || (bridge.httpEndpoint && bridge.state === "error")) && hasCommand) {
                     console.log("[McpClient] HTTP probe failed for " + serverName + ", falling back to stdio");
                     bridge.switchToStdio();
                     root._updateServerState(serverName, "connecting");
@@ -201,7 +207,7 @@ Singleton {
                     });
                 } else {
                     root._updateServerState(serverName, "error");
-                    result._reject("Failed to spawn server " + serverName + ": " + err);
+                    result._reject("Failed to connect to server " + serverName + ": " + err);
                 }
             });
         } else if (bridge.state === "connecting") {
@@ -403,7 +409,8 @@ Singleton {
                 env: entry.env || {},
                 autoApprove: entry.autoApprove || [],
                 timeout: timeout,
-                disabled: false
+                disabled: false,
+                url: entry.url || ""
             };
             newStates[name] = "disconnected";
 
@@ -425,6 +432,45 @@ Singleton {
         // Pre-register ii-desktop tools so they're available for dispatch
         // before the server is spawned (enables hypr_* aliases to work immediately)
         root._preRegisterIiDesktopTools();
+
+        // Eagerly spawn HTTP bridges to discover tools before the first chat request
+        root._eagerSpawnHttpBridges();
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Eagerly spawn HTTP bridges for tool discovery
+    // ──────────────────────────────────────────────
+
+    function _eagerSpawnHttpBridges() {
+        const serverNames = Object.keys(root._bridges);
+        for (let i = 0; i < serverNames.length; i++) {
+            const name = serverNames[i];
+            const bridge = root._bridges[name];
+            const config = root._serverConfigs[name];
+
+            // Only eager-spawn HTTP bridges (URL-based servers)
+            if (!bridge || bridge.transport !== "http") continue;
+            if (bridge.state !== "disconnected") continue;
+
+            // Spawn in background — don't block initialization
+            root._updateServerState(name, "connecting");
+            const spawnPromise = bridge.spawn();
+
+            // Capture name in closure
+            (function(serverName, serverBridge) {
+                spawnPromise.then(() => {
+                    root._updateServerState(serverName, "connected");
+                    // Tools are already populated from the probe response in _spawnHttp
+                    if (serverBridge.discoveredTools.length > 0) {
+                        root._registerToolsFromServer(serverName, serverBridge.discoveredTools);
+                    }
+                });
+                spawnPromise.catch(err => {
+                    console.warn("[McpClient] Eager spawn failed for " + serverName + ": " + err);
+                    root._updateServerState(serverName, "error");
+                });
+            })(name, bridge);
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -517,16 +563,24 @@ Singleton {
 
             if (config.disabled === true) continue;
 
-            // Determine transport for ii-desktop: hybrid HTTP first, stdio fallback
-            const isIiDesktop = (name === "ii-desktop");
-            const transportMode = isIiDesktop ? "http" : "stdio";
-            const httpEndpoint = isIiDesktop ? "http://localhost:7580/mcp" : "";
+            // Determine transport: use HTTP if server has a url field, otherwise stdio
+            // ii-desktop special case: always try HTTP on port 7580 first
+            let transportMode = "stdio";
+            let httpEndpoint = "";
+
+            if (name === "ii-desktop") {
+                transportMode = "http";
+                httpEndpoint = "http://localhost:7580/mcp";
+            } else if (config.url) {
+                transportMode = "http";
+                httpEndpoint = config.url;
+            }
 
             const bridge = root._bridgeComponent.createObject(root, {
                 serverName: name,
-                serverCommand: config.command,
-                serverArgs: config.args,
-                serverEnv: config.env,
+                serverCommand: config.command || "",
+                serverArgs: config.args || [],
+                serverEnv: config.env || {},
                 timeout: config.timeout,
                 transport: transportMode,
                 httpEndpoint: httpEndpoint

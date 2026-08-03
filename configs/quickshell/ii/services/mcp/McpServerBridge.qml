@@ -137,54 +137,133 @@ Item {
     }
 
     /**
-     * _spawnHttp() — Probe HTTP endpoint with tools/list request.
-     * If successful, mark connected and populate tools from the response.
+     * _spawnHttp() — Probe HTTP endpoint and discover tools.
+     * Tries tools/list first (works for stateless Streamable HTTP servers).
+     * If that fails with an initialization error, performs the full handshake:
+     *   initialize → notifications/initialized → tools/list
      */
     function _spawnHttp() {
         bridge.state = "connecting";
         bridge.lastError = "";
+        bridge.nextRequestId = 1;
 
         const result = bridge._makePromise();
 
-        // Probe with tools/list (5s timeout for connection probe)
+        // Try tools/list directly first (stateless servers like memory, searxng)
         const probePromise = bridge._sendHttpRequest("tools/list", {}, 5000);
 
         probePromise.then(response => {
-            if (bridge.state === "connecting") {
-                bridge.state = "connected";
-                bridge._resetIdleTimer();
-
-                // Parse tools from the probe response to avoid a second tools/list call
-                const toolList = response?.tools || [];
-                const tools = [];
-                for (let i = 0; i < toolList.length; i++) {
-                    const tool = toolList[i];
-                    if (!tool.name || typeof tool.name !== "string") continue;
-                    let schema = tool.inputSchema || {};
-                    if (typeof schema === "string") {
-                        try { schema = JSON.parse(schema); } catch (e) { continue; }
-                    }
-                    tools.push({
-                        name: tool.name,
-                        description: tool.description || "",
-                        inputSchema: schema
-                    });
-                }
-                if (tools.length > 0) {
-                    bridge.discoveredTools = tools;
-                }
-
-                result._resolve(response);
-            }
+            if (bridge.state !== "connecting") return;
+            bridge.state = "connected";
+            bridge._resetIdleTimer();
+            bridge._parseToolsResponse(response);
+            result._resolve(response);
         });
 
         probePromise.catch(err => {
-            bridge.state = "error";
-            bridge.lastError = "HTTP probe failed: " + err;
-            result._reject(bridge.lastError);
+            // If the error mentions "initialization", try the full handshake
+            const errStr = String(err).toLowerCase();
+            if (errStr.indexOf("initializ") !== -1 || errStr.indexOf("session") !== -1) {
+                bridge._spawnHttpWithHandshake(result);
+            } else {
+                bridge.state = "error";
+                bridge.lastError = "HTTP probe failed: " + err;
+                result._reject(bridge.lastError);
+            }
         });
 
         return result;
+    }
+
+    /**
+     * _spawnHttpWithHandshake() — Full MCP handshake over HTTP for SSE-based servers.
+     */
+    function _spawnHttpWithHandshake(result) {
+        const initPromise = bridge._sendHttpRequest("initialize", {
+            protocolVersion: "2024-11-05",
+            capabilities: {},
+            clientInfo: { name: "ii-sidebar", version: "1.0.0" }
+        }, bridge._initTimeout);
+
+        initPromise.then(initResponse => {
+            // Send initialized notification
+            bridge._sendHttpRequest("notifications/initialized", {}, 3000);
+
+            // Small delay to let server process the notification, then list tools
+            const delayTimer = Qt.createQmlObject(
+                `import QtQuick; Timer { interval: 200; repeat: false; running: true }`,
+                bridge, "handshakeDelay"
+            );
+            delayTimer.triggered.connect(() => {
+                delayTimer.destroy();
+
+                const toolsPromise = bridge._sendHttpRequest("tools/list", {}, 5000);
+                toolsPromise.then(response => {
+                    if (bridge.state !== "connecting") return;
+                    bridge.state = "connected";
+                    bridge._resetIdleTimer();
+                    bridge._parseToolsResponse(response);
+                    result._resolve(response);
+                });
+                toolsPromise.catch(toolsErr => {
+                    // Connected but tools/list failed — still mark connected
+                    bridge.state = "connected";
+                    bridge._resetIdleTimer();
+                    result._resolve(initResponse);
+                });
+            });
+        });
+
+        initPromise.catch(initErr => {
+            bridge.state = "error";
+            bridge.lastError = "HTTP handshake failed: " + initErr;
+            result._reject(bridge.lastError);
+        });
+    }
+
+    /**
+     * _parseToolsResponse(response) — Parse tools from a tools/list response.
+     * Handles both array and object (dict) formats.
+     */
+    function _parseToolsResponse(response) {
+        const rawTools = response?.tools || [];
+        const tools = [];
+
+        if (Array.isArray(rawTools)) {
+            for (let i = 0; i < rawTools.length; i++) {
+                const tool = rawTools[i];
+                if (!tool.name || typeof tool.name !== "string") continue;
+                let schema = tool.inputSchema || {};
+                if (typeof schema === "string") {
+                    try { schema = JSON.parse(schema); } catch (e) { continue; }
+                }
+                tools.push({
+                    name: tool.name,
+                    description: tool.description || "",
+                    inputSchema: schema
+                });
+            }
+        } else if (rawTools && typeof rawTools === "object") {
+            const toolNames = Object.keys(rawTools);
+            for (let i = 0; i < toolNames.length; i++) {
+                const name = toolNames[i];
+                const tool = rawTools[name];
+                if (!tool || typeof tool !== "object") continue;
+                let schema = tool.inputSchema || {};
+                if (typeof schema === "string") {
+                    try { schema = JSON.parse(schema); } catch (e) { continue; }
+                }
+                tools.push({
+                    name: name,
+                    description: tool.description || "",
+                    inputSchema: schema
+                });
+            }
+        }
+
+        if (tools.length > 0) {
+            bridge.discoveredTools = tools;
+        }
     }
 
     /**
@@ -279,13 +358,19 @@ Item {
     /**
      * _sendHttpRequest(method, params, customTimeout) — HTTP POST to endpoint.
      * Creates a temporary curl Process for each request.
+     * Uses full JSON-RPC 2.0 envelope as required by MCP Streamable HTTP transport.
      */
     function _sendHttpRequest(method, params, customTimeout) {
         const result = bridge._makePromise();
         const timeoutMs = customTimeout || bridge.timeout;
         const timeoutSec = Math.ceil(timeoutMs / 1000);
 
+        const id = bridge.nextRequestId;
+        bridge.nextRequestId += 1;
+
         const requestBody = JSON.stringify({
+            jsonrpc: "2.0",
+            id: id,
             method: method,
             params: params || {}
         });
@@ -337,7 +422,7 @@ Item {
             timeoutTimer.running = false;
             timeoutTimer.destroy();
 
-            const response = proc.responseBuffer.trim();
+            let response = proc.responseBuffer.trim();
             proc.destroy();
 
             if (exitCode !== 0 || response.length === 0) {
@@ -345,16 +430,30 @@ Item {
                 return;
             }
 
+            // Handle SSE format: extract JSON from "data: {...}" lines
+            if (response.indexOf("event:") !== -1 || response.indexOf("data:") !== -1) {
+                const lines = response.split("\n");
+                let jsonPayload = "";
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (line.startsWith("data:")) {
+                        jsonPayload += line.substring(5).trim();
+                    }
+                }
+                if (jsonPayload.length > 0) {
+                    response = jsonPayload;
+                }
+            }
+
             try {
                 const parsed = JSON.parse(response);
-                // MCP HTTP responses have result field directly
                 if (parsed.error) {
                     result._reject(parsed.error.message || JSON.stringify(parsed.error));
                 } else {
                     result._resolve(parsed.result !== undefined ? parsed.result : parsed);
                 }
             } catch (e) {
-                result._reject(`HTTP response parse error: ${e} (method: ${method})`);
+                result._reject(`HTTP response parse error: ${e} (method: ${method}, response: ${response.substring(0, 200)})`);
             }
         });
 
@@ -455,33 +554,52 @@ Item {
 
         listPromise.then(response => {
             const tools = [];
-            const toolList = response?.tools || [];
+            const rawTools = response?.tools || [];
 
-            for (let i = 0; i < toolList.length; i++) {
-                const tool = toolList[i];
-
-                // Validate: must have name
-                if (!tool.name || typeof tool.name !== "string") {
-                    console.warn(`[MCP:${bridge.serverName}] Skipping tool with missing name at index ${i}`);
-                    continue;
-                }
-
-                // Validate: inputSchema must be parseable (if present)
-                let schema = tool.inputSchema || {};
-                if (typeof schema === "string") {
-                    try {
-                        schema = JSON.parse(schema);
-                    } catch (e) {
-                        console.warn(`[MCP:${bridge.serverName}] Skipping tool "${tool.name}" with unparseable schema`);
+            if (Array.isArray(rawTools)) {
+                // Standard MCP format: array of { name, description, inputSchema }
+                for (let i = 0; i < rawTools.length; i++) {
+                    const tool = rawTools[i];
+                    if (!tool.name || typeof tool.name !== "string") {
+                        console.warn(`[MCP:${bridge.serverName}] Skipping tool with missing name at index ${i}`);
                         continue;
                     }
+                    let schema = tool.inputSchema || {};
+                    if (typeof schema === "string") {
+                        try { schema = JSON.parse(schema); } catch (e) {
+                            console.warn(`[MCP:${bridge.serverName}] Skipping tool "${tool.name}" with unparseable schema`);
+                            continue;
+                        }
+                    }
+                    tools.push({
+                        name: tool.name,
+                        description: tool.description || "",
+                        inputSchema: schema
+                    });
                 }
-
-                tools.push({
-                    name: tool.name,
-                    description: tool.description || "",
-                    inputSchema: schema
-                });
+            } else if (rawTools && typeof rawTools === "object") {
+                // Dict format: { toolName: { description, inputSchema } }
+                const toolNames = Object.keys(rawTools);
+                for (let i = 0; i < toolNames.length; i++) {
+                    const name = toolNames[i];
+                    const tool = rawTools[name];
+                    if (!tool || typeof tool !== "object") {
+                        console.warn(`[MCP:${bridge.serverName}] Skipping invalid tool entry "${name}"`);
+                        continue;
+                    }
+                    let schema = tool.inputSchema || {};
+                    if (typeof schema === "string") {
+                        try { schema = JSON.parse(schema); } catch (e) {
+                            console.warn(`[MCP:${bridge.serverName}] Skipping tool "${name}" with unparseable schema`);
+                            continue;
+                        }
+                    }
+                    tools.push({
+                        name: name,
+                        description: tool.description || "",
+                        inputSchema: schema
+                    });
+                }
             }
 
             bridge.discoveredTools = tools;

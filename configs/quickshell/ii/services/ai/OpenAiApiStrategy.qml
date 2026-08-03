@@ -2,6 +2,8 @@ import QtQuick
 
 ApiStrategy {
     property bool isReasoning: false
+    // Accumulator for streaming tool_calls (arguments arrive in chunks)
+    property var _pendingToolCall: null
     
     function buildEndpoint(model: AiModel): string {
         // console.log("[AI] Endpoint: " + model.endpoint);
@@ -84,6 +86,18 @@ ApiStrategy {
         // Handle special cases
         if (!cleanData || cleanData.startsWith(":")) return {};
         if (cleanData === "[DONE]") {
+            // If we have a pending tool call that wasn't flushed by finish_reason
+            if (_pendingToolCall) {
+                let args = {};
+                try {
+                    args = JSON.parse(_pendingToolCall.arguments);
+                } catch (e) {
+                    console.warn("[AI] OpenAI: Could not parse tool_call arguments on DONE: " + e);
+                }
+                const result = { functionCall: { name: _pendingToolCall.name, args: args }, finished: true };
+                _pendingToolCall = null;
+                return result;
+            }
             return { finished: true };
         }
         
@@ -94,6 +108,63 @@ ApiStrategy {
             
             const responseContent = dataJson.choices[0]?.delta?.content || dataJson.message?.content;
             const responseReasoning = dataJson.choices[0]?.delta?.reasoning || dataJson.choices[0]?.delta?.reasoning_content;
+            const responseToolCalls = dataJson.choices[0]?.delta?.tool_calls || dataJson.message?.tool_calls;
+
+            // Handle streaming tool_calls
+            if (responseToolCalls && responseToolCalls.length > 0) {
+                const tc = responseToolCalls[0];
+                if (tc.function) {
+                    if (tc.function.name) {
+                        // First chunk: has the function name
+                        _pendingToolCall = {
+                            name: tc.function.name,
+                            arguments: tc.function.arguments || ""
+                        };
+                    } else if (_pendingToolCall && tc.function.arguments) {
+                        // Subsequent chunks: accumulate arguments
+                        _pendingToolCall.arguments += tc.function.arguments;
+                    }
+                }
+                // Close reasoning block if open
+                if (isReasoning) {
+                    isReasoning = false;
+                    const endBlock = "\n\n</think>\n\n";
+                    message.content += endBlock;
+                    message.rawContent += endBlock;
+                }
+                // Don't return yet — wait for finish_reason or [DONE] or done:true
+            }
+
+            // Check if this is a finish with a tool call
+            const finishReason = dataJson.choices[0]?.finish_reason;
+            if ((finishReason === "tool_calls" || finishReason === "function_call" || (finishReason === "stop" && _pendingToolCall))) {
+                if (_pendingToolCall) {
+                    let args = {};
+                    try {
+                        args = JSON.parse(_pendingToolCall.arguments);
+                    } catch (e) {
+                        // Try to handle malformed JSON
+                        console.warn("[AI] OpenAI: Could not parse tool_call arguments: " + e);
+                    }
+                    const result = { functionCall: { name: _pendingToolCall.name, args: args } };
+                    _pendingToolCall = null;
+                    return result;
+                }
+            }
+
+            // Also handle non-streaming tool_calls (complete in one message)
+            if (dataJson.message?.tool_calls && dataJson.message.tool_calls.length > 0) {
+                const tc = dataJson.message.tool_calls[0];
+                if (tc.function) {
+                    let args = {};
+                    try {
+                        args = JSON.parse(tc.function.arguments || "{}");
+                    } catch (e) {
+                        console.warn("[AI] OpenAI: Could not parse tool_call arguments: " + e);
+                    }
+                    return { functionCall: { name: tc.function.name, args: args } };
+                }
+            }
 
             if (responseContent && responseContent.length > 0) {
                 if (isReasoning) {
@@ -128,6 +199,18 @@ ApiStrategy {
             }
 
             if (dataJson.done) {
+                // Flush any pending tool call before marking finished
+                if (_pendingToolCall) {
+                    let args = {};
+                    try {
+                        args = JSON.parse(_pendingToolCall.arguments);
+                    } catch (e) {
+                        console.warn("[AI] OpenAI: Could not parse tool_call arguments on done: " + e);
+                    }
+                    const result = { functionCall: { name: _pendingToolCall.name, args: args }, finished: true };
+                    _pendingToolCall = null;
+                    return result;
+                }
                 return { finished: true };
             }
             
@@ -147,6 +230,7 @@ ApiStrategy {
     
     function reset() {
         isReasoning = false;
+        _pendingToolCall = null;
     }
 
 }
