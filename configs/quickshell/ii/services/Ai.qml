@@ -415,6 +415,7 @@ Singleton {
     // Gemini: https://ai.google.dev/gemini-api/docs/function-calling
     // OpenAI: https://platform.openai.com/docs/guides/function-calling
     property string currentTool: Config?.options.ai.tool ?? "search"
+    property bool yoloMode: false  // Auto-execute commands without approval
     property var tools: {
         "gemini": {
             "functions": [{"functionDeclarations": [
@@ -1611,9 +1612,14 @@ Singleton {
             message.content += contentToAppend;
             message.functionName = name;
             message.functionCall = { name: name, args: args };
-            message.functionPending = true;
-            // Auto-execute (skip manual approval)
-            root.approveCommand(message);
+            if (root.yoloMode) {
+                // YOLO: auto-execute without asking
+                message.functionPending = true;
+                root.approveCommand(message);
+            } else {
+                // Normal: wait for user approval
+                message.functionPending = true;
+            }
         } else if (name === "hypr_config_read") {
             // Route through McpClient (ii-desktop MCP path with HTTP/stdio hybrid)
             root.executeMcpTool("mcp_ii_desktop_config_read", { namespace: args.namespace || "" }, "hypr_config_read");

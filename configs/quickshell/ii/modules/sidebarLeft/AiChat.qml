@@ -2645,6 +2645,43 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         .arg(root.commandPrefix)
                 }
 
+                // YOLO mode toggle
+                Rectangle {
+                    implicitHeight: yoloRow.implicitHeight + 8
+                    implicitWidth: yoloRow.implicitWidth + 8
+                    radius: Appearance.rounding.small
+                    color: Ai.yoloMode ? ColorUtils.transparentize(Appearance.m3colors.m3error, 0.8) : "transparent"
+
+                    RowLayout {
+                        id: yoloRow
+                        anchors.centerIn: parent
+                        spacing: 2
+
+                        MaterialSymbol {
+                            text: Ai.yoloMode ? "bolt" : "shield"
+                            iconSize: Appearance.font.pixelSize.normal
+                            color: Ai.yoloMode ? Appearance.m3colors.m3error : Appearance.colors.colSubtext
+                        }
+                        StyledText {
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Ai.yoloMode ? Appearance.m3colors.m3error : Appearance.colors.colSubtext
+                            text: Ai.yoloMode ? "YOLO" : "Safe"
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Ai.yoloMode = !Ai.yoloMode
+                    }
+
+                    StyledToolTip {
+                        content: Ai.yoloMode
+                            ? Translation.tr("YOLO mode: commands auto-execute\nClick to require approval")
+                            : Translation.tr("Safe mode: commands need approval\nClick to auto-execute")
+                    }
+                }
+
                 Item { Layout.fillWidth: true }
 
                 ButtonGroup { // Command buttons
