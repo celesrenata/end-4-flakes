@@ -1816,7 +1816,11 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         void(Ai.messageVersion);
                         return Ai.messageIDs.filter(id => {
                             const message = Ai.messageByID[id];
-                            return message?.visibleToUser ?? true;
+                            if (!(message?.visibleToUser ?? true)) return false;
+                            // Hide finished assistant messages with empty content (failed API calls)
+                            // But keep ones still streaming (done=false) so thinking indicator shows
+                            if (message?.role === "assistant" && message?.done === true && (message?.content ?? "").trim().length === 0) return false;
+                            return true;
                         }).slice().reverse();
                     }
                 }

@@ -22,7 +22,7 @@ Rectangle {
     property bool renderMarkdown: true
     property bool editing: false
 
-    property list<var> messageBlocks: StringUtils.splitMarkdownBlocks(root.messageData?.content)
+    property list<var> messageBlocks: StringUtils.splitMarkdownBlocks(root.messageData?.content ?? "")
 
     // MCP tool block detection: show a tool block when message has an MCP function result or is pending
     property bool hasMcpToolBlock: {
