@@ -253,6 +253,8 @@ ColumnLayout {
                 }
                 Loader {
                     active: root.isCommandRequest && root.messageData.functionPending
+                        && root.messageData.functionCall
+                        && root.segmentContent.trim() === (root.messageData.functionCall.args?.command ?? "").trim()
                     visible: active
                     Layout.fillWidth: true
                     Layout.margins: 6
