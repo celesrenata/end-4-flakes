@@ -15,7 +15,30 @@ ApiStrategy {
             "model": model.model,
             "messages": [
                 {role: "system", content: systemPrompt},
-                ...messages.map(message => {
+                ...messages.map((message, idx) => {
+                    // Assistant message that made a function call — include tool_calls
+                    if (message.role === "assistant" && message.functionCall) {
+                        const msg = { role: "assistant", content: message.rawContent || "" };
+                        msg.tool_calls = [{
+                            id: "call_" + idx,
+                            type: "function",
+                            "function": {
+                                name: message.functionCall.name,
+                                arguments: JSON.stringify(message.functionCall.args || {})
+                            }
+                        }];
+                        return msg;
+                    }
+
+                    // Tool result message — use role: "tool"
+                    if (message.functionResponse && message.functionName) {
+                        return {
+                            role: "tool",
+                            tool_call_id: "call_" + (idx - 1),
+                            content: message.functionResponse
+                        };
+                    }
+
                     // Build multimodal content if message has images
                     var hasImages = message.images && message.images.length > 0;
                     return {
