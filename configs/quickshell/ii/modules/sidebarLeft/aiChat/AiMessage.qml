@@ -148,9 +148,9 @@ Rectangle {
                         elide: Text.ElideRight
                         font.pixelSize: Appearance.font.pixelSize.normal
                         color: Appearance.m3colors.m3onSecondaryContainer
-                        text: messageData?.role == 'assistant' ? Ai.models[messageData?.model].name :
+                        text: messageData?.role == 'assistant' ? (Ai.models[messageData?.model] ? Ai.models[messageData?.model].name : (messageData?.model || "Assistant")) :
                             (messageData?.role == 'user' && SystemInfo.username) ? SystemInfo.username :
-                            Translation.tr("Interface")
+                            (Ai.models[Ai.currentModelId] ? Ai.models[Ai.currentModelId].name : Ai.currentModelId)
                     }
                 }
             }
