@@ -708,6 +708,27 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             }
             StatusSeparator {}
             ContextIndicator {}
+            RippleButton {
+                visible: Ai.contextUsageRatio > 0.5
+                implicitWidth: 20
+                implicitHeight: 20
+                buttonRadius: 10
+                colBackground: "transparent"
+                colBackgroundHover: Appearance.colors.colLayer1Hover
+                onClicked: Ai.compactChat("")
+                enabled: !Ai.compacting
+
+                contentItem: MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "compress"
+                    iconSize: Appearance.font.pixelSize.small
+                    color: Ai.compacting ? Appearance.m3colors.m3tertiary : Appearance.m3colors.m3onSurface
+                }
+
+                StyledToolTip {
+                    content: Translation.tr("Compact conversation")
+                }
+            }
             StatusSeparator {}
             RippleButton {
                 implicitWidth: 28

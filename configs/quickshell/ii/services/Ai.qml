@@ -274,7 +274,12 @@ Singleton {
     property real previousContextUsageRatio: 0
 
     onContextUsageRatioChanged: {
-        // Detect threshold crossing from below (0.85)
+        // Auto-compact at 80% to prevent hitting the context limit
+        if (root.contextUsageRatio >= 0.80 && !root.compacting && root.messageIDs.length > 0) {
+            console.warn("[Ai] Auto-compacting at " + Math.round(root.contextUsageRatio * 100) + "% context usage");
+            root.compactChat("");
+        }
+        // Show notification at 85% (in case auto-compact is still running)
         if (root.previousContextUsageRatio < 0.85 && root.contextUsageRatio >= 0.85) {
             if (!root.autoCompactDismissed) {
                 root.autoCompactShown = true;
@@ -2431,10 +2436,15 @@ Singleton {
 
         const authHeader = strategy.buildAuthorizationHeader(root.apiKeyEnvVarName);
 
-        const requestCommandString = `curl --no-buffer "${endpoint}"`
+        // Write payload to temp file via a sub-command to avoid shell ARG_MAX limits
+        const payloadJson = JSON.stringify(data);
+        const tmpFile = "/tmp/qs-compact-" + Date.now() + ".json";
+
+        // Use cat with heredoc to write file (avoids ARG_MAX on the shell argument)
+        const requestCommandString = `cat <<'QSEOF' > ${tmpFile}\n${payloadJson}\nQSEOF\ncurl --no-buffer "${endpoint}"`
             + ` ${headerString}`
             + (authHeader ? ` ${authHeader}` : "")
-            + ` -d '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify(data))}'`;
+            + ` -d @${tmpFile}; rm -f ${tmpFile}`;
 
         compactRequester.command = compactRequester.baseCommand.concat([requestCommandString]);
         compactRequester.running = true;
