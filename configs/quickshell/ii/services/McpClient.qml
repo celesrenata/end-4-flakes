@@ -857,14 +857,18 @@ Singleton {
         for (let i = 0; i < serverNames.length; i++) {
             const name = serverNames[i];
             const cfg = root._serverConfigs[name];
-            output.mcpServers[name] = {
-                command: cfg.command || "",
-                args: cfg.args || [],
-                env: cfg.env || {},
-                autoApprove: cfg.autoApprove || [],
-                timeout: cfg.timeout || 30000,
-                disabled: cfg.disabled || false
-            };
+            const entry = {};
+
+            // Only include fields that have values (keep config clean)
+            if (cfg.url) entry.url = cfg.url;
+            if (cfg.command) entry.command = cfg.command;
+            if (cfg.args && cfg.args.length > 0) entry.args = cfg.args;
+            if (cfg.env && Object.keys(cfg.env).length > 0) entry.env = cfg.env;
+            if (cfg.autoApprove && cfg.autoApprove.length > 0) entry.autoApprove = cfg.autoApprove;
+            if (cfg.timeout && cfg.timeout !== 30000) entry.timeout = cfg.timeout;
+            if (cfg.disabled) entry.disabled = true;
+
+            output.mcpServers[name] = entry;
         }
 
         configFile.setText(JSON.stringify(output, null, 2));
