@@ -1838,9 +1838,11 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     padding: 2
                     policy: ScrollBar.AlwaysOn
                     visible: size < 1
+                    minimumSize: 0.05 // Minimum thumb size (5% of track)
 
                     contentItem: Rectangle {
                         implicitWidth: 6
+                        implicitHeight: Math.max(30, chatScrollBar.availableHeight * chatScrollBar.size) // Min 30px thumb
                         radius: 3
                         color: chatScrollBar.active
                             ? Appearance.colors.colPrimary
