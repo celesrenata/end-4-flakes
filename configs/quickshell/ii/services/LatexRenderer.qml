@@ -18,6 +18,15 @@ Singleton {
     
     readonly property var renderPadding: 4 // This is to prevent cutoff in the rendered images
 
+    // Check if MicroTeX binary exists at startup
+    property bool _binaryExists: false
+    Component.onCompleted: {
+        const checkProc = Qt.createQmlObject('import Quickshell.Io; Process { running: false }', root, "binaryCheck");
+        checkProc.command = ["test", "-x", root.microtexBinaryDir + "/" + root.microtexBinaryName];
+        checkProc.exited.connect((code) => { root._binaryExists = (code === 0); checkProc.destroy(); });
+        checkProc.running = true;
+    }
+
     property list<string> processedHashes: []
     property var processedExpressions: ({})
     property var renderedImagePaths: ({})
@@ -32,6 +41,9 @@ Singleton {
     * Returns the [hash, isNew]
     */
     function requestRender(expression) {
+        // Skip if MicroTeX binary is not available
+        if (!root._binaryExists) return [Qt.md5(expression), false];
+
         // 1. Hash it and initialize necessary variables
         const hash = Qt.md5(expression)
         const imagePath = `${latexOutputPath}/${hash}.svg`

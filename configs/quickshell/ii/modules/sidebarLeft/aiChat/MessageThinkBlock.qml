@@ -40,12 +40,20 @@ Item {
     }
 
     Behavior on implicitHeight {
-        enabled: root.completed ?? false
+        enabled: (root.completed ?? false) && root._animationsEnabled
         NumberAnimation {
             duration: collapseAnimation.duration
             easing.type: collapseAnimation.type
             easing.bezierCurve: collapseAnimation.bezierCurve
         }
+    }
+
+    property bool _animationsEnabled: false
+    Timer {
+        interval: 500
+        running: true
+        repeat: false
+        onTriggered: root._animationsEnabled = true
     }
 
     ColumnLayout {
@@ -137,7 +145,7 @@ Item {
             clip: true
 
             Behavior on implicitHeight {
-                enabled: root.completed ?? false
+                enabled: (root.completed ?? false) && root._animationsEnabled
                 NumberAnimation {
                     duration: collapseAnimation.duration
                     easing.type: collapseAnimation.type
