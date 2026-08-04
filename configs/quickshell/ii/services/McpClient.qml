@@ -83,6 +83,7 @@ Singleton {
         id: configFile
         path: root._configPath
         blockLoading: true
+        watchChanges: false  // Don't react to external changes (Kiro edits)
 
         onLoaded: {
             root._parseConfig(configFile.text());
