@@ -289,11 +289,37 @@ Singleton {
             root._saveConfig();
         }
 
-        const bridge = root._bridges[name];
+        let bridge = root._bridges[name];
+
+        // Create bridge if it doesn't exist (server was disabled at startup)
         if (!bridge) {
-            console.warn("[McpClient] No bridge for server: " + name);
-            root._updateServerState(name, "error");
-            return;
+            const config = root._serverConfigs[name];
+            let transportMode = "stdio";
+            let httpEndpoint = "";
+
+            if (name === "ii-desktop") {
+                transportMode = "http";
+                httpEndpoint = "http://localhost:7580/mcp";
+            } else if (config.url) {
+                transportMode = "http";
+                httpEndpoint = config.url;
+            }
+
+            bridge = root._bridgeComponent.createObject(root, {
+                serverName: name,
+                serverCommand: config.command || "",
+                serverArgs: config.args || [],
+                serverEnv: config.env || {},
+                timeout: config.timeout || 30000,
+                transport: transportMode,
+                httpEndpoint: httpEndpoint
+            });
+
+            bridge.stateChanged.connect(() => {
+                root._handleBridgeStateChange(name, bridge);
+            });
+
+            root._bridges[name] = bridge;
         }
 
         // If already connected, nothing to do
