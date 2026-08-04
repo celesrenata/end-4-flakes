@@ -2737,40 +2737,56 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         .arg(root.commandPrefix)
                 }
 
-                // YOLO mode toggle
+                // Execution mode toggle
                 Rectangle {
-                    implicitHeight: yoloRow.implicitHeight + 8
-                    implicitWidth: yoloRow.implicitWidth + 8
+                    implicitHeight: execModeRow.implicitHeight + 8
+                    implicitWidth: execModeRow.implicitWidth + 8
                     radius: Appearance.rounding.small
-                    color: Ai.yoloMode ? ColorUtils.transparentize(Appearance.m3colors.m3error, 0.8) : "transparent"
+                    color: Ai.execMode === "full" ? ColorUtils.transparentize(Appearance.m3colors.m3error, 0.7)
+                         : Ai.execMode === "auto" ? ColorUtils.transparentize(Appearance.m3colors.m3tertiary, 0.8)
+                         : "transparent"
 
                     RowLayout {
-                        id: yoloRow
+                        id: execModeRow
                         anchors.centerIn: parent
                         spacing: 2
 
                         MaterialSymbol {
-                            text: Ai.yoloMode ? "bolt" : "shield"
+                            text: Ai.execMode === "full" ? "local_fire_department"
+                                : Ai.execMode === "auto" ? "bolt"
+                                : "shield"
                             iconSize: Appearance.font.pixelSize.normal
-                            color: Ai.yoloMode ? Appearance.m3colors.m3error : Appearance.colors.colSubtext
+                            color: Ai.execMode === "full" ? Appearance.m3colors.m3error
+                                : Ai.execMode === "auto" ? Appearance.m3colors.m3tertiary
+                                : Appearance.colors.colSubtext
                         }
                         StyledText {
                             font.pixelSize: Appearance.font.pixelSize.smaller
-                            color: Ai.yoloMode ? Appearance.m3colors.m3error : Appearance.colors.colSubtext
-                            text: Ai.yoloMode ? "YOLO" : "Safe"
+                            color: Ai.execMode === "full" ? Appearance.m3colors.m3error
+                                : Ai.execMode === "auto" ? Appearance.m3colors.m3tertiary
+                                : Appearance.colors.colSubtext
+                            text: Ai.execMode === "full" ? "Full Send"
+                                : Ai.execMode === "auto" ? "YOLO"
+                                : "Safe"
                         }
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: Ai.yoloMode = !Ai.yoloMode
+                        onClicked: {
+                            if (Ai.execMode === "safe") Ai.execMode = "auto";
+                            else if (Ai.execMode === "auto") Ai.execMode = "full";
+                            else Ai.execMode = "safe";
+                        }
                     }
 
                     StyledToolTip {
-                        content: Ai.yoloMode
-                            ? Translation.tr("YOLO mode: commands auto-execute\nClick to require approval")
-                            : Translation.tr("Safe mode: commands need approval\nClick to auto-execute")
+                        content: Ai.execMode === "full"
+                            ? Translation.tr("Full Send: never stops until model is satisfied\nClick to cycle → Safe")
+                            : Ai.execMode === "auto"
+                            ? Translation.tr("YOLO: auto-execute, stops on repeated failures\nClick to cycle → Full Send")
+                            : Translation.tr("Safe: approve each command/tool\nClick to cycle → YOLO")
                     }
                 }
 

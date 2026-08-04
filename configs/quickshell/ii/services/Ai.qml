@@ -415,7 +415,7 @@ Singleton {
     // Gemini: https://ai.google.dev/gemini-api/docs/function-calling
     // OpenAI: https://platform.openai.com/docs/guides/function-calling
     property string currentTool: Config?.options.ai.tool ?? "search"
-    property bool yoloMode: false  // Auto-execute commands without approval
+    property string execMode: "safe"  // "safe" = approve each, "auto" = auto-execute with retry cap, "full" = never stop
     property int _emptyCommandRetries: 0
     property int _emptyResponseRetries: 0
     property var tools: {
@@ -1522,9 +1522,10 @@ Singleton {
                     delete root.messageByID[msgId];
                 }
 
-                // Auto-retry once if model returned only thinking (likely a failed tool call attempt)
+                // Auto-retry if model returned only thinking (likely a failed tool call attempt)
                 root._emptyResponseRetries = (root._emptyResponseRetries || 0) + 1;
-                if (root._emptyResponseRetries <= 2 && !isError && msgContent.length > 0) {
+                const retryLimit = root.execMode === "full" ? 999 : 2;
+                if (root._emptyResponseRetries <= retryLimit && !isError && msgContent.length > 0) {
                     requester.makeRequest();
                     return;
                 }
@@ -1656,7 +1657,7 @@ Singleton {
         } else if (name === "run_shell_command") {
             if (!args.command || args.command.trim().length === 0) {
                 root._emptyCommandRetries = (root._emptyCommandRetries || 0) + 1;
-                if (root._emptyCommandRetries > 2) {
+                if (root._emptyCommandRetries > 2 && root.execMode !== "full") {
                     addFunctionOutputMessage(name, Translation.tr("Tool calling failed repeatedly (empty command). Stop calling tools and respond to the user with what you have gathered so far."));
                     root._emptyCommandRetries = -1; // Signal to suppress tools on next request
                     requester.makeRequest();
@@ -1672,7 +1673,7 @@ Singleton {
             message.content += contentToAppend;
             message.functionName = name;
             message.functionCall = { name: name, args: args };
-            if (root.yoloMode) {
+            if (root.execMode !== "safe") {
                 message.functionPending = true;
                 root.approveCommand(message);
             } else {
@@ -1701,7 +1702,7 @@ Singleton {
         else if (McpClient.findToolByOriginalName(name)) {
             const prefixedName = McpClient.findToolByOriginalName(name);
             message.functionName = prefixedName;
-            console.warn("[Ai] MCP tool dispatch: " + name + " → " + prefixedName + " yolo=" + root.yoloMode);
+            console.warn("[Ai] MCP tool dispatch: " + name + " → " + prefixedName + " execMode=" + root.execMode);
             handleMcpToolCall(prefixedName, args, message);
             console.warn("[Ai] After handleMcpToolCall: functionPending=" + message.functionPending);
         }
@@ -1724,7 +1725,7 @@ Singleton {
      * Handles an MCP tool call — checks auto-approve, otherwise prompts user.
      */
     function handleMcpToolCall(name, args, message) {
-        if (root.yoloMode || McpClient.isToolAutoApproved(name)) {
+        if (root.execMode !== "safe" || McpClient.isToolAutoApproved(name)) {
             executeMcpTool(name, args);
         } else {
             // Show the tool call in the message content (like shell commands do)
