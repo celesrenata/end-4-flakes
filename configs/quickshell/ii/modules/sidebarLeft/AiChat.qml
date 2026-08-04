@@ -1900,11 +1900,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
                 // Prevent contentY from drifting when we should be pinned to bottom
                 onContentYChanged: {
-                    if (messageListView._shouldStickToBottom && !messageListView.userScrolling && !messageListView._userScrolledAway && contentY > originY + scrollThreshold) {
-                        scrollBehavior.enabled = false
-                        contentY = originY
-                        scrollBehavior.enabled = true
-                    }
+                    // Disabled: was causing stuck scroll when images expand
+                    // Auto-scroll during streaming is handled by onContentHeightChanged and onCountChanged
                 }
 
                 // Snap to bottom when content first loads after becoming visible
@@ -1943,6 +1940,12 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     messageListView.userScrolling = true;
                     scrollAnim.stop();
                     scrollDebounce.stop(); // Cancel any pending auto-scroll
+                }
+                onFlickStarted: {
+                    // Wheel scroll triggers flick but not movement - detect user scroll-away
+                    // Once user scrolls at all, mark as user-initiated until they reach bottom
+                    messageListView._userScrolledAway = true;
+                    messageListView._shouldStickToBottom = false;
                 }
                 onMovementEnded: {
                     messageListView.userScrolling = false;
