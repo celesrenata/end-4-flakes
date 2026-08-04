@@ -1701,7 +1701,9 @@ Singleton {
         else if (McpClient.findToolByOriginalName(name)) {
             const prefixedName = McpClient.findToolByOriginalName(name);
             message.functionName = prefixedName;
+            console.warn("[Ai] MCP tool dispatch: " + name + " → " + prefixedName + " yolo=" + root.yoloMode);
             handleMcpToolCall(prefixedName, args, message);
+            console.warn("[Ai] After handleMcpToolCall: functionPending=" + message.functionPending);
         }
         else {
             root.addMessage(Translation.tr("Unknown function call: %1").arg(name), "assistant");
@@ -1719,6 +1721,8 @@ Singleton {
             message.functionPending = true;
             message.pendingMcpTool = name;
             message.pendingMcpArgs = args;
+            // Force UI re-evaluation
+            root.messageIDs = [...root.messageIDs];
         }
     }
 
