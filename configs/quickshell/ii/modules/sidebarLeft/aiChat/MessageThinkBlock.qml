@@ -71,7 +71,6 @@ Item {
 
             MouseArea { // Click to reveal
                 id: headerMouseArea
-                enabled: root.completed
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 hoverEnabled: true

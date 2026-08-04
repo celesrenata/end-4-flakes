@@ -1894,7 +1894,13 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         contentY = originY
                         scrollBehavior.enabled = true
                     }
-                    // No auto-scroll on height changes — only on new messages
+                    // Keep pinned to bottom during streaming — but only if contentY
+                    // has actually drifted away (not just a height change from expand/collapse)
+                    else if (messageListView._shouldStickToBottom && !messageListView.userScrolling && !messageListView._userScrolledAway && contentY > originY + scrollThreshold) {
+                        scrollBehavior.enabled = false
+                        contentY = originY
+                        scrollBehavior.enabled = true
+                    }
                 }
 
                 Timer {
