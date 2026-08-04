@@ -273,6 +273,79 @@ Singleton {
     }
 
     /**
+     * connectServer(name) — Explicitly spawn/reconnect a server.
+     * Re-enables if disabled, then attempts to spawn the bridge.
+     */
+    function connectServer(name) {
+        if (!root._serverConfigs[name]) {
+            console.warn("[McpClient] Unknown server: " + name);
+            return;
+        }
+
+        // Re-enable if disabled
+        if (root._serverConfigs[name].disabled) {
+            root._serverConfigs[name].disabled = false;
+            root._saveConfig();
+        }
+
+        const bridge = root._bridges[name];
+        if (!bridge) {
+            console.warn("[McpClient] No bridge for server: " + name);
+            root._updateServerState(name, "error");
+            return;
+        }
+
+        // If already connected, nothing to do
+        if (bridge.state === "connected") {
+            return;
+        }
+
+        // If currently connecting, let it finish
+        if (bridge.state === "connecting") {
+            return;
+        }
+
+        // Spawn the bridge
+        root._updateServerState(name, "connecting");
+        const spawnPromise = bridge.spawn();
+
+        spawnPromise.then(() => {
+            root._updateServerState(name, "connected");
+            if (bridge.discoveredTools.length > 0) {
+                root._registerToolsFromServer(name, bridge.discoveredTools);
+            } else {
+                const discoverPromise = bridge.discoverTools();
+                discoverPromise.then(tools => {
+                    root._registerToolsFromServer(name, tools);
+                });
+                discoverPromise.catch(err => {
+                    console.warn("[McpClient] Tool discovery failed for " + name + ": " + err);
+                });
+            }
+        });
+
+        spawnPromise.catch(err => {
+            // Try stdio fallback if applicable
+            const config = root._serverConfigs[name];
+            const hasCommand = config && config.command && config.command.length > 0;
+
+            if (bridge.transport === "http" && hasCommand) {
+                bridge.switchToStdio();
+                root._updateServerState(name, "connecting");
+                const stdioSpawn = bridge.spawn();
+                stdioSpawn.then(() => {
+                    root._updateServerState(name, "connected");
+                    const discoverPromise = bridge.discoverTools();
+                    discoverPromise.then(tools => { root._registerToolsFromServer(name, tools); });
+                });
+                stdioSpawn.catch(() => { root._updateServerState(name, "error"); });
+            } else {
+                root._updateServerState(name, "error");
+            }
+        });
+    }
+
+    /**
      * getToolDeclarations(format) — Convert tool registry to provider-specific declarations.
      *
      * @param format  One of "gemini", "openai", "mistral"

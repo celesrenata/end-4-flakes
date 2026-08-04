@@ -741,11 +741,15 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
                         onClicked: {
                             const currentState = McpClient.serverStates[modelData];
-                            if (currentState === "disabled") {
-                                McpClient.setServerDisabled(modelData, false);
+                            if (currentState === "connected") {
+                                // Disconnect/disable
+                                McpClient.setServerDisabled(modelData, true);
+                            } else {
+                                // Connect (re-enables if disabled)
+                                mcpDot.flashState = "connecting";
+                                connectTimeoutTimer.restart();
+                                McpClient.connectServer(modelData);
                             }
-                            mcpDot.flashState = "connecting";
-                            connectTimeoutTimer.restart();
                         }
 
                         Connections {
