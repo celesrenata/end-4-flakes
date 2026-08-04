@@ -736,53 +736,53 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
 
-                        property bool flashActive: false
-                        property string flashColor: ""
+                        // Flash states: "" = idle, "connecting" = yellow pulse, "success" = green, "failed" = red
+                        property string flashState: ""
 
                         onClicked: {
                             const currentState = McpClient.serverStates[modelData];
                             if (currentState === "disabled") {
-                                // Re-enable and connect
                                 McpClient.setServerDisabled(modelData, false);
                             }
-                            // Trigger reconnect attempt
-                            mcpDot.flashActive = true;
-                            mcpDot.flashColor = "#FFD700"; // Yellow = connecting
-                            flashTimer.restart();
+                            mcpDot.flashState = "connecting";
+                            connectTimeoutTimer.restart();
                         }
 
-                        // Watch for state changes to update flash color
                         Connections {
                             target: McpClient
                             function onServerStateChanged(serverName, state) {
                                 if (serverName !== mcpDot.modelData) return;
-                                if (!mcpDot.flashActive) return;
+                                if (mcpDot.flashState !== "connecting") return;
+                                connectTimeoutTimer.stop();
                                 if (state === "connected") {
-                                    mcpDot.flashColor = "#4CAF50"; // Green = success
-                                    fadeBackTimer.restart();
+                                    mcpDot.flashState = "success";
                                 } else if (state === "error") {
-                                    mcpDot.flashColor = "#F44336"; // Red = failed
+                                    mcpDot.flashState = "failed";
+                                }
+                                fadeBackTimer.restart();
+                            }
+                        }
+
+                        // If no state change within 5s, mark as failed
+                        Timer {
+                            id: connectTimeoutTimer
+                            interval: 5000
+                            repeat: false
+                            onTriggered: {
+                                if (mcpDot.flashState === "connecting") {
+                                    mcpDot.flashState = "failed";
                                     fadeBackTimer.restart();
                                 }
                             }
                         }
 
-                        // Flashing animation while connecting (yellow blink)
-                        Timer {
-                            id: flashTimer
-                            interval: 5000
-                            repeat: false
-                            onTriggered: {
-                                mcpDot.flashActive = false;
-                            }
-                        }
-
+                        // Hold green/red for 3s then fade back
                         Timer {
                             id: fadeBackTimer
                             interval: 3000
                             repeat: false
                             onTriggered: {
-                                mcpDot.flashActive = false;
+                                mcpDot.flashState = "";
                             }
                         }
 
@@ -791,8 +791,11 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             anchors.fill: parent
                             radius: width / 2
                             color: {
-                                if (mcpDot.flashActive && mcpDot.flashColor.length > 0) {
-                                    return mcpDot.flashColor;
+                                switch (mcpDot.flashState) {
+                                    case "connecting": return "#FFD700";
+                                    case "success": return "#4CAF50";
+                                    case "failed": return "#F44336";
+                                    default: break;
                                 }
                                 const state = McpClient.serverStates[mcpDot.modelData];
                                 switch (state) {
@@ -803,16 +806,22 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                     default: return Appearance.m3colors.m3outline;
                                 }
                             }
-                            opacity: McpClient.serverStates[mcpDot.modelData] === "disabled" ? 0.5 : 1.0
+                            opacity: {
+                                if (mcpDot.flashState === "") {
+                                    return McpClient.serverStates[mcpDot.modelData] === "disabled" ? 0.5 : 1.0;
+                                }
+                                return 1.0;
+                            }
 
                             Behavior on color { ColorAnimation { duration: 300 } }
+                            Behavior on opacity { NumberAnimation { duration: 300 } }
 
                             SequentialAnimation {
                                 id: pulseAnimation
-                                running: mcpDot.flashActive && mcpDot.flashColor === "#FFD700"
+                                running: mcpDot.flashState === "connecting"
                                 loops: Animation.Infinite
-                                NumberAnimation { target: dotRect; property: "opacity"; from: 1.0; to: 0.3; duration: 400; easing.type: Easing.InOutSine }
-                                NumberAnimation { target: dotRect; property: "opacity"; from: 0.3; to: 1.0; duration: 400; easing.type: Easing.InOutSine }
+                                NumberAnimation { target: dotRect; property: "opacity"; to: 0.3; duration: 400; easing.type: Easing.InOutSine }
+                                NumberAnimation { target: dotRect; property: "opacity"; to: 1.0; duration: 400; easing.type: Easing.InOutSine }
                             }
                         }
 
