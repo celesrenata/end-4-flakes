@@ -12,7 +12,7 @@ import "./mcp/"
 /**
  * McpClient — Unified MCP server lifecycle manager and tool registry.
  *
- * Manages all configured MCP servers from ~/.kiro/settings/mcp.json,
+ * Manages all configured MCP servers from ~/.local/share/quickshell/mcp.json,
  * handles tool discovery, name prefixing, conflict detection, and
  * dispatches tool calls to the appropriate server bridge.
  *
@@ -64,13 +64,13 @@ Singleton {
         "hypr_set_keyword"
     ]
 
-    // Config file path
+    // Config file path — uses Quickshell's own deterministic copy (Nix-managed)
     readonly property string _configPath: {
         const home = StandardPaths.standardLocations(StandardPaths.HomeLocation)[0];
         // StandardPaths returns QUrl objects; convert to string first
         const homeStr = String(home);
         const homePath = homeStr.startsWith("file://") ? homeStr.slice(7) : homeStr;
-        return homePath + "/.kiro/settings/mcp.json";
+        return homePath + "/.local/share/quickshell/mcp.json";
     }
 
     // Bridge component for dynamic instantiation
