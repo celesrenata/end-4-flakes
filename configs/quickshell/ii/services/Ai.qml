@@ -2948,6 +2948,14 @@ Singleton {
     property int _lastKeywordMessageCount: 0
     property int _keywordGenerationThreshold: 5
 
+    // Periodic keyword generation timer (every 5 minutes)
+    Timer {
+        interval: 300000 // 5 minutes
+        repeat: true
+        running: true
+        onTriggered: root.maybeGenerateKeywords()
+    }
+
     /**
      * Returns all sessions sorted by lastModified (newest first).
      * Each entry contains name and lastModified timestamp.
