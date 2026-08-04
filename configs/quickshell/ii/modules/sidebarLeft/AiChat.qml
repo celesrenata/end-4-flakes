@@ -124,6 +124,9 @@ Item {
                 root._scrollToMatchActive = false
                 return
             }
+            // Reset scroll state when opening the panel
+            messageListView._userScrolledAway = false
+            messageListView._shouldStickToBottom = true
             // If layout is ready, snap immediately; otherwise flag for onContentHeightChanged
             if (messageListView.height > 0 && messageListView.contentHeight > 0) {
                 scrollBehavior.enabled = false
@@ -574,6 +577,24 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
             scrollBehavior.enabled = false
             messageListView.contentY = messageListView.originY
             scrollBehavior.enabled = true
+            // Reset scroll state for the new session
+            messageListView._userScrolledAway = false
+            messageListView._shouldStickToBottom = true
+            // Delayed re-snap in case model hasn't fully populated yet
+            sessionScrollTimer.restart()
+        }
+    }
+
+    Timer {
+        id: sessionScrollTimer
+        interval: 50
+        repeat: false
+        onTriggered: {
+            if (messageListView.contentHeight > 0) {
+                scrollBehavior.enabled = false
+                messageListView.contentY = messageListView.originY
+                scrollBehavior.enabled = true
+            }
         }
     }
 
