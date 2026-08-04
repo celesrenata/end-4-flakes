@@ -543,7 +543,10 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
     Connections {
         target: Ai
         function onMessageIDsChanged() {
-            if (messageListView._shouldStickToBottom && !messageListView.userScrolling) {
+            // New message added — re-engage auto-scroll
+            messageListView._userScrolledAway = false;
+            messageListView._shouldStickToBottom = true;
+            if (!messageListView.userScrolling) {
                 scrollBehavior.enabled = false;
                 messageListView.positionViewAtBeginning();
                 scrollBehavior.enabled = true;
@@ -1860,12 +1863,14 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         scrollBehavior.enabled = false
                         positionViewAtBeginning()
                         scrollBehavior.enabled = true
-                    } else if (_shouldStickToBottom && !userScrolling) {
+                    } else if (_shouldStickToBottom && !userScrolling && !_userScrolledAway) {
                         scrollBehavior.enabled = false
                         positionViewAtBeginning()
                         scrollBehavior.enabled = true
                     }
                 }
+
+                property bool _userScrolledAway: false
 
                 onMovementStarted: {
                     messageListView.userScrolling = true;
@@ -1875,6 +1880,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 onMovementEnded: {
                     messageListView.userScrolling = false;
                     _shouldStickToBottom = isNearBottom;
+                    _userScrolledAway = !isNearBottom;
                 }
 
                 clip: true
