@@ -1584,7 +1584,7 @@ Singleton {
             "functionResponse": output,
             "thinking": false,
             "done": true,
-            "visibleToUser": false,
+            "visibleToUser": true,
         });
     }
 
