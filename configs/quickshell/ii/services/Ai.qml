@@ -1695,10 +1695,13 @@ Singleton {
             root.executeMcpTool("mcp_ii_desktop_set_keyword", { keyword: args.keyword, value: args.value }, "hypr_set_keyword");
         }
         else if (McpClient.toolRegistry[name]) {
+            message.functionName = name;
             handleMcpToolCall(name, args, message);
         }
         else if (McpClient.findToolByOriginalName(name)) {
-            handleMcpToolCall(McpClient.findToolByOriginalName(name), args, message);
+            const prefixedName = McpClient.findToolByOriginalName(name);
+            message.functionName = prefixedName;
+            handleMcpToolCall(prefixedName, args, message);
         }
         else {
             root.addMessage(Translation.tr("Unknown function call: %1").arg(name), "assistant");
