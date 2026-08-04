@@ -1198,6 +1198,24 @@ Singleton {
         delete root.messageByID[id];
     }
 
+    /**
+     * Retry from a specific assistant message — removes it and re-sends the request.
+     */
+    function retryFromMessage(messageId) {
+        const idx = root.messageIDs.indexOf(messageId);
+        if (idx < 0) return;
+        // Remove this message and any subsequent messages (tool results, etc.)
+        const toRemove = root.messageIDs.slice(idx);
+        for (const id of toRemove) {
+            delete root.messageByID[id];
+        }
+        root.messageIDs = root.messageIDs.slice(0, idx);
+        // Re-send the request
+        root._emptyResponseRetries = 0;
+        root._emptyCommandRetries = 0;
+        requester.makeRequest();
+    }
+
     function addApiKeyAdvice(model) {
         root.addMessage(
             Translation.tr('To set an API key, pass it with the %4 command\n\nTo view the key, pass "get" with the command<br/>\n\n### For %1:\n\n**Link**: %2\n\n%3')

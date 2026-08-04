@@ -271,6 +271,17 @@ Rectangle {
                     }
                 }
                 AiMessageControlButton {
+                    id: retryButton
+                    visible: root.messageData?.role === "assistant" && (root.messageData?.done ?? false)
+                    buttonIcon: "refresh"
+                    onClicked: {
+                        Ai.retryFromMessage(root.messageId)
+                    }
+                    StyledToolTip {
+                        content: Translation.tr("Retry")
+                    }
+                }
+                AiMessageControlButton {
                     id: deleteButton
                     buttonIcon: "close"
                     onClicked: {
