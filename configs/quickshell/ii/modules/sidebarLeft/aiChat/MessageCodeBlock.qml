@@ -178,13 +178,18 @@ ColumnLayout {
                 ScrollView {
                     id: codeScrollView
                     Layout.fillWidth: true
-                    // Layout.fillHeight: true
                     implicitWidth: parent.width
                     implicitHeight: codeTextArea.implicitHeight + 1
                     contentWidth: codeTextArea.width - 1
-                    // contentHeight: codeTextArea.contentHeight
                     clip: true
                     ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+
+                    // Disable vertical flicking so scroll passes to parent
+                    Component.onCompleted: {
+                        if (codeScrollView.contentItem) {
+                            codeScrollView.contentItem.interactive = false;
+                        }
+                    }
                     
                     ScrollBar.horizontal: ScrollBar {
                         anchors.bottom: parent.bottom
