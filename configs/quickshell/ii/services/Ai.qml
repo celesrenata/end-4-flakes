@@ -1913,9 +1913,13 @@ Singleton {
         root.sessionsIndex = { "sessions": sessions };
         root.saveSessionsIndex();
 
-        // If purging the active session, clear in-memory messages
+        // If purging the active session, clear in-memory messages and reset keyword state
         if (trimmedName === root.activeSessionName) {
             root.clearMessages();
+            root._sessionIteration++;
+            root._lastKeywordFromIndex = 0;
+            root._lastKeywordMessageCount = 0;
+            console.log("[AI] Session purged: '" + trimmedName + "' now at iteration " + root._sessionIteration);
         }
 
         root.addMessage(
@@ -2946,6 +2950,8 @@ Singleton {
 
     // Keyword generation state
     property int _lastKeywordMessageCount: 0
+    property int _lastKeywordFromIndex: 0  // Index we scanned up to last time
+    property int _sessionIteration: 0      // Increments on purge, tracks "lifetime"
     property int _keywordGenerationThreshold: 5
 
     // Periodic keyword generation timer (every 5 minutes)
@@ -3099,6 +3105,10 @@ Singleton {
         root.maybeGenerateKeywords();
         root.saveCurrentSession();
 
+        // Reset keyword tracking for the new session
+        root._lastKeywordFromIndex = 0;
+        root._lastKeywordMessageCount = 0;
+
         // Signal switch starting, disable input
         root.switching = true;
         root.sessionSwitchStarted();
@@ -3216,13 +3226,13 @@ Singleton {
      */
     function maybeGenerateKeywords() {
         var currentCount = root.messageIDs.length;
-        var lastCount = root._lastKeywordMessageCount;
 
-        // Skip if: no messages, or not enough growth since last generation
+        // Skip if no messages or no new messages since last scan
         if (currentCount === 0) return;
-        if (lastCount > 0 && currentCount < lastCount * 1.3 && (currentCount - lastCount) < root._keywordGenerationThreshold) return;
+        var newMessages = currentCount - root._lastKeywordFromIndex;
+        if (newMessages < root._keywordGenerationThreshold) return;
 
-        // Check if subject already exists and is recent enough
+        // Check session entry
         var sessions = root.sessionsIndex.sessions || [];
         var entry = null;
         for (var i = 0; i < sessions.length; i++) {
@@ -3232,10 +3242,16 @@ Singleton {
             }
         }
         if (!entry) return;
-        if (entry.subject && entry.subject.length > 0 && lastCount > 0 && currentCount < lastCount * 1.5) return;
 
-        // Generate keywords asynchronously
+        console.log("[AI] Keywords: scanning session '" + root.activeSessionName
+            + "' iter=" + root._sessionIteration
+            + " messages=" + currentCount
+            + " newSinceLast=" + newMessages
+            + " scanFrom=" + root._lastKeywordFromIndex);
+
+        // Generate keywords from only the NEW messages
         root._generateKeywordsForSession(root.activeSessionName);
+        root._lastKeywordFromIndex = currentCount;
         root._lastKeywordMessageCount = currentCount;
     }
 
@@ -3244,13 +3260,20 @@ Singleton {
      * @param sessionName The session to generate keywords for
      */
     function _generateKeywordsForSession(sessionName) {
-        // Build a brief summary of last 10 messages for keyword extraction
+        // Only sample messages from _lastKeywordFromIndex onward (new data)
         var messageSample = [];
-        var startIdx = Math.max(0, root.messageIDs.length - 10);
-        for (var i = startIdx; i < root.messageIDs.length; i++) {
+        var startIdx = root._lastKeywordFromIndex;
+        var endIdx = root.messageIDs.length;
+        // Cap at 10 most recent new messages for efficiency
+        if (endIdx - startIdx > 10) startIdx = endIdx - 10;
+        for (var i = startIdx; i < endIdx; i++) {
             var msg = root.messageByID[root.messageIDs[i]];
-            if (msg && msg.rawContent) {
-                messageSample.push(msg.rawContent.substring(0, 200));
+            if (msg && msg.rawContent && msg.role !== "interface") {
+                // Strip think blocks from sample to save tokens
+                var clean = msg.rawContent.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+                if (clean.length > 0) {
+                    messageSample.push(clean.substring(0, 200));
+                }
             }
         }
         if (messageSample.length === 0) return;
