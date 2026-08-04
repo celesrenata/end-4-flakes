@@ -1706,7 +1706,17 @@ Singleton {
             console.warn("[Ai] After handleMcpToolCall: functionPending=" + message.functionPending);
         }
         else {
-            root.addMessage(Translation.tr("Unknown function call: %1").arg(name), "assistant");
+            // Try to match by stripping any prefix the model invented and checking the tail
+            const parts = name.split("_");
+            const tail = parts[parts.length - 1]; // last segment
+            const tailTwo = parts.slice(-2).join("_"); // last two segments
+            const foundByTail = McpClient.findToolByOriginalName(tail) || McpClient.findToolByOriginalName(tailTwo) || McpClient.findToolByOriginalName(name.replace(/^mcp_[^_]+_/, ""));
+            if (foundByTail) {
+                message.functionName = foundByTail;
+                handleMcpToolCall(foundByTail, args, message);
+            } else {
+                root.addMessage(Translation.tr("Unknown function call: %1").arg(name), "assistant");
+            }
         }
     }
 
