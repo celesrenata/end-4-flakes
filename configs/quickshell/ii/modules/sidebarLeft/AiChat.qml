@@ -802,20 +802,16 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                     default: break;
                                 }
                                 const state = McpClient.serverStates[mcpDot.modelData];
-                                switch (state) {
-                                    case "connected": return Appearance.m3colors.m3primary;
-                                    case "connecting": return Appearance.m3colors.m3tertiary;
-                                    case "disabled": return Appearance.m3colors.m3outlineVariant;
-                                    default: return Appearance.m3colors.m3outline; // disconnected, error
-                                }
+                                if (state === "connected") return Appearance.m3colors.m3primary;
+                                if (state === "connecting") return Appearance.m3colors.m3tertiary;
+                                return Appearance.m3colors.m3outlineVariant;
                             }
                             opacity: {
                                 if (mcpDot.flashState === "") {
                                     const state = McpClient.serverStates[mcpDot.modelData];
-                                    if (state === "disabled") return 0.3;
                                     if (state === "connected") return 1.0;
-                                    // disconnected, error, or other idle states
-                                    return 0.5;
+                                    if (state === "disabled") return 0.3;
+                                    return 0.6; // disconnected, error — all same
                                 }
                                 return 1.0;
                             }
