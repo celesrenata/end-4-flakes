@@ -110,6 +110,22 @@ ColumnLayout {
         contentWidth: textArea.implicitWidth
         clip: true
 
+        // Forward vertical wheel to parent message list
+        WheelHandler {
+            onWheel: (event) => {
+                if (event.angleDelta.y !== 0) {
+                    let item = root.parent
+                    while (item && !item.hasOwnProperty("flickableDirection")) {
+                        item = item.parent
+                    }
+                    if (item) {
+                        item.contentY -= event.angleDelta.y
+                        item.returnToBounds()
+                    }
+                }
+            }
+        }
+
         ScrollBar.vertical: ScrollBar {
             policy: ScrollBar.AlwaysOff
         }
