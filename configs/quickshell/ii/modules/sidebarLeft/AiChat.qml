@@ -734,17 +734,41 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 visible: Object.keys(McpClient.serverStates).length > 0
             }
             // MCP Server Status Indicators
-            Flow {
-                spacing: 4
+            Item {
+                id: mcpDotsContainer
                 visible: Object.keys(McpClient.serverStates).length > 0
+                property real dotSize: 10
+                property real dotSpacing: 4
+                property var serverKeys: Object.keys(McpClient.serverStates).sort()
+                property int dotCount: serverKeys.length
+                property int horizontalCapacity: Math.max(1, Math.floor(
+                    (width + dotSpacing) / (dotSize + dotSpacing)
+                ))
+                property int overflowCount: Math.max(0, dotCount - horizontalCapacity)
+
+                Layout.fillWidth: true
+                Layout.maximumWidth: dotCount * (dotSize + dotSpacing) - dotSpacing
+                implicitHeight: dotSize
+
                 Repeater {
-                    model: Object.keys(McpClient.serverStates).sort()
+                    model: mcpDotsContainer.serverKeys
                     delegate: MouseArea {
                         id: mcpDot
                         required property int index
                         required property string modelData
-                        width: 10
-                        height: 10
+                        width: mcpDotsContainer.dotSize
+                        height: mcpDotsContainer.dotSize
+
+                        // Position: horizontal row, then overflow down the right edge
+                        x: index < mcpDotsContainer.horizontalCapacity
+                            ? index * (mcpDotsContainer.dotSize + mcpDotsContainer.dotSpacing)
+                            : mcpDotsContainer.width - mcpDotsContainer.dotSize
+                        y: index < mcpDotsContainer.horizontalCapacity
+                            ? 0
+                            : (index - mcpDotsContainer.horizontalCapacity + 1) * (mcpDotsContainer.dotSize + mcpDotsContainer.dotSpacing)
+
+                        Behavior on x { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                        Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
 
