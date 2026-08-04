@@ -297,11 +297,11 @@ ColumnLayout {
 
             MouseArea {
                 anchors.fill: parent
+                z: 100
                 acceptedButtons: Qt.NoButton
                 onWheel: (event) => {
                     // Forward vertical scroll to parent message list
                     if (event.angleDelta.y !== 0) {
-                        // Traverse up to find the ListView (we're inside Loader → delegate → ListView)
                         let item = root.parent
                         while (item && !item.hasOwnProperty("contentY")) {
                             item = item.parent
