@@ -154,6 +154,7 @@ ApiStrategy {
 
             // Handle streaming tool_calls
             if (responseToolCalls && responseToolCalls.length > 0) {
+                console.warn("[AI] Got tool_calls in stream: " + JSON.stringify(responseToolCalls[0]?.function?.name));
                 // Only track the first tool call (index 0) — we execute one at a time
                 const tc = responseToolCalls[0];
                 if (tc.function) {
@@ -183,6 +184,9 @@ ApiStrategy {
 
             // Check if this is a finish with a tool call
             const finishReason = dataJson.choices[0]?.finish_reason;
+            if (finishReason) {
+                console.warn("[AI] finish_reason: " + finishReason + " pendingToolCall: " + JSON.stringify(_pendingToolCall?.name));
+            }
             if ((finishReason === "tool_calls" || finishReason === "function_call" || (finishReason === "stop" && _pendingToolCall))) {
                 if (_pendingToolCall && _pendingToolCall.name) {
                     const args = _parseToolArgs(_pendingToolCall.arguments);

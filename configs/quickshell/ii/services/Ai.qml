@@ -1508,7 +1508,11 @@ Singleton {
                 root._emptyResponseRetries = 0;
             }
 
-            if (isEmpty || isError) {
+            // Skip empty-content check if a function call was dispatched
+            if (requester.message.functionCall) {
+                // Function was called — don't treat as empty
+                root._emptyResponseRetries = 0;
+            } else if (isEmpty || isError) {
                 // Remove the broken/empty assistant message BEFORE saving
                 const msgId = requester.messageId;
                 const idx = root.messageIDs.indexOf(msgId);
