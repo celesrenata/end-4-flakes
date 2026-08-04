@@ -29,7 +29,10 @@ Rectangle {
     property bool showRawOutput: false
     property bool hasMcpToolBlock: {
         const fn = root.messageData?.functionName ?? "";
-        if (!fn.startsWith("mcp_")) return false;
+        const fc = root.messageData?.functionCall;
+        // Show tool block for MCP tools (prefixed or short name via findToolByOriginalName)
+        const isMcp = fn.startsWith("mcp_") || (fc && McpClient.findToolByOriginalName(fc.name || fn));
+        if (!isMcp) return false;
         return (root.messageData?.functionPending ?? false) || (root.messageData?.functionResponse ?? "").length > 0;
     }
     property real toolBlockStartTime: root.messageData?.functionPending ? Date.now() : 0

@@ -1709,7 +1709,7 @@ Singleton {
      * Handles an MCP tool call — checks auto-approve, otherwise prompts user.
      */
     function handleMcpToolCall(name, args, message) {
-        if (McpClient.isToolAutoApproved(name)) {
+        if (root.yoloMode || McpClient.isToolAutoApproved(name)) {
             executeMcpTool(name, args);
         } else {
             // Require user approval — set pending state on the message
