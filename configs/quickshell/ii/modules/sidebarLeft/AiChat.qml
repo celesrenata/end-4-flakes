@@ -2991,8 +2991,14 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         z: 50
         propagateComposedEvents: true
         onPressed: (mouse) => {
-            root.sessionDrawerOpen = false
-            mouse.accepted = false
+            // Only close if click is outside the session drawer
+            const drawerPos = sessionDrawer.mapToItem(this, 0, 0);
+            const inDrawer = mouse.x >= drawerPos.x && mouse.x <= drawerPos.x + sessionDrawer.width
+                          && mouse.y >= drawerPos.y && mouse.y <= drawerPos.y + sessionDrawer.height;
+            if (!inDrawer) {
+                root.sessionDrawerOpen = false;
+            }
+            mouse.accepted = false;
         }
     }
 
