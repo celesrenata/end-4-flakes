@@ -44,7 +44,10 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: sidebarPadding
+        anchors.leftMargin: 4
+        anchors.topMargin: sidebarPadding
+        anchors.bottomMargin: sidebarPadding
+        anchors.rightMargin: 4
         spacing: 0
 
         // ── Icon-only tab bar ──
