@@ -1067,6 +1067,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             MouseArea {
                                 id: sessionRowHover
                                 anchors.fill: parent
+                                z: -1
                                 hoverEnabled: true
                                 acceptedButtons: Qt.LeftButton
                                 cursorShape: sessionRow.isRenaming ? Qt.ArrowCursor : Qt.PointingHandCursor
