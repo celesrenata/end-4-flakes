@@ -1938,7 +1938,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             const message = Ai.messageByID[id];
                             if (!(message?.visibleToUser ?? true)) return false;
                             // Hide finished assistant messages with no visible content
-                            if (message?.role === "assistant" && message?.done === true) {
+                            // BUT keep messages that dispatched a function call
+                            if (message?.role === "assistant" && message?.done === true && !message?.functionCall) {
                                 const raw = (message?.rawContent ?? "").trim();
                                 if (raw.length === 0) return false;
                                 const visible = raw.replace(/<think>[\s\S]*?<\/think>/g, "")
