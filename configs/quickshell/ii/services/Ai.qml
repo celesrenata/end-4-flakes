@@ -3268,12 +3268,14 @@ Singleton {
         if (endIdx - startIdx > 10) startIdx = endIdx - 10;
         for (var i = startIdx; i < endIdx; i++) {
             var msg = root.messageByID[root.messageIDs[i]];
-            if (msg && msg.rawContent && msg.role !== "interface") {
-                // Strip think blocks from sample to save tokens
-                var clean = msg.rawContent.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-                if (clean.length > 0) {
-                    messageSample.push(clean.substring(0, 200));
-                }
+            if (!msg) continue;
+            // Skip interface messages, function outputs, and tool responses
+            if (msg.role === "interface") continue;
+            if (msg.functionResponse && msg.functionResponse.length > 0) continue;
+            if ((msg.rawContent || "").startsWith("[[ Output of")) continue;
+            var clean = (msg.rawContent || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            if (clean.length > 0) {
+                messageSample.push(clean.substring(0, 200));
             }
         }
         if (messageSample.length === 0) return;
