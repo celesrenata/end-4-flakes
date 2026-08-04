@@ -418,6 +418,36 @@ Singleton {
     property string execMode: "safe"  // "safe" = approve each, "auto" = auto-execute with retry cap, "full" = never stop
     property int _emptyCommandRetries: 0
     property int _emptyResponseRetries: 0
+
+    // Whether a request is currently in-flight
+    readonly property bool generating: requester.running
+
+    /**
+     * cancelRequest() — Stop the in-flight LLM request.
+     * Kills the curl process and marks the current message as done.
+     */
+    function cancelRequest() {
+        if (!requester.running) return;
+        requester.running = false;  // SIGTERM the curl process
+        if (requester.message) {
+            requester.message.done = true;
+            if (requester.message.rawContent.length === 0) {
+                // Remove empty assistant message
+                const idx = root.messageIDs.indexOf(requester.messageId);
+                if (idx !== -1) {
+                    root.messageIDs.splice(idx, 1);
+                    root.messageIDs = [...root.messageIDs];
+                    delete root.messageByID[requester.messageId];
+                }
+            } else {
+                // Keep partial content, append cancellation note
+                const cancelNote = "\n\n*[Generation stopped by user]*";
+                requester.message.rawContent += cancelNote;
+                requester.message.content += cancelNote;
+            }
+        }
+        root.saveCurrentSession();
+    }
     property var tools: {
         "gemini": {
             "functions": [{"functionDeclarations": [

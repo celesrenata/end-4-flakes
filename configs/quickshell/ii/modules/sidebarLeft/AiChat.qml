@@ -2711,23 +2711,27 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     }
                 }
 
-                RippleButton { // Send button
+                RippleButton { // Send / Stop button
                     id: sendButton
                     Layout.alignment: Qt.AlignTop
                     Layout.rightMargin: 5
                     implicitWidth: 40
                     implicitHeight: 40
                     buttonRadius: Appearance.rounding.small
-                    enabled: messageInputField.text.length > 0 || Ai.pendingAttachments.length > 0
+                    enabled: Ai.generating || messageInputField.text.length > 0 || Ai.pendingAttachments.length > 0
                     toggled: enabled
 
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: sendButton.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                         onClicked: {
-                            const inputText = messageInputField.text
-                            root.handleInput(inputText)
-                            messageInputField.clear()
+                            if (Ai.generating) {
+                                Ai.cancelRequest()
+                            } else {
+                                const inputText = messageInputField.text
+                                root.handleInput(inputText)
+                                messageInputField.clear()
+                            }
                         }
                     }
 
@@ -2735,9 +2739,9 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         anchors.centerIn: parent
                         horizontalAlignment: Text.AlignHCenter
                         iconSize: Appearance.font.pixelSize.larger
-                        // fill: sendButton.enabled ? 1 : 0
-                        color: sendButton.enabled ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnLayer2Disabled
-                        text: "send"
+                        color: Ai.generating ? Appearance.m3colors.m3onErrorContainer :
+                            sendButton.enabled ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnLayer2Disabled
+                        text: Ai.generating ? "stop_circle" : "send"
                     }
                 }
             }
