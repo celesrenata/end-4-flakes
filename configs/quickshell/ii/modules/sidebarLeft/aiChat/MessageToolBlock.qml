@@ -73,7 +73,7 @@ Item {
     // Forward vertical scroll to parent message list
     MouseArea {
         anchors.fill: parent
-        z: 999
+        z: -1
         acceptedButtons: Qt.NoButton
         onWheel: (event) => {
             if (event.angleDelta.y !== 0) {
