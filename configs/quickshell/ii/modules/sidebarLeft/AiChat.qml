@@ -1872,9 +1872,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         scrollBehavior.enabled = false
                         positionViewAtBeginning()
                         scrollBehavior.enabled = true
-                    } else if (_shouldStickToBottom && !userScrolling && !_userScrolledAway) {
-                        scrollDebounce.restart()
                     }
+                    // No auto-scroll on height changes — only on new messages
                 }
 
                 Timer {
