@@ -613,8 +613,64 @@ Singleton {
                 spawnPromise.catch(err => {
                     console.warn("[McpClient] Eager spawn failed for " + serverName + ": " + err);
                     root._updateServerState(serverName, "error");
+
+                    // Auto-retry once after 5s for legacy SSE servers (startup race)
+                    if (serverBridge.httpEndpoint && serverBridge.httpEndpoint.indexOf("/sse") !== -1) {
+                        root._scheduleRetry(serverName, serverBridge);
+                    }
                 });
             })(name, bridge);
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Auto-retry SSE servers after startup race
+    // ──────────────────────────────────────────────
+
+    property var _sseRetryQueue: []
+
+    function _scheduleRetry(serverName, bridge) {
+        root._sseRetryQueue.push({ name: serverName, bridge: bridge });
+        sseRetryTimer.restart();
+    }
+
+    Timer {
+        id: sseRetryTimer
+        interval: 5000
+        repeat: true
+        property int attempts: 0
+        property int maxAttempts: 3
+        onTriggered: {
+            const queue = root._sseRetryQueue.slice();
+            let remaining = [];
+            for (let i = 0; i < queue.length; i++) {
+                const entry = queue[i];
+                const b = entry.bridge;
+                const name = entry.name;
+                if (b.state === "connected" || b.disabled) continue;
+                console.log("[McpClient] Auto-retrying SSE server: " + name + " (attempt " + (sseRetryTimer.attempts + 1) + ")");
+                root._updateServerState(name, "connecting");
+                (function(n, br) {
+                    const retry = br.spawn();
+                    retry.then(() => {
+                        root._updateServerState(n, "connected");
+                        if (br.discoveredTools.length > 0) {
+                            root._registerToolsFromServer(n, br.discoveredTools);
+                        }
+                    });
+                    retry.catch(() => {
+                        root._updateServerState(n, "error");
+                        remaining.push({ name: n, bridge: br });
+                    });
+                })(name, b);
+            }
+            sseRetryTimer.attempts++;
+            root._sseRetryQueue = remaining;
+            if (sseRetryTimer.attempts >= sseRetryTimer.maxAttempts || queue.length === 0) {
+                sseRetryTimer.stop();
+                sseRetryTimer.attempts = 0;
+                root._sseRetryQueue = [];
+            }
         }
     }
 
