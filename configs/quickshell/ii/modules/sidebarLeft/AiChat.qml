@@ -519,11 +519,10 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
     // Delete confirmation state
     property string deleteConfirmSession: ""
 
-    // Close the drawer when the active session changes (e.g. after a switch)
+    // Close search when the active session changes
     Connections {
         target: Ai
         function onActiveSessionNameChanged() {
-            root.sessionDrawerOpen = false
             root.searchOpen = false
             Ai.clearSearch()
         }
