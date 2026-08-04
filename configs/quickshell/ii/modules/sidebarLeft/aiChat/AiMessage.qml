@@ -272,14 +272,21 @@ Rectangle {
                 }
                 AiMessageControlButton {
                     id: retryButton
-                    visible: root.messageData?.role === "assistant" && (root.messageData?.done ?? false)
+                    visible: root.messageData?.role === "user" && (root.messageData?.done ?? false)
                     buttonIcon: "refresh"
 
                     property bool spinning: false
 
                     onClicked: {
                         retryButton.spinning = true;
-                        Ai.retryFromMessage(root.messageId)
+                        // Find and remove the next assistant message (the response to this user message)
+                        const myIdx = Ai.messageIDs.indexOf(root.messageId) !== -1
+                            ? Ai.messageIDs.indexOf(root.messageId)
+                            : Ai.messageIDs.indexOf(Number(root.messageId));
+                        if (myIdx >= 0 && myIdx < Ai.messageIDs.length - 1) {
+                            // Remove everything after this user message
+                            Ai.retryFromMessage(Ai.messageIDs[myIdx + 1])
+                        }
                     }
 
                     contentItem: MaterialSymbol {
