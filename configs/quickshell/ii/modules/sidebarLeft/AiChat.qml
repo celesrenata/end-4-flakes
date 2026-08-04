@@ -730,20 +730,147 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     color: root.searchOpen ? Appearance.m3colors.m3primary : Appearance.m3colors.m3onSurface
                 }
             }
-            StatusSeparator {
-                visible: Object.keys(McpClient.serverStates).length > 0
-            }
-            // MCP Server Status Indicators — anchor item for positioning
-            Item {
-                id: mcpDotsAnchor
-                visible: Object.keys(McpClient.serverStates).length > 0
-                Layout.fillWidth: true
-                Layout.maximumWidth: {
-                    var count = Object.keys(McpClient.serverStates).length;
-                    return count * (10 + 4) - 4;
+        }
+
+        // MCP Server Status Dots
+        Flow {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.bottomMargin: 5
+            spacing: 4
+            visible: Object.keys(McpClient.serverStates).length > 0
+            Repeater {
+                model: Object.keys(McpClient.serverStates).sort()
+                delegate: MouseArea {
+                    id: mcpDot
+                    required property int index
+                    required property string modelData
+                    width: 10
+                    height: 10
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+
+                    // Flash states: "" = idle, "connecting" = yellow pulse, "success" = green, "failed" = red
+                    property string flashState: ""
+
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                    onClicked: (mouse) => {
+                        if (mouse.button === Qt.RightButton) {
+                            McpClient.setServerDisabled(modelData, true);
+                            mcpDot.flashState = "";
+                            mcpDot.stateVersion++;
+                            return;
+                        }
+                        const currentState = McpClient.serverStates[modelData];
+                        console.warn("[MCP-UI] Clicked " + modelData + " state=" + currentState);
+                        if (currentState === "connected") {
+                            McpClient.setServerDisabled(modelData, true);
+                        } else {
+                            if (currentState === "disabled") {
+                                McpClient.setServerDisabled(modelData, false);
+                            }
+                            mcpDot.flashState = "connecting";
+                            connectTimeoutTimer.restart();
+                            McpClient.connectServer(modelData);
+                        }
+                    }
+
+                    // Track server state version to force color re-evaluation
+                    property int stateVersion: 0
+
+                    Connections {
+                        target: McpClient
+                        function onServerStateChanged(serverName, state) {
+                            if (serverName !== mcpDot.modelData) return;
+                            mcpDot.stateVersion++;
+                            console.warn("[MCP-UI] " + serverName + " stateChanged → " + state + " (flashState=" + mcpDot.flashState + ")");
+                            if (mcpDot.flashState !== "connecting") return;
+                            // Only react to terminal states
+                            if (state === "connected") {
+                                connectTimeoutTimer.stop();
+                                mcpDot.flashState = "success";
+                                fadeBackTimer.restart();
+                            } else if (state === "error") {
+                                connectTimeoutTimer.stop();
+                                mcpDot.flashState = "failed";
+                                fadeBackTimer.restart();
+                            }
+                            // Ignore "connecting", "disconnected" — keep pulsing
+                        }
+                    }
+
+                    // If no state change within 10s, mark as failed
+                    Timer {
+                        id: connectTimeoutTimer
+                        interval: 10000
+                        repeat: false
+                        onTriggered: {
+                            if (mcpDot.flashState === "connecting") {
+                                mcpDot.flashState = "failed";
+                                fadeBackTimer.restart();
+                            }
+                        }
+                    }
+
+                    // Hold green/red for 3s then fade back
+                    Timer {
+                        id: fadeBackTimer
+                        interval: 3000
+                        repeat: false
+                        onTriggered: {
+                            const finalState = McpClient.serverStates[mcpDot.modelData];
+                            console.warn("[MCP-UI] " + mcpDot.modelData + " fadeBack: flashState=" + mcpDot.flashState + " → idle, serverState=" + finalState);
+                            mcpDot.flashState = "";
+                        }
+                    }
+
+                    Rectangle {
+                        id: dotRect
+                        anchors.fill: parent
+                        radius: width / 2
+                        color: {
+                            void(mcpDot.stateVersion);
+                            switch (mcpDot.flashState) {
+                                case "connecting": return "#FFD700";
+                                case "success": return "#4CAF50";
+                                case "failed": return "#F44336";
+                                default: break;
+                            }
+                            const state = McpClient.serverStates[mcpDot.modelData];
+                            switch (state) {
+                                case "connected": return Appearance.m3colors.m3primary;
+                                case "connecting": return Appearance.m3colors.m3tertiary;
+                                case "disabled": return Appearance.m3colors.m3outlineVariant;
+                                default: return Appearance.m3colors.m3outline; // disconnected, error
+                            }
+                        }
+                        opacity: {
+                            void(mcpDot.stateVersion);
+                            if (mcpDot.flashState !== "") return 1.0;
+                            const state = McpClient.serverStates[mcpDot.modelData];
+                            if (state === "connected") return 1.0;
+                            if (state === "disabled") return 0.3;
+                            return 0.5; // disconnected, error
+                        }
+
+                        Behavior on color { ColorAnimation { duration: 300 } }
+                        Behavior on opacity { NumberAnimation { duration: 300 } }
+
+                        SequentialAnimation {
+                            id: pulseAnimation
+                            running: mcpDot.flashState === "connecting"
+                            loops: Animation.Infinite
+                            NumberAnimation { target: dotRect; property: "opacity"; to: 0.3; duration: 400; easing.type: Easing.InOutSine }
+                            NumberAnimation { target: dotRect; property: "opacity"; to: 1.0; duration: 400; easing.type: Easing.InOutSine }
+                        }
+                    }
+
+                    StyledToolTip {
+                        content: { void(mcpDot.stateVersion); return mcpDot.modelData + ": " + (McpClient.serverStates[mcpDot.modelData] || "unknown"); }
+                        extraVisibleCondition: false
+                        alternativeVisibleCondition: mcpDot.containsMouse
+                    }
                 }
-                implicitHeight: 10
-                Layout.alignment: Qt.AlignTop
             }
         }
 
@@ -2894,197 +3021,6 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
         } // end inputAreaWrapper
         
-    }
-
-    // Floating MCP dots — positioned absolutely using anchor coordinates
-    // Direct child of root so it stays within clip bounds and receives mouse events
-    Item {
-        id: mcpDotsFloat
-        visible: Object.keys(McpClient.serverStates).length > 0
-        z: 100
-
-        property real dotSize: 10
-        property real dotSpacing: 4
-        property var serverKeys: Object.keys(McpClient.serverStates).sort()
-        property int dotCount: serverKeys.length
-        property int horizontalCapacity: Math.max(1, Math.floor(
-            (mcpDotsAnchor.width + dotSpacing) / (dotSize + dotSpacing)
-        ))
-        property int overflowCount: Math.max(0, dotCount - horizontalCapacity)
-
-        // Position from anchor mapped to root coordinates
-        // Use a function to safely map coordinates (avoids mapToItem before window attachment)
-        function updatePosition() {
-            if (mcpDotsAnchor.visible && mcpDotsAnchor.width > 0) {
-                var pos = mcpDotsAnchor.mapToItem(root, 0, 0);
-                mcpDotsFloat.x = pos.x;
-                mcpDotsFloat.y = pos.y;
-            }
-        }
-
-        Connections {
-            target: mcpDotsAnchor
-            function onXChanged() { mcpDotsFloat.updatePosition(); }
-            function onYChanged() { mcpDotsFloat.updatePosition(); }
-            function onWidthChanged() { mcpDotsFloat.updatePosition(); }
-            function onVisibleChanged() { mcpDotsFloat.updatePosition(); }
-        }
-
-        Component.onCompleted: Qt.callLater(updatePosition)
-
-        x: 0
-        y: 0
-        width: mcpDotsAnchor.width
-        height: dotSize + overflowCount * (dotSize + dotSpacing)
-
-        Behavior on x { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-        Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-
-        Repeater {
-            model: mcpDotsFloat.serverKeys
-            delegate: MouseArea {
-                id: mcpDot
-                required property int index
-                required property string modelData
-                width: mcpDotsFloat.dotSize
-                height: mcpDotsFloat.dotSize
-
-                // Position: horizontal row, then overflow down the right edge
-                x: index < mcpDotsFloat.horizontalCapacity
-                    ? index * (mcpDotsFloat.dotSize + mcpDotsFloat.dotSpacing)
-                    : mcpDotsFloat.width - mcpDotsFloat.dotSize
-                y: index < mcpDotsFloat.horizontalCapacity
-                    ? 0
-                    : (index - mcpDotsFloat.horizontalCapacity + 1) * (mcpDotsFloat.dotSize + mcpDotsFloat.dotSpacing)
-
-                Behavior on x { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-
-                // Flash states: "" = idle, "connecting" = yellow pulse, "success" = green, "failed" = red
-                property string flashState: ""
-
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-
-                onClicked: (mouse) => {
-                    if (mouse.button === Qt.RightButton) {
-                        McpClient.setServerDisabled(modelData, true);
-                        mcpDot.flashState = "";
-                        mcpDot.stateVersion++;
-                        return;
-                    }
-                    const currentState = McpClient.serverStates[modelData];
-                    console.warn("[MCP-UI] Clicked " + modelData + " state=" + currentState);
-                    if (currentState === "connected") {
-                        McpClient.setServerDisabled(modelData, true);
-                    } else {
-                        if (currentState === "disabled") {
-                            McpClient.setServerDisabled(modelData, false);
-                        }
-                        mcpDot.flashState = "connecting";
-                        connectTimeoutTimer.restart();
-                        McpClient.connectServer(modelData);
-                    }
-                }
-
-                // Track server state version to force color re-evaluation
-                property int stateVersion: 0
-
-                Connections {
-                    target: McpClient
-                    function onServerStateChanged(serverName, state) {
-                        if (serverName !== mcpDot.modelData) return;
-                        mcpDot.stateVersion++;
-                        console.warn("[MCP-UI] " + serverName + " stateChanged → " + state + " (flashState=" + mcpDot.flashState + ")");
-                        if (mcpDot.flashState !== "connecting") return;
-                        // Only react to terminal states
-                        if (state === "connected") {
-                            connectTimeoutTimer.stop();
-                            mcpDot.flashState = "success";
-                            fadeBackTimer.restart();
-                        } else if (state === "error") {
-                            connectTimeoutTimer.stop();
-                            mcpDot.flashState = "failed";
-                            fadeBackTimer.restart();
-                        }
-                        // Ignore "connecting", "disconnected" — keep pulsing
-                    }
-                }
-
-                // If no state change within 10s, mark as failed
-                Timer {
-                    id: connectTimeoutTimer
-                    interval: 10000
-                    repeat: false
-                    onTriggered: {
-                        if (mcpDot.flashState === "connecting") {
-                            mcpDot.flashState = "failed";
-                            fadeBackTimer.restart();
-                        }
-                    }
-                }
-
-                // Hold green/red for 3s then fade back
-                Timer {
-                    id: fadeBackTimer
-                    interval: 3000
-                    repeat: false
-                    onTriggered: {
-                        const finalState = McpClient.serverStates[mcpDot.modelData];
-                        console.warn("[MCP-UI] " + mcpDot.modelData + " fadeBack: flashState=" + mcpDot.flashState + " → idle, serverState=" + finalState);
-                        mcpDot.flashState = "";
-                    }
-                }
-
-                Rectangle {
-                    id: dotRect
-                    anchors.fill: parent
-                    radius: width / 2
-                    color: {
-                        void(mcpDot.stateVersion);
-                        switch (mcpDot.flashState) {
-                            case "connecting": return "#FFD700";
-                            case "success": return "#4CAF50";
-                            case "failed": return "#F44336";
-                            default: break;
-                        }
-                        const state = McpClient.serverStates[mcpDot.modelData];
-                        switch (state) {
-                            case "connected": return Appearance.m3colors.m3primary;
-                            case "connecting": return Appearance.m3colors.m3tertiary;
-                            case "disabled": return Appearance.m3colors.m3outlineVariant;
-                            default: return Appearance.m3colors.m3outline; // disconnected, error
-                        }
-                    }
-                    opacity: {
-                        void(mcpDot.stateVersion);
-                        if (mcpDot.flashState !== "") return 1.0;
-                        const state = McpClient.serverStates[mcpDot.modelData];
-                        if (state === "connected") return 1.0;
-                        if (state === "disabled") return 0.3;
-                        return 0.5; // disconnected, error
-                    }
-
-                    Behavior on color { ColorAnimation { duration: 300 } }
-                    Behavior on opacity { NumberAnimation { duration: 300 } }
-
-                    SequentialAnimation {
-                        id: pulseAnimation
-                        running: mcpDot.flashState === "connecting"
-                        loops: Animation.Infinite
-                        NumberAnimation { target: dotRect; property: "opacity"; to: 0.3; duration: 400; easing.type: Easing.InOutSine }
-                        NumberAnimation { target: dotRect; property: "opacity"; to: 1.0; duration: 400; easing.type: Easing.InOutSine }
-                    }
-                }
-
-                StyledToolTip {
-                    content: { void(mcpDot.stateVersion); return mcpDot.modelData + ": " + (McpClient.serverStates[mcpDot.modelData] || "unknown"); }
-                    extraVisibleCondition: false
-                    alternativeVisibleCondition: mcpDot.containsMouse
-                }
-            }
-        }
     }
 
     // Dismiss overlay — click-away closes session drawer
