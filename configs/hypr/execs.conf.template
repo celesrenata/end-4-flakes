@@ -8,6 +8,11 @@ exec-once = @HYPRIDLE_BIN@
 exec-once = @GNOME_KEYRING_BIN@ --start --components=secrets
 exec-once = @POLKIT_AGENT_BIN@
 
+# Night light (blue light filter)
+# env -u LD_LIBRARY_PATH needed because nix-ld's LD_LIBRARY_PATH provides gcc-15 libstdc++
+# which overrides hyprsunset's RPATH-specified gcc-16 libstdc++ (needs GLIBCXX_3.4.35)
+exec-once = env -u LD_LIBRARY_PATH hyprsunset
+
 # System services
 exec-once = dbus-update-activation-environment --all
 exec-once = sleep 1 && dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP

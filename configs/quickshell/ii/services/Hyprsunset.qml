@@ -6,17 +6,17 @@ import Quickshell
 import Quickshell.Io
 
 /**
- * Simple hyprsunset service with automatic mode.
- * In theory we don't need this because hyprsunset has a config file, but it somehow doesn't work.
- * It should also be possible to control it via hyprctl, but it doesn't work consistently either so we're just killing and launching.
+ * Hyprsunset service with automatic mode.
+ * Uses the .hyprsunset.sock socket for IPC instead of hyprctl,
+ * which avoids dependency on the hyprctl binary working correctly.
  */
 Singleton {
     id: root
     property var manualActive
-    property string from: Config.options?.light?.night?.from ?? "19:00" // Default to 7 PM
-    property string to: Config.options?.light?.night?.to ?? "06:30" // Default to 6:30 AM
+    property string from: Config.options?.light?.night?.from ?? "19:00"
+    property string to: Config.options?.light?.night?.to ?? "06:30"
     property bool automatic: Config.options?.light?.night?.automatic && (Config?.ready ?? true)
-    property int colorTemperature: 5000 // Runtime temperature, initialized from config
+    property int colorTemperature: 5000
     Component.onCompleted: {
         root.colorTemperature = Config.options?.light?.night?.colorTemperature ?? 5000;
     }
@@ -32,6 +32,12 @@ Singleton {
     property int clockHour: DateTime.clock.hours
     property int clockMinute: DateTime.clock.minutes
 
+    // Socket path for hyprsunset IPC
+    property string socketPath: {
+        const xdgRuntime = Quickshell.env("XDG_RUNTIME_DIR") || `/run/user/${Quickshell.env("UID") || "1000"}`;
+        const hyprSig = Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || "";
+        return `${xdgRuntime}/hypr/${hyprSig}/.hyprsunset.sock`;
+    }
 
     function isNoLater(hour1, minute1, hour2, minute2) {
         if (hour1 < hour2)
@@ -40,7 +46,6 @@ Singleton {
             return true;
         return false;
     }
-
 
     onClockMinuteChanged: reEvaluate()
     onAutomaticChanged: {
@@ -61,7 +66,6 @@ Singleton {
 
     onShouldBeOnChanged: ensureState()
     function ensureState() {
-        // console.log("[Hyprsunset] Ensuring state:", root.shouldBeOn, "Automatic mode:", root.automatic);
         if (!root.automatic || root.manualActive !== undefined)
             return;
         if (root.shouldBeOn) {
@@ -74,7 +78,7 @@ Singleton {
     function load() { } // Dummy to force init
 
     /**
-     * Sets the color temperature dynamically via hyprctl.
+     * Sets the color temperature dynamically via the hyprsunset socket.
      * @param temp Temperature in Kelvin (2500-6500). 6500 = identity/off.
      */
     function setTemperature(temp) {
@@ -86,22 +90,41 @@ Singleton {
         root.colorTemperature = temp;
         root.active = true;
         root.manualActive = true;
+
+        // Try socket first (if hyprsunset is already running), fall back to launching
+        // Note: unset LD_LIBRARY_PATH when launching because nix-ld's LD_LIBRARY_PATH
+        // can override the correct RPATH in hyprsunset's binary (gcc-16 vs gcc-15 conflict)
         Quickshell.execDetached(["bash", "-c",
-            `pidof hyprsunset && hyprctl hyprsunset temperature ${temp} || hyprsunset --temperature ${temp}`
+            `SOCK='${root.socketPath}'; ` +
+            `if [ -S "$SOCK" ]; then ` +
+            `  echo -n 'temperature ${temp}' | socat - UNIX-CONNECT:"$SOCK"; ` +
+            `else ` +
+            `  pidof hyprsunset >/dev/null 2>&1 || env -u LD_LIBRARY_PATH hyprsunset --temperature ${temp} & ` +
+            `fi`
         ]);
     }
 
     function enable() {
         root.active = true;
         Quickshell.execDetached(["bash", "-c",
-            `pidof hyprsunset && hyprctl hyprsunset temperature ${root.colorTemperature} || hyprsunset --temperature ${root.colorTemperature}`
+            `SOCK='${root.socketPath}'; ` +
+            `if [ -S "$SOCK" ]; then ` +
+            `  echo -n 'temperature ${root.colorTemperature}' | socat - UNIX-CONNECT:"$SOCK"; ` +
+            `else ` +
+            `  pidof hyprsunset >/dev/null 2>&1 || env -u LD_LIBRARY_PATH hyprsunset --temperature ${root.colorTemperature} & ` +
+            `fi`
         ]);
     }
 
     function disable() {
         root.active = false;
         Quickshell.execDetached(["bash", "-c",
-            `pidof hyprsunset && hyprctl hyprsunset identity || true`
+            `SOCK='${root.socketPath}'; ` +
+            `if [ -S "$SOCK" ]; then ` +
+            `  echo -n 'identity' | socat - UNIX-CONNECT:"$SOCK"; ` +
+            `else ` +
+            `  pidof hyprsunset && kill $(pidof hyprsunset) || true; ` +
+            `fi`
         ]);
     }
 
@@ -112,16 +135,26 @@ Singleton {
     Process {
         id: fetchProc
         running: true
-        command: ["bash", "-c", "hyprctl hyprsunset temperature"]
+        command: ["bash", "-c",
+            `SOCK='${root.socketPath}'; ` +
+            `if [ -S "$SOCK" ]; then ` +
+            `  echo -n 'temperature' | socat - UNIX-CONNECT:"$SOCK" 2>/dev/null; ` +
+            `else ` +
+            `  echo ''; ` +
+            `fi`
+        ]
         stdout: StdioCollector {
             id: stateCollector
             onStreamFinished: {
                 const output = stateCollector.text.trim();
-                if (output.length == 0 || output.startsWith("Couldn't"))
+                if (output.length == 0 || output === "6500")
                     root.active = false;
-                else
-                    root.active = (output != "6500");
-                // console.log("[Hyprsunset] Fetched state:", output, "->", root.active);
+                else {
+                    root.active = true;
+                    const parsed = parseInt(output);
+                    if (!isNaN(parsed) && parsed >= 2500 && parsed <= 6500)
+                        root.colorTemperature = parsed;
+                }
             }
         }
     }
