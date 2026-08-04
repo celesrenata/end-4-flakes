@@ -1725,9 +1725,23 @@ Singleton {
 
     /**
      * Handles an MCP tool call — checks auto-approve, otherwise prompts user.
+     * In safe mode, ALWAYS prompt the user regardless of autoApprove list.
+     * The autoApprove list only takes effect in auto/full exec modes.
      */
     function handleMcpToolCall(name, args, message) {
-        if (root.execMode !== "safe" || McpClient.isToolAutoApproved(name)) {
+        if (root.execMode === "safe") {
+            // Safe mode: always prompt for approval
+            const displayName = McpClient.toolRegistry[name]?.originalName || name;
+            const argsStr = JSON.stringify(args, null, 2);
+            const contentToAppend = `\n\n**MCP Tool Request: ${displayName}**\n\n\`\`\`command\n${displayName}(${argsStr})\n\`\`\``;
+            message.rawContent += contentToAppend;
+            message.content += contentToAppend;
+            message.functionName = name;
+            message.functionCall = { name: name, args: args };
+            message.pendingMcpTool = name;
+            message.pendingMcpArgs = args;
+            message.functionPending = true;
+        } else if (root.execMode !== "safe" || McpClient.isToolAutoApproved(name)) {
             executeMcpTool(name, args);
         } else {
             // Show the tool call in the message content (like shell commands do)

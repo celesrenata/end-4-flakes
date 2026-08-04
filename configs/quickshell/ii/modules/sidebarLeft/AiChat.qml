@@ -127,7 +127,7 @@ Item {
             // If layout is ready, snap immediately; otherwise flag for onContentHeightChanged
             if (messageListView.height > 0 && messageListView.contentHeight > 0) {
                 scrollBehavior.enabled = false
-                messageListView.contentY = 0
+                messageListView.contentY = messageListView.originY
                 scrollBehavior.enabled = true
             } else {
                 root._needsInitialScroll = true
@@ -572,7 +572,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         function onSessionSwitchCompleted() {
             // Snap to bottom immediately without animation
             scrollBehavior.enabled = false
-            messageListView.contentY = 0
+            messageListView.contentY = messageListView.originY
             scrollBehavior.enabled = true
         }
     }
@@ -1864,16 +1864,34 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
                 // Scroll-position guards (BottomToTop: contentY=0 is at bottom)
                 readonly property real scrollThreshold: 10
-                readonly property bool isNearBottom: contentY <= scrollThreshold
+                readonly property bool isNearBottom: contentY <= originY + scrollThreshold
                 property bool userScrolling: false
                 property bool _shouldStickToBottom: true
+
+                // Snap to bottom immediately when model count changes (new messages added)
+                onCountChanged: {
+                    if (messageListView._shouldStickToBottom && !messageListView.userScrolling && !messageListView._userScrolledAway) {
+                        scrollBehavior.enabled = false
+                        messageListView.contentY = messageListView.originY
+                        scrollBehavior.enabled = true
+                    }
+                }
+
+                // Prevent contentY from drifting when we should be pinned to bottom
+                onContentYChanged: {
+                    if (messageListView._shouldStickToBottom && !messageListView.userScrolling && !messageListView._userScrolledAway && contentY > originY + scrollThreshold) {
+                        scrollBehavior.enabled = false
+                        contentY = originY
+                        scrollBehavior.enabled = true
+                    }
+                }
 
                 // Snap to bottom when content first loads after becoming visible
                 onContentHeightChanged: {
                     if (root._needsInitialScroll && height > 0 && contentHeight > 0) {
                         root._needsInitialScroll = false
                         scrollBehavior.enabled = false
-                        positionViewAtBeginning()
+                        contentY = originY
                         scrollBehavior.enabled = true
                     }
                     // No auto-scroll on height changes — only on new messages
@@ -1881,12 +1899,12 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
                 Timer {
                     id: scrollDebounce
-                    interval: 150
+                    interval: 0
                     repeat: false
                     onTriggered: {
                         if (messageListView._shouldStickToBottom && !messageListView.userScrolling && !messageListView._userScrolledAway) {
                             scrollBehavior.enabled = false
-                            messageListView.contentY = 0
+                            messageListView.contentY = messageListView.originY
                             scrollBehavior.enabled = true
                         }
                     }
@@ -1937,16 +1955,6 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         return Ai.messageIDs.filter(id => {
                             const message = Ai.messageByID[id];
                             if (!(message?.visibleToUser ?? true)) return false;
-                            // Hide finished assistant messages with no visible content
-                            // BUT keep messages that dispatched a function call
-                            if (message?.role === "assistant" && message?.done === true && !message?.functionCall) {
-                                const raw = (message?.rawContent ?? "").trim();
-                                if (raw.length === 0) return false;
-                                const visible = raw.replace(/<think>[\s\S]*?<\/think>/g, "")
-                                                   .replace(/<think>[\s\S]*$/, "")
-                                                   .trim();
-                                if (visible.length === 0) return false;
-                            }
                             return true;
                         }).slice().reverse();
                     }
