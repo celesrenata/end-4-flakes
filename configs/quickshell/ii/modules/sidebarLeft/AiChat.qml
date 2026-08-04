@@ -116,7 +116,7 @@ Item {
         }
     }
 
-    property bool _needsInitialScroll: false
+    property bool _needsInitialScroll: true
 
     onVisibleChanged: {
         if (visible) {
@@ -127,13 +127,12 @@ Item {
             // Reset scroll state when opening the panel
             messageListView._userScrolledAway = false
             messageListView._shouldStickToBottom = true
-            // If layout is ready, snap immediately; otherwise flag for onContentHeightChanged
+            root._needsInitialScroll = true
+            // If layout is ready, snap immediately; otherwise onContentHeightChanged/onHeightChanged handles it
             if (messageListView.height > 0 && messageListView.contentHeight > 0) {
                 scrollBehavior.enabled = false
-                messageListView.contentY = messageListView.originY
+                messageListView.positionViewAtBeginning()
                 scrollBehavior.enabled = true
-            } else {
-                root._needsInitialScroll = true
             }
         }
     }
@@ -575,7 +574,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         function onSessionSwitchCompleted() {
             // Snap to bottom immediately without animation
             scrollBehavior.enabled = false
-            messageListView.contentY = messageListView.originY
+            messageListView.positionViewAtBeginning()
             scrollBehavior.enabled = true
             // Reset scroll state for the new session
             messageListView._userScrolledAway = false
@@ -592,7 +591,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
         onTriggered: {
             if (messageListView.contentHeight > 0) {
                 scrollBehavior.enabled = false
-                messageListView.contentY = messageListView.originY
+                messageListView.positionViewAtBeginning()
                 scrollBehavior.enabled = true
             }
         }
@@ -1961,13 +1960,25 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     // Auto-scroll during streaming is handled by onContentHeightChanged and onCountChanged
                 }
 
+                // Snap to bottom when list gets its real height (sidebar opens)
+                onHeightChanged: {
+                    if (root._needsInitialScroll && height > 0 && contentHeight > 0) {
+                        scrollBehavior.enabled = false
+                        positionViewAtBeginning()
+                        scrollBehavior.enabled = true
+                        initialScrollStabilizer.restart()
+                    }
+                }
+
                 // Snap to bottom when content first loads after becoming visible
                 onContentHeightChanged: {
                     if (root._needsInitialScroll && height > 0 && contentHeight > 0) {
-                        root._needsInitialScroll = false
+                        // Keep snapping to bottom while initial load is in progress
                         scrollBehavior.enabled = false
-                        contentY = originY
+                        positionViewAtBeginning()
                         scrollBehavior.enabled = true
+                        // Use a timer to detect when content has stabilized
+                        initialScrollStabilizer.restart()
                     }
                     // Keep pinned to bottom during streaming — but only if contentY
                     // has actually drifted away (not just a height change from expand/collapse)
@@ -1988,6 +1999,21 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             messageListView.contentY = messageListView.originY
                             scrollBehavior.enabled = true
                         }
+                    }
+                }
+
+                // Timer to detect when initial content has finished loading
+                // If no new contentHeightChanged fires within 100ms, initial load is done
+                Timer {
+                    id: initialScrollStabilizer
+                    interval: 200
+                    repeat: false
+                    onTriggered: {
+                        root._needsInitialScroll = false
+                        scrollBehavior.enabled = false
+                        // positionViewAtBeginning in BottomToTop = newest messages (index 0)
+                        messageListView.positionViewAtBeginning()
+                        scrollBehavior.enabled = true
                     }
                 }
 
