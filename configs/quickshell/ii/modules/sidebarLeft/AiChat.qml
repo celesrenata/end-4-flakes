@@ -1830,7 +1830,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 spacing: 10
                 popin: false
                 verticalLayoutDirection: ListView.BottomToTop
-                cacheBuffer: 10000 // Keep delegates alive offscreen to prevent height shifts
+                cacheBuffer: 50000 // Keep all delegates alive to prevent height shifts
 
                 // Override scrollbar — always visible when content overflows
                 ScrollBar.vertical: ScrollBar {
