@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import Quickshell
 import Quickshell.Io
 import QtQuick
+import "SseEventParser.mjs" as SseParser
 
 /**
  * McpServerBridge — per-server stdio JSON-RPC 2.0 communication bridge.
@@ -26,6 +27,7 @@ Item {
     property int timeout: 30000           // Per-request timeout (ms), default 30s
     property string transport: "stdio"    // "stdio" or "http"
     property string httpEndpoint: ""      // For HTTP transport
+    property bool disabled: false          // When true, no network activity is initiated
 
     // State
     property string state: "disconnected" // disconnected, connecting, connected, error
@@ -47,6 +49,57 @@ Item {
 
     // Internal pending count
     property int _pendingCount: 0
+
+    // Internal: state change tracking for recovery logic
+    property string _previousState: "disconnected"
+    onStateChanged: {
+        if (bridge.state === "connected" && bridge._previousState === "error") {
+            bridge._handleErrorToConnected();
+        }
+        bridge._previousState = bridge.state;
+    }
+
+    // ──────────────────────────────────────────────
+    // SSE Transport State
+    // ──────────────────────────────────────────────
+
+    // Session management
+    property string sessionId: ""              // Stored Mcp-Session-Id
+    property bool sseSupported: false          // Whether server supports SSE
+    property bool nonSseMarked: false          // Marked non-SSE after 400/405
+
+    // Streaming process management
+    property int activeProcessCount: 0         // Current active curl processes
+    property var requestQueue: []              // Pending requests when at capacity
+    property var pushChannelProcess: null      // Reference to push channel Process
+    property bool pushChannelActive: false     // Whether push channel is running
+
+    // Reconnection state
+    property int reconnectAttempts: 0          // Push channel reconnect counter
+    property int reconnectInterval: 1000       // Current backoff interval (ms)
+
+    // Streaming accumulator
+    property var streamingAccumulator: ({})    // requestId → accumulated data
+
+    // Internal: active streaming request states (keyed by request id)
+    property var _streamingStates: ({})
+
+    // Internal: push channel state (header/body state machine + SSE parser)
+    property var _pushChannelState: null
+    property var _pushIdleTimer: null
+
+    // SSE signals
+    signal streamingContent(int requestId, string content)
+    signal progressNotification(string token, real current, real total)
+    signal pushChannelDisconnected()
+
+    // SSE constants
+    readonly property int _maxConcurrentProcesses: 2   // Max curl processes per server
+    readonly property int _maxQueueSize: 10            // Max queued requests
+    readonly property int _inactivityTimeout: 120000   // 120s no-data timeout
+    readonly property int _idleDisconnectTimeout: 60000 // 60s idle → close push channel
+    readonly property int _pushReconnectMax: 10        // Max reconnect attempts
+    readonly property int _pushReconnectCap: 30000     // Max backoff interval (ms)
 
     // ──────────────────────────────────────────────
     // Process (stdio transport)
@@ -123,6 +176,10 @@ Item {
      * Returns an object with { then(cb), catch(cb) } for Promise-like usage.
      */
     function spawn() {
+        if (bridge.disabled) {
+            return bridge._makeResolved({ disabled: true });
+        }
+
         if (bridge.state === "connecting" || bridge.state === "connected") {
             return bridge._makeResolved({ already: true });
         }
@@ -143,6 +200,10 @@ Item {
      *   initialize → notifications/initialized → tools/list
      */
     function _spawnHttp() {
+        if (bridge.disabled) {
+            return bridge._makeResolved({ disabled: true });
+        }
+
         bridge.state = "connecting";
         bridge.lastError = "";
         bridge.nextRequestId = 1;
@@ -157,6 +218,15 @@ Item {
             bridge.state = "connected";
             bridge._resetIdleTimer();
             bridge._parseToolsResponse(response);
+            // Mark SSE support if session was established
+            if (bridge.sessionId) {
+                bridge.sseSupported = true;
+            }
+            bridge.nonSseMarked = false;
+            // Open push channel for SSE-capable servers
+            if (bridge.sseSupported) {
+                bridge._openPushChannel();
+            }
             result._resolve(response);
         });
 
@@ -203,12 +273,30 @@ Item {
                     bridge.state = "connected";
                     bridge._resetIdleTimer();
                     bridge._parseToolsResponse(response);
+                    // Mark SSE support if session was established
+                    if (bridge.sessionId) {
+                        bridge.sseSupported = true;
+                    }
+                    bridge.nonSseMarked = false;
+                    // Open push channel for SSE-capable servers
+                    if (bridge.sseSupported) {
+                        bridge._openPushChannel();
+                    }
                     result._resolve(response);
                 });
                 toolsPromise.catch(toolsErr => {
                     // Connected but tools/list failed — still mark connected
                     bridge.state = "connected";
                     bridge._resetIdleTimer();
+                    // Mark SSE support if session was established
+                    if (bridge.sessionId) {
+                        bridge.sseSupported = true;
+                    }
+                    bridge.nonSseMarked = false;
+                    // Open push channel for SSE-capable servers
+                    if (bridge.sseSupported) {
+                        bridge._openPushChannel();
+                    }
                     result._resolve(initResponse);
                 });
             });
@@ -324,6 +412,27 @@ Item {
      * shutdown() — Graceful SIGTERM, force-kill after 5s fallback.
      */
     function shutdown() {
+        // Close push channel first (SSE transport)
+        if (bridge.pushChannelActive) {
+            bridge._closePushChannel();
+        }
+
+        // Send session DELETE (fire-and-forget, SSE transport)
+        if (bridge.sessionId && bridge.httpEndpoint) {
+            bridge._sendSessionDelete();
+        }
+
+        // Reset SSE state
+        bridge.sseSupported = false;
+        bridge.nonSseMarked = false;
+        bridge.reconnectAttempts = 0;
+        bridge.reconnectInterval = 1000;
+        bridge.streamingAccumulator = {};
+        bridge._streamingStates = {};
+        bridge.activeProcessCount = 0;
+        bridge.requestQueue = [];
+
+        // For HTTP-only servers (no stdio process), just transition to disconnected
         if (!serverProc.running) {
             bridge.state = "disconnected";
             return;
@@ -346,8 +455,19 @@ Item {
      * Returns a Promise-like object { then(cb), catch(cb) }.
      */
     function sendRequest(method, params, customTimeout) {
-        // For HTTP transport, use HTTP path
+        // For HTTP transport with SSE support: use streaming path with retry
         if (bridge.transport === "http" && bridge.httpEndpoint && bridge.state === "connected") {
+            if (bridge.sseSupported && !bridge.nonSseMarked) {
+                // Check process slot capacity
+                if (bridge.activeProcessCount >= bridge._maxConcurrentProcesses) {
+                    const result = bridge._makePromise();
+                    bridge._enqueueRequest(method, params, customTimeout || bridge.timeout, result);
+                    return result;
+                }
+                // Use streaming path with retry for network errors
+                return bridge._sendWithRetry(method, params, customTimeout);
+            }
+            // Non-SSE server: use existing one-shot curl
             return bridge._sendHttpRequest(method, params, customTimeout);
         }
 
@@ -460,6 +580,260 @@ Item {
         proc.running = true;
 
         // Update activity
+        bridge._resetIdleTimer();
+
+        return result;
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Streaming HTTP request (SSE-aware)
+    // ──────────────────────────────────────────────
+
+    /**
+     * _handleStreamingLineById(requestId, line) — Dispatch a stdout line to the
+     * correct streaming request state. Called from dynamically-created Process objects
+     * whose SplitParser onRead handlers cannot close over local variables.
+     */
+    function _handleStreamingLineById(requestId, line) {
+        const state = bridge._streamingStates[requestId];
+        if (!state || state.completed) return;
+
+        // Reset inactivity timer on any received data
+        if (state.inactivityTimer) {
+            state.inactivityTimer.restart();
+        }
+
+        if (state.context.inHeaders) {
+            bridge._parseResponseHeaderLine(line, state.context);
+            return;
+        }
+
+        // Body phase — route based on Content-Type
+        if (state.context.contentType === "text/event-stream") {
+            state.sseParser.feedLine(line);
+        } else {
+            // JSON accumulation mode
+            state.jsonBuffer += line + "\n";
+        }
+    }
+
+    /**
+     * _sendStreamingHttpRequest(method, params, customTimeout) — SSE-aware HTTP POST.
+     *
+     * Creates a persistent Process with SplitParser for streaming curl output.
+     * Handles both text/event-stream (SSE) and application/json responses.
+     * Emits streamingContent signals for intermediate tool call data.
+     * Returns a Promise-like object { then(cb), catch(cb) }.
+     */
+    function _sendStreamingHttpRequest(method, params, customTimeout) {
+        if (bridge.disabled) {
+            const result = bridge._makePromise();
+            result._reject("Server is disabled");
+            return result;
+        }
+
+        const result = bridge._makePromise();
+        const timeoutMs = customTimeout || bridge.timeout;
+
+        const id = bridge.nextRequestId;
+        bridge.nextRequestId += 1;
+
+        const requestBody = JSON.stringify({
+            jsonrpc: "2.0",
+            id: id,
+            method: method,
+            params: params || {}
+        });
+
+        // Build curl command as array: -N (no-buffer), -i (include headers),
+        // --connect-timeout 10, --max-time 0 (no max for streaming)
+        const cmd = ["curl", "-N", "-i", "--connect-timeout", "10", "--max-time", "0",
+                     "-X", "POST", bridge.httpEndpoint,
+                     ...bridge._buildCurlHeaders(),
+                     "-d", requestBody];
+
+        // State tracking for this streaming request
+        const state = {
+            completed: false,
+            context: { inHeaders: true, contentType: "", httpStatus: 0 },
+            jsonBuffer: "",
+            sseParser: SseParser.createParser(),
+            accumulatedContent: [],
+            isToolCall: (method === "tools/call"),
+            proc: null,
+            inactivityTimer: null
+        };
+
+        // Set up SSE parser event handler
+        state.sseParser.onEvent = (event) => {
+            if (state.completed) return;
+
+            // Reset inactivity timer on event
+            if (state.inactivityTimer) {
+                state.inactivityTimer.restart();
+            }
+
+            const data = event.data;
+
+            // Check if it's a JSON-RPC response (final answer)
+            if (data && typeof data === "object" && data.jsonrpc === "2.0" && data.id !== undefined) {
+                state.completed = true;
+                bridge.activeProcessCount -= 1;
+                bridge._processQueue();
+
+                if (state.inactivityTimer) {
+                    state.inactivityTimer.running = false;
+                    state.inactivityTimer.destroy();
+                    state.inactivityTimer = null;
+                }
+                if (state.proc) {
+                    state.proc.running = false;
+                    state.proc.destroy();
+                    state.proc = null;
+                }
+
+                // Clean up streaming state
+                delete bridge._streamingStates[id];
+                delete bridge.streamingAccumulator[id];
+
+                if (data.error) {
+                    result._reject(data.error.message || JSON.stringify(data.error));
+                } else {
+                    result._resolve(data.result);
+                }
+                return;
+            }
+
+            // Intermediate streaming content
+            const content = typeof data === "string" ? data : JSON.stringify(data);
+            state.accumulatedContent.push(content);
+            bridge.streamingAccumulator[id] = state.accumulatedContent;
+
+            if (state.isToolCall) {
+                bridge.streamingContent(id, content);
+            }
+        };
+
+        // Store state on bridge for the dynamic process handler to access
+        bridge._streamingStates[id] = state;
+
+        // Increment process count
+        bridge.activeProcessCount += 1;
+
+        // Create the streaming Process with SplitParser
+        const proc = Qt.createQmlObject(`
+            import Quickshell;
+            import Quickshell.Io;
+            Process {
+                property int requestId: ${id}
+                running: false
+                stdout: SplitParser {
+                    onRead: data => { bridge._handleStreamingLineById(${id}, data); }
+                }
+                stderr: SplitParser {
+                    onRead: data => {}
+                }
+            }
+        `, bridge, "streamingProc_" + id);
+
+        proc.command = cmd;
+        state.proc = proc;
+
+        // Create inactivity timer (120s no-data timeout)
+        const inactivityTimer = Qt.createQmlObject(`
+            import QtQuick;
+            Timer {
+                interval: ${bridge._inactivityTimeout}
+                repeat: false
+                running: true
+            }
+        `, bridge, "inactivityTimer_" + id);
+
+        state.inactivityTimer = inactivityTimer;
+
+        inactivityTimer.triggered.connect(() => {
+            if (state.completed) return;
+            state.completed = true;
+            bridge.activeProcessCount -= 1;
+            bridge._processQueue();
+
+            // Clean up
+            delete bridge._streamingStates[id];
+            delete bridge.streamingAccumulator[id];
+
+            if (state.proc) {
+                state.proc.signal(15); // SIGTERM
+                state.proc.destroy();
+                state.proc = null;
+            }
+            inactivityTimer.destroy();
+            state.inactivityTimer = null;
+
+            result._reject(`Inactivity timeout (${bridge._inactivityTimeout / 1000}s no data) — method: ${method}`);
+        });
+
+        proc.exited.connect((exitCode, exitStatus) => {
+            if (state.completed) return;
+            state.completed = true;
+            bridge.activeProcessCount -= 1;
+            bridge._processQueue();
+
+            // Stop inactivity timer
+            if (state.inactivityTimer) {
+                state.inactivityTimer.running = false;
+                state.inactivityTimer.destroy();
+                state.inactivityTimer = null;
+            }
+
+            // Clean up state
+            delete bridge._streamingStates[id];
+            delete bridge.streamingAccumulator[id];
+
+            if (exitCode !== 0) {
+                if (state.proc) {
+                    state.proc.destroy();
+                    state.proc = null;
+                }
+                result._reject(`Streaming HTTP request failed (exit code: ${exitCode}, method: ${method})`);
+                return;
+            }
+
+            // Exit code 0 — resolve with what we have
+            if (state.context.contentType === "text/event-stream") {
+                // SSE mode: finalize parser, resolve with accumulated content
+                state.sseParser.end();
+                const accumulated = state.accumulatedContent.join("\n");
+                if (state.proc) {
+                    state.proc.destroy();
+                    state.proc = null;
+                }
+                result._resolve(accumulated || null);
+            } else {
+                // JSON mode: parse accumulated buffer
+                if (state.proc) {
+                    state.proc.destroy();
+                    state.proc = null;
+                }
+                const response = state.jsonBuffer.trim();
+                if (!response) {
+                    result._reject(`Empty response from server (method: ${method})`);
+                    return;
+                }
+                try {
+                    const parsed = JSON.parse(response);
+                    if (parsed.error) {
+                        result._reject(parsed.error.message || JSON.stringify(parsed.error));
+                    } else {
+                        result._resolve(parsed.result !== undefined ? parsed.result : parsed);
+                    }
+                } catch (e) {
+                    result._reject(`Response parse error: ${e} (method: ${method})`);
+                }
+            }
+        });
+
+        // Start the process
+        proc.running = true;
         bridge._resetIdleTimer();
 
         return result;
@@ -751,6 +1125,69 @@ Item {
     }
 
     // ──────────────────────────────────────────────
+    // Internal: build curl headers including session ID
+    // ──────────────────────────────────────────────
+
+    /**
+     * _buildCurlHeaders() — Build curl -H arguments including session ID.
+     * Returns array of ["-H", "Header: value", ...] pairs.
+     */
+    function _buildCurlHeaders() {
+        const headers = [
+            "-H", "Content-Type: application/json",
+            "-H", "Accept: text/event-stream, application/json"
+        ];
+        if (bridge.sessionId) {
+            headers.push("-H", `Mcp-Session-Id: ${bridge.sessionId}`);
+        }
+        return headers;
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: parse response header line from curl -i output
+    // ──────────────────────────────────────────────
+
+    /**
+     * _parseResponseHeaderLine(line, context) — Parse a single header line from curl -i output.
+     * context: { inHeaders: true, contentType: "", httpStatus: 0 }
+     * Returns true if still in header phase, false when blank line signals body start.
+     */
+    function _parseResponseHeaderLine(line, context) {
+        // Blank line signals end of headers
+        if (line === "" || line === "\r") {
+            context.inHeaders = false;
+            return false;
+        }
+
+        // HTTP status line (e.g., "HTTP/1.1 200 OK" or "HTTP/2 200")
+        if (line.startsWith("HTTP/")) {
+            const parts = line.split(" ");
+            if (parts.length >= 2) {
+                context.httpStatus = parseInt(parts[1], 10) || 0;
+            }
+            return true;
+        }
+
+        // Header line: "Name: Value"
+        const colonIdx = line.indexOf(":");
+        if (colonIdx === -1) return true;
+
+        const name = line.substring(0, colonIdx).trim().toLowerCase();
+        const value = line.substring(colonIdx + 1).trim();
+
+        switch (name) {
+            case "content-type":
+                context.contentType = value.split(";")[0].trim().toLowerCase();
+                break;
+            case "mcp-session-id":
+                bridge.sessionId = value;
+                break;
+        }
+
+        return true;
+    }
+
+    // ──────────────────────────────────────────────
     // Internal: shell escaping for HTTP curl commands
     // ──────────────────────────────────────────────
 
@@ -760,8 +1197,351 @@ Item {
     }
 
     // ──────────────────────────────────────────────
-    // Public: Switch transport from HTTP to stdio (fallback)
+    // Internal: Process slot limiting and request queue
     // ──────────────────────────────────────────────
+
+    /**
+     * _enqueueRequest(method, params, timeout, promise) — Queue a request when at process capacity.
+     * Returns true if queued, false if queue is full (promise will be rejected).
+     */
+    function _enqueueRequest(method, params, timeout, promise) {
+        if (bridge.requestQueue.length >= bridge._maxQueueSize) {
+            promise._reject(`Request queue full (${bridge._maxQueueSize} pending) — server: ${bridge.serverName}, method: ${method}`);
+            return false;
+        }
+
+        let queue = bridge.requestQueue.slice(); // copy for reactivity
+        queue.push({
+            method: method,
+            params: params,
+            timeout: timeout,
+            promise: promise
+        });
+        bridge.requestQueue = queue;
+        return true;
+    }
+
+    /**
+     * _processQueue() — Dequeue and send the next request when a process slot frees.
+     */
+    function _processQueue() {
+        if (bridge.requestQueue.length === 0) return;
+        if (bridge.activeProcessCount >= bridge._maxConcurrentProcesses) return;
+
+        let queue = bridge.requestQueue.slice();
+        const entry = queue.shift();
+        bridge.requestQueue = queue;
+
+        // Send the dequeued request through the streaming path
+        const innerPromise = bridge._sendStreamingHttpRequest(entry.method, entry.params, entry.timeout);
+
+        innerPromise.then(result => {
+            entry.promise._resolve(result);
+        });
+
+        innerPromise.catch(err => {
+            entry.promise._reject(err);
+        });
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Push channel notification handler
+    // ──────────────────────────────────────────────
+
+    /**
+     * _handlePushChannelEvent(notification) — Handle a server-initiated JSON-RPC notification.
+     * Dispatches to the appropriate handler based on method name.
+     */
+    function _handlePushChannelEvent(notification) {
+        const method = notification.method;
+        const params = notification.params || {};
+
+        switch (method) {
+            case "notifications/tools/list_changed":
+                console.log(`[MCP:${bridge.serverName}] Tools list changed, re-discovering`);
+                bridge.discoverTools();
+                break;
+
+            case "notifications/progress":
+                const token = String(params.progressToken || "");
+                const current = Number(params.progress) || 0;
+                const total = (params.total !== undefined && params.total !== null)
+                    ? Number(params.total)
+                    : -1;
+                bridge.progressNotification(token, current, total);
+                break;
+
+            default:
+                console.log(`[MCP:${bridge.serverName}] Unhandled push notification: ${method}`);
+                break;
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Server Push Channel (GET SSE stream)
+    // ──────────────────────────────────────────────
+
+    /**
+     * _openPushChannel() — Open persistent GET SSE stream for server-initiated notifications.
+     * Uses a long-lived curl process with SplitParser for incremental delivery.
+     */
+    function _openPushChannel() {
+        if (bridge.pushChannelActive) return;
+        if (!bridge.httpEndpoint) return;
+        if (!bridge.sseSupported) return;
+        if (bridge.disabled) return;
+
+        bridge.pushChannelActive = true;
+        bridge.reconnectAttempts = 0;
+        bridge.reconnectInterval = 1000;
+
+        // Build GET command with SSE accept header and session ID
+        const headers = ["-H", "Accept: text/event-stream"];
+        if (bridge.sessionId) {
+            headers.push("-H", `Mcp-Session-Id: ${bridge.sessionId}`);
+        }
+
+        const cmd = ["curl", "-N", "-i", "--connect-timeout", "10", "--max-time", "0",
+                     "-X", "GET", bridge.httpEndpoint, ...headers];
+
+        // Push channel state machine
+        const state = {
+            context: { inHeaders: true, contentType: "", httpStatus: 0 },
+            sseParser: SseParser.createParser()
+        };
+
+        // Set up SSE parser event handler for push channel events
+        state.sseParser.onEvent = (event) => {
+            const data = event.data;
+
+            // Validate as JSON-RPC notification (has method, no id)
+            if (data && typeof data === "object" && data.jsonrpc === "2.0" && data.method) {
+                bridge._handlePushChannelEvent(data);
+            } else if (data && typeof data === "object" && data.method) {
+                // Relaxed check — still try to handle
+                bridge._handlePushChannelEvent(data);
+            } else {
+                // Not a valid JSON-RPC notification — discard with warning
+                console.warn(`[MCP:${bridge.serverName}] Push channel: discarding unparseable event`);
+            }
+        };
+
+        // Create persistent Process for push channel
+        const proc = Qt.createQmlObject(`
+            import Quickshell;
+            import Quickshell.Io;
+            Process {
+                running: false
+                stdout: SplitParser {
+                    onRead: data => { bridge._handlePushChannelLine(data); }
+                }
+                stderr: SplitParser {
+                    onRead: data => {}
+                }
+            }
+        `, bridge, "pushChannelProc");
+
+        proc.command = cmd;
+        bridge.pushChannelProcess = proc;
+
+        // Store the state for the line handler to access
+        bridge._pushChannelState = state;
+
+        proc.exited.connect((exitCode, exitStatus) => {
+            bridge.pushChannelActive = false;
+            bridge.pushChannelProcess = null;
+            bridge._pushChannelState = null;
+            proc.destroy();
+
+            if (bridge.state === "connected") {
+                console.warn(`[MCP:${bridge.serverName}] Push channel disconnected (exit: ${exitCode})`);
+                bridge._attemptPushChannelReconnect();
+            }
+        });
+
+        proc.running = true;
+        bridge.activeProcessCount += 1;
+    }
+
+    /**
+     * _handlePushChannelLine(line) — Process a line from the push channel stdout.
+     * Routes through header/body state machine then to SseEventParser.
+     */
+    function _handlePushChannelLine(line) {
+        const state = bridge._pushChannelState;
+        if (!state) return;
+
+        if (state.context.inHeaders) {
+            bridge._parseResponseHeaderLine(line, state.context);
+            return;
+        }
+
+        // Body phase — feed to SSE parser
+        state.sseParser.feedLine(line);
+    }
+
+    /**
+     * _closePushChannel() — Terminate the push channel process and clean up state.
+     */
+    function _closePushChannel() {
+        if (!bridge.pushChannelActive && !bridge.pushChannelProcess) return;
+
+        bridge.pushChannelActive = false;
+
+        if (bridge.pushChannelProcess) {
+            bridge.pushChannelProcess.signal(15); // SIGTERM
+            bridge.pushChannelProcess.destroy();
+            bridge.pushChannelProcess = null;
+            bridge.activeProcessCount -= 1;
+        }
+
+        bridge._pushChannelState = null;
+
+        // Stop idle disconnect timer if running
+        if (bridge._pushIdleTimer) {
+            bridge._pushIdleTimer.running = false;
+            bridge._pushIdleTimer.destroy();
+            bridge._pushIdleTimer = null;
+        }
+    }
+
+    /**
+     * _resetPushIdleTimer() — Reset the 60s idle timer for the push channel.
+     * If no requests are pending for 60s, close the push channel.
+     */
+    function _resetPushIdleTimer() {
+        if (!bridge.pushChannelActive) return;
+
+        if (bridge._pushIdleTimer) {
+            bridge._pushIdleTimer.restart();
+            return;
+        }
+
+        bridge._pushIdleTimer = Qt.createQmlObject(`
+            import QtQuick;
+            Timer {
+                interval: ${bridge._idleDisconnectTimeout}
+                repeat: false
+                running: true
+            }
+        `, bridge, "pushIdleTimer");
+
+        bridge._pushIdleTimer.triggered.connect(() => {
+            if (bridge._pendingCount === 0 && bridge.pushChannelActive) {
+                console.log(`[MCP:${bridge.serverName}] Push channel idle timeout (${bridge._idleDisconnectTimeout / 1000}s), closing`);
+                bridge._closePushChannel();
+            }
+        });
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Push channel reconnection with exponential backoff
+    // ──────────────────────────────────────────────
+
+    /**
+     * _attemptPushChannelReconnect() — Reconnect push channel with exponential backoff.
+     * Formula: min(2^(N-1) * 1000, 30000) ms, max 10 attempts.
+     */
+    function _attemptPushChannelReconnect() {
+        if (bridge.disabled) return;
+
+        bridge.reconnectAttempts += 1;
+
+        if (bridge.reconnectAttempts > bridge._pushReconnectMax) {
+            console.warn(`[MCP:${bridge.serverName}] Push channel reconnect failed after ${bridge._pushReconnectMax} attempts`);
+            bridge.state = "disconnected";
+            bridge.pushChannelDisconnected();
+            return;
+        }
+
+        // Calculate backoff interval: min(2^(N-1) * 1000, 30000)
+        const interval = Math.min(Math.pow(2, bridge.reconnectAttempts - 1) * 1000, bridge._pushReconnectCap);
+        bridge.reconnectInterval = interval;
+
+        console.log(`[MCP:${bridge.serverName}] Push channel reconnect attempt ${bridge.reconnectAttempts}/${bridge._pushReconnectMax} in ${interval}ms`);
+
+        // Schedule reconnect
+        const reconnectTimer = Qt.createQmlObject(`
+            import QtQuick;
+            Timer {
+                interval: ${interval}
+                repeat: false
+                running: true
+            }
+        `, bridge, "pushReconnectTimer");
+
+        reconnectTimer.triggered.connect(() => {
+            reconnectTimer.destroy();
+            // Only attempt if we're still in connected state and push is not active
+            if (bridge.state === "connected" && !bridge.pushChannelActive) {
+                bridge._openPushChannel();
+            }
+        });
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Quick reconnect (Req 8.2 — unexpected disconnect recovery)
+    // ──────────────────────────────────────────────
+
+    /**
+     * _attemptQuickReconnect() — Quick reconnect: 3 attempts at 5s intervals.
+     * Used for unexpected disconnects during active operation (Req 8.2).
+     * On failure: transition to error state with warning log.
+     */
+    function _attemptQuickReconnect() {
+        if (bridge.disabled) return;
+
+        const maxAttempts = 3;
+        const interval = 5000;
+        let attempts = 0;
+
+        function tryReconnect() {
+            attempts += 1;
+
+            if (attempts > maxAttempts) {
+                console.warn(`[MCP:${bridge.serverName}] Push channel reconnect failed after ${maxAttempts} attempts at 5s intervals`);
+                bridge.state = "error";
+                bridge.lastError = `Push channel reconnect failed (${maxAttempts} attempts)`;
+                bridge.pushChannelDisconnected();
+                return;
+            }
+
+            console.log(`[MCP:${bridge.serverName}] Quick reconnect attempt ${attempts}/${maxAttempts} in ${interval}ms`);
+
+            const timer = Qt.createQmlObject(`
+                import QtQuick;
+                Timer {
+                    interval: ${interval}
+                    repeat: false
+                    running: true
+                }
+            `, bridge, "quickReconnectTimer");
+
+            timer.triggered.connect(() => {
+                timer.destroy();
+
+                // Abort if state changed while waiting
+                if (bridge.state === "disconnected" || bridge.state === "error") {
+                    return;
+                }
+
+                // Already reconnected by another path
+                if (bridge.pushChannelActive) {
+                    return;
+                }
+
+                // Attempt to reopen push channel
+                bridge._openPushChannel();
+
+                // If push channel failed to activate, schedule next attempt
+                if (!bridge.pushChannelActive) {
+                    tryReconnect();
+                }
+            });
+        }
+
+        tryReconnect();
+    }
 
     /**
      * switchToStdio() — Switch this bridge from HTTP to stdio transport.
@@ -771,6 +1551,278 @@ Item {
         bridge.transport = "stdio";
         bridge.state = "disconnected";
         bridge.lastError = "";
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Tool call retry logic
+    // ──────────────────────────────────────────────
+
+    /**
+     * _sendWithRetry(method, params, customTimeout) — Send streaming HTTP request with 1 retry.
+     * On network error (connection refused, DNS failure, timeout): wait 2s, retry once.
+     * On second failure: reject with the failure reason.
+     */
+    function _sendWithRetry(method, params, customTimeout) {
+        const result = bridge._makePromise();
+
+        const firstAttempt = bridge._sendStreamingHttpRequest(method, params, customTimeout);
+
+        firstAttempt.then(response => {
+            result._resolve(response);
+        });
+
+        firstAttempt.catch(err => {
+            const errStr = String(err).toLowerCase();
+
+            // Check if it's a retriable network error
+            const isNetworkError = errStr.indexOf("connection refused") !== -1 ||
+                                   errStr.indexOf("dns") !== -1 ||
+                                   errStr.indexOf("could not resolve") !== -1 ||
+                                   errStr.indexOf("timeout") !== -1 ||
+                                   errStr.indexOf("exit code: 6") !== -1 ||   // curl: couldn't resolve host
+                                   errStr.indexOf("exit code: 7") !== -1 ||   // curl: connection refused
+                                   errStr.indexOf("exit code: 28") !== -1;    // curl: timeout
+
+            if (!isNetworkError) {
+                result._reject(err);
+                return;
+            }
+
+            console.log(`[MCP:${bridge.serverName}] Network error, retrying in 2s: ${err}`);
+
+            // Wait 2s, then retry once
+            const retryTimer = Qt.createQmlObject(`
+                import QtQuick;
+                Timer {
+                    interval: 2000
+                    repeat: false
+                    running: true
+                }
+            `, bridge, "retryTimer");
+
+            retryTimer.triggered.connect(() => {
+                retryTimer.destroy();
+
+                const retryAttempt = bridge._sendStreamingHttpRequest(method, params, customTimeout);
+
+                retryAttempt.then(response => {
+                    result._resolve(response);
+                });
+
+                retryAttempt.catch(retryErr => {
+                    result._reject(`Retry failed: ${retryErr} (original: ${err})`);
+                });
+            });
+        });
+
+        return result;
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Session invalidation and re-handshake on HTTP 404
+    // ──────────────────────────────────────────────
+
+    /**
+     * _handleSessionInvalidation(method, params, customTimeout) — Handle HTTP 404.
+     * Clears session, re-handshakes, then retries the original request once.
+     * On double-404: marks server unreachable.
+     */
+    function _handleSessionInvalidation(method, params, customTimeout) {
+        const result = bridge._makePromise();
+
+        console.warn(`[MCP:${bridge.serverName}] Session invalidated (404), re-handshaking`);
+
+        // Clear session
+        bridge.sessionId = "";
+        bridge.sseSupported = false;
+
+        // Re-handshake
+        const initPromise = bridge._sendStreamingHttpRequest("initialize", {
+            protocolVersion: "2024-11-05",
+            capabilities: {},
+            clientInfo: { name: "ii-sidebar", version: "1.0.0" }
+        }, bridge._initTimeout);
+
+        initPromise.then(initResponse => {
+            // Send initialized notification
+            bridge._sendStreamingHttpRequest("notifications/initialized", {}, 3000);
+
+            // Small delay then retry original request
+            const delayTimer = Qt.createQmlObject(`
+                import QtQuick;
+                Timer { interval: 200; repeat: false; running: true }
+            `, bridge, "rehandshakeDelay");
+
+            delayTimer.triggered.connect(() => {
+                delayTimer.destroy();
+
+                // Retry original request
+                const retryPromise = bridge._sendStreamingHttpRequest(method, params, customTimeout);
+
+                retryPromise.then(response => {
+                    result._resolve(response);
+                });
+
+                retryPromise.catch(retryErr => {
+                    const retryErrStr = String(retryErr).toLowerCase();
+                    if (retryErrStr.indexOf("404") !== -1) {
+                        // Double-404: mark unreachable
+                        console.error(`[MCP:${bridge.serverName}] Double 404 — marking server unreachable`);
+                        bridge.state = "error";
+                        bridge.lastError = "Server unreachable (session invalidation loop)";
+                        result._reject(bridge.lastError);
+                    } else {
+                        result._reject(retryErr);
+                    }
+                });
+            });
+        });
+
+        initPromise.catch(initErr => {
+            bridge.state = "error";
+            bridge.lastError = `Re-handshake failed: ${initErr}`;
+            result._reject(bridge.lastError);
+        });
+
+        return result;
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Session DELETE on shutdown
+    // ──────────────────────────────────────────────
+
+    /**
+     * _sendSessionDelete() — Send HTTP DELETE to terminate session on shutdown.
+     * 5-second timeout; discards session ID regardless of response.
+     */
+    function _sendSessionDelete() {
+        if (!bridge.sessionId || !bridge.httpEndpoint) {
+            bridge.sessionId = "";
+            return;
+        }
+
+        const sessionIdToDelete = bridge.sessionId;
+        bridge.sessionId = ""; // Discard immediately
+
+        // Fire-and-forget DELETE with 5s timeout
+        const cmd = ["curl", "-s", "--connect-timeout", "5", "--max-time", "5",
+                     "-X", "DELETE", bridge.httpEndpoint,
+                     "-H", `Mcp-Session-Id: ${sessionIdToDelete}`];
+
+        const proc = Qt.createQmlObject(`
+            import Quickshell;
+            import Quickshell.Io;
+            Process {
+                running: false
+                stdout: SplitParser {
+                    onRead: data => {}
+                }
+                stderr: SplitParser {
+                    onRead: data => {}
+                }
+            }
+        `, bridge, "sessionDeleteProc");
+
+        proc.command = cmd;
+
+        proc.exited.connect((exitCode, exitStatus) => {
+            if (exitCode !== 0) {
+                console.warn(`[MCP:${bridge.serverName}] Session DELETE failed (exit: ${exitCode}), proceeding`);
+            } else {
+                console.log(`[MCP:${bridge.serverName}] Session terminated successfully`);
+            }
+            proc.destroy();
+        });
+
+        proc.running = true;
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: HTTP 400/405 fallback to one-shot curl
+    // ──────────────────────────────────────────────
+
+    /**
+     * _handleNonSseFallback(httpStatus) — Mark server as non-SSE on 400/405.
+     * Routes all subsequent requests to existing one-shot curl path.
+     */
+    function _handleNonSseFallback(httpStatus) {
+        if (bridge.nonSseMarked) return; // Already marked
+
+        console.log(`[MCP:${bridge.serverName}] Server responded ${httpStatus}, falling back to one-shot HTTP (non-SSE)`);
+        bridge.nonSseMarked = true;
+        bridge.sseSupported = false;
+
+        // Close push channel if active (server doesn't support SSE)
+        if (bridge.pushChannelActive) {
+            bridge._closePushChannel();
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Error-to-connected recovery
+    // ──────────────────────────────────────────────
+
+    /**
+     * _handleErrorToConnected() — Recovery from error state.
+     * Re-establishes push channel and refreshes tool registry.
+     */
+    function _handleErrorToConnected() {
+        console.log(`[MCP:${bridge.serverName}] Recovering from error state`);
+
+        // Reset error state
+        bridge.lastError = "";
+        bridge.nonSseMarked = false;
+        bridge.reconnectAttempts = 0;
+        bridge.reconnectInterval = 1000;
+
+        // Re-discover tools
+        bridge.discoverTools();
+
+        // Re-open push channel if SSE is supported
+        if (bridge.sseSupported && bridge.httpEndpoint) {
+            bridge._openPushChannel();
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal: Process termination with SIGKILL escalation
+    // ──────────────────────────────────────────────
+
+    /**
+     * _terminateWithEscalation(proc) — Send SIGTERM, then SIGKILL after 5s grace.
+     * Used for stuck curl processes that don't respond to SIGTERM.
+     */
+    function _terminateWithEscalation(proc) {
+        if (!proc || !proc.running) return;
+
+        // Send SIGTERM
+        proc.signal(15);
+
+        // Set up grace timer for SIGKILL
+        const graceTimer = Qt.createQmlObject(`
+            import QtQuick;
+            Timer {
+                interval: ${bridge._shutdownGrace}
+                repeat: false
+                running: true
+            }
+        `, bridge, "sigkillGraceTimer");
+
+        graceTimer.triggered.connect(() => {
+            graceTimer.destroy();
+            if (proc && proc.running) {
+                console.warn(`[MCP:${bridge.serverName}] Process did not exit after SIGTERM, sending SIGKILL`);
+                proc.signal(9); // SIGKILL
+            }
+        });
+
+        // Clean up grace timer if process exits before it fires
+        proc.exited.connect(() => {
+            if (graceTimer) {
+                graceTimer.running = false;
+                graceTimer.destroy();
+            }
+        });
     }
 
     // ──────────────────────────────────────────────

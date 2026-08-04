@@ -41,6 +41,7 @@ Singleton {
 
     signal toolsChanged()
     signal serverStateChanged(string serverName, string state)
+    signal toolStreamingContent(string toolName, string content)
 
     // ──────────────────────────────────────────────
     // Internal state
@@ -305,7 +306,10 @@ Singleton {
                 httpEndpoint = config.url;
             }
 
-            bridge = root._bridgeComponent.createObject(root, {
+            // If transport is explicitly "sse", mark bridge for SSE-exclusive mode
+            const sseExclusive = (config.transport === "sse");
+
+            const bridgeProps = {
                 serverName: name,
                 serverCommand: config.command || "",
                 serverArgs: config.args || [],
@@ -313,10 +317,23 @@ Singleton {
                 timeout: config.timeout || 30000,
                 transport: transportMode,
                 httpEndpoint: httpEndpoint
-            });
+            };
+
+            // SSE-exclusive mode: mark bridge as SSE-capable from the start
+            if (sseExclusive && transportMode === "http") {
+                bridgeProps.sseSupported = true;
+            }
+
+            bridge = root._bridgeComponent.createObject(root, bridgeProps);
 
             bridge.stateChanged.connect(() => {
                 root._handleBridgeStateChange(name, bridge);
+            });
+
+            // Forward streaming content with prefixed tool name
+            bridge.streamingContent.connect((requestId, content) => {
+                const serverPrefix = "mcp_" + name.replace(/-/g, "_") + "_";
+                root.toolStreamingContent(serverPrefix + "streaming", content);
             });
 
             root._bridges[name] = bridge;
@@ -537,7 +554,8 @@ Singleton {
                 autoApprove: entry.autoApprove || [],
                 timeout: timeout,
                 disabled: false,
-                url: entry.url || ""
+                url: entry.url || "",
+                transport: entry.transport || ""
             };
             newStates[name] = "disconnected";
 
@@ -703,7 +721,10 @@ Singleton {
                 httpEndpoint = config.url;
             }
 
-            const bridge = root._bridgeComponent.createObject(root, {
+            // If transport is explicitly "sse", mark bridge for SSE-exclusive mode
+            const sseExclusive = (config.transport === "sse");
+
+            const bridgeProps = {
                 serverName: name,
                 serverCommand: config.command || "",
                 serverArgs: config.args || [],
@@ -711,11 +732,24 @@ Singleton {
                 timeout: config.timeout,
                 transport: transportMode,
                 httpEndpoint: httpEndpoint
-            });
+            };
+
+            // SSE-exclusive mode: mark bridge as SSE-capable from the start
+            if (sseExclusive && transportMode === "http") {
+                bridgeProps.sseSupported = true;
+            }
+
+            const bridge = root._bridgeComponent.createObject(root, bridgeProps);
 
             // Connect state change handler
             bridge.stateChanged.connect(() => {
                 root._handleBridgeStateChange(name, bridge);
+            });
+
+            // Forward streaming content with prefixed tool name
+            bridge.streamingContent.connect((requestId, content) => {
+                const serverPrefix = "mcp_" + name.replace(/-/g, "_") + "_";
+                root.toolStreamingContent(serverPrefix + "streaming", content);
             });
 
             root._bridges[name] = bridge;
@@ -915,6 +949,7 @@ Singleton {
 
             // Only include fields that have values (keep config clean)
             if (cfg.url) entry.url = cfg.url;
+            if (cfg.transport) entry.transport = cfg.transport;
             if (cfg.command) entry.command = cfg.command;
             if (cfg.args && cfg.args.length > 0) entry.args = cfg.args;
             if (cfg.env && Object.keys(cfg.env).length > 0) entry.env = cfg.env;
