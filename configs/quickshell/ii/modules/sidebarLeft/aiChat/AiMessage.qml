@@ -279,13 +279,24 @@ Rectangle {
 
                     onClicked: {
                         retryButton.spinning = true;
-                        // Find and remove the next assistant message (the response to this user message)
-                        const myIdx = Ai.messageIDs.indexOf(root.messageId) !== -1
-                            ? Ai.messageIDs.indexOf(root.messageId)
-                            : Ai.messageIDs.indexOf(Number(root.messageId));
-                        if (myIdx >= 0 && myIdx < Ai.messageIDs.length - 1) {
-                            // Remove everything after this user message
-                            Ai.retryFromMessage(Ai.messageIDs[myIdx + 1])
+                        // Remove everything after this user message and re-request
+                        const allIds = Ai.messageIDs;
+                        let myIdx = allIds.indexOf(root.messageId);
+                        if (myIdx < 0) myIdx = allIds.indexOf(Number(root.messageId));
+                        if (myIdx < 0) {
+                            // Fallback: search by reference
+                            for (let i = 0; i < allIds.length; i++) {
+                                if (String(allIds[i]) === String(root.messageId)) { myIdx = i; break; }
+                            }
+                        }
+                        if (myIdx >= 0) {
+                            // Remove all messages after this one
+                            const toRemove = allIds.slice(myIdx + 1);
+                            for (const id of toRemove) { delete Ai.messageByID[id]; }
+                            Ai.messageIDs = allIds.slice(0, myIdx + 1);
+                            Ai._emptyResponseRetries = 0;
+                            Ai._emptyCommandRetries = 0;
+                            Ai.makeRequest();
                         }
                     }
 

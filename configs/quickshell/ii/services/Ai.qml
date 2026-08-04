@@ -1217,6 +1217,13 @@ Singleton {
         requester.makeRequest();
     }
 
+    /**
+     * Public wrapper to trigger a new request (used by retry button).
+     */
+    function makeRequest() {
+        requester.makeRequest();
+    }
+
     function addApiKeyAdvice(model) {
         root.addMessage(
             Translation.tr('To set an API key, pass it with the %4 command\n\nTo view the key, pass "get" with the command<br/>\n\n### For %1:\n\n**Link**: %2\n\n%3')
