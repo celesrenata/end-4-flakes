@@ -845,7 +845,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         }
 
                         StyledToolTip {
-                            content: mcpDot.modelData + ": " + (McpClient.serverStates[mcpDot.modelData] || "unknown")
+                            content: { void(mcpDot.stateVersion); return mcpDot.modelData + ": " + (McpClient.serverStates[mcpDot.modelData] || "unknown"); }
                             extraVisibleCondition: false
                             alternativeVisibleCondition: mcpDot.containsMouse
                         }
