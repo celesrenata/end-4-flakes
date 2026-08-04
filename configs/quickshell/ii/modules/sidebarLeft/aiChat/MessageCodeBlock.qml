@@ -224,6 +224,27 @@ ColumnLayout {
                         // wrapMode: TextEdit.Wrap
                         color: messageData.thinking ? Appearance.colors.colSubtext : Appearance.colors.colOnLayer1
 
+                        // Forward vertical scroll to parent message list
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.NoButton
+                            onWheel: (event) => {
+                                if (event.angleDelta.y !== 0) {
+                                    let item = root.parent
+                                    while (item && !item.hasOwnProperty("flickableDirection")) {
+                                        item = item.parent
+                                    }
+                                    if (item) {
+                                        item.contentY -= event.angleDelta.y
+                                        item.returnToBounds()
+                                    }
+                                    event.accepted = true
+                                } else {
+                                    event.accepted = false
+                                }
+                            }
+                        }
+
                         text: segmentContent
                         onTextChanged: {
                             segmentContent = text
