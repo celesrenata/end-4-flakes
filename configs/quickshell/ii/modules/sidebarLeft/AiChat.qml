@@ -242,6 +242,14 @@ Item {
             }
         },
         {
+            name: "scan",
+            description: Translation.tr("Force keyword scan on current session"),
+            execute: () => {
+                Ai._lastKeywordFromIndex = 0;
+                Ai.maybeGenerateKeywords();
+            }
+        },
+        {
             name: "temp",
             description: Translation.tr("Set temperature (randomness) of the model. Values range between 0 to 2 for Gemini, 0 to 1 for other models. Default is 0.5."),
             execute: (args) => {
