@@ -742,10 +742,13 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         onClicked: {
                             const currentState = McpClient.serverStates[modelData];
                             if (currentState === "connected") {
-                                // Disconnect/disable
+                                // Disconnect
                                 McpClient.setServerDisabled(modelData, true);
                             } else {
                                 // Connect (re-enables if disabled)
+                                if (currentState === "disabled") {
+                                    McpClient.setServerDisabled(modelData, false);
+                                }
                                 mcpDot.flashState = "connecting";
                                 connectTimeoutTimer.restart();
                                 McpClient.connectServer(modelData);
@@ -805,12 +808,20 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                 switch (state) {
                                     case "connected": return Appearance.m3colors.m3primary;
                                     case "connecting": return Appearance.m3colors.m3tertiary;
-                                    case "error": return Appearance.m3colors.m3outline;
+                                    case "error": return Appearance.m3colors.m3error;
                                     case "disabled": return Appearance.m3colors.m3outlineVariant;
-                                    default: return Appearance.m3colors.m3outline;
+                                    default: return Appearance.m3colors.m3outline; // disconnected but enabled
                                 }
                             }
-                            opacity: McpClient.serverStates[mcpDot.modelData] === "disabled" ? 0.5 : (mcpDot.flashState !== "" ? 1.0 : 1.0)
+                            opacity: {
+                                if (mcpDot.flashState === "") {
+                                    const state = McpClient.serverStates[mcpDot.modelData];
+                                    if (state === "disabled") return 0.3;
+                                    if (state !== "connected" && state !== "connecting" && state !== "error") return 0.7; // disconnected
+                                    return 1.0;
+                                }
+                                return 1.0;
+                            }
 
                             Behavior on color { ColorAnimation { duration: 300 } }
                             Behavior on opacity { NumberAnimation { duration: 300 } }

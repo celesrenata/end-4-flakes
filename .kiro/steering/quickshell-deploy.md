@@ -41,3 +41,10 @@ systemctl --user restart quickshell
 - Keybinds template: `configs/hypr/keybinds.conf.template`
 - Deployed: `~/.config/hypr/hyprland/keybinds.conf`
 - After editing template, manually add to deployed or rebuild NixOS
+
+
+### UI Color Rules
+- NEVER guess at colors. The color engine (MaterialThemeLoader) manages all colors via `Appearance.m3colors.*` properties.
+- When the user says something "looks wrong" visually, check the actual deployed state — don't iterate blindly with color/opacity tweaks.
+- If a color issue persists after a state change (e.g., dot stays bright after failing), the problem is likely in the STATE MACHINE, not the color values. Fix the state transition, not the color mapping.
+- Revert to the last known-good commit first, then make ONE targeted change.
