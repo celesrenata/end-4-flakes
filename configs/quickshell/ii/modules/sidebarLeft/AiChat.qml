@@ -2771,8 +2771,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             color: Ai.execMode === "full" ? Appearance.m3colors.m3error
                                 : Ai.execMode === "auto" ? Appearance.m3colors.m3tertiary
                                 : Appearance.colors.colSubtext
-                            text: Ai.execMode === "full" ? "Full Send"
-                                : Ai.execMode === "auto" ? "YOLO"
+                            text: Ai.execMode === "full" ? "YOLO"
+                                : Ai.execMode === "auto" ? "YEET"
                                 : "Safe"
                         }
                     }
@@ -2789,10 +2789,10 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
                     StyledToolTip {
                         content: Ai.execMode === "full"
-                            ? Translation.tr("Full Send: never stops until model is satisfied\nClick to cycle → Safe")
+                            ? Translation.tr("YOLO: never stops until model is satisfied\nClick to cycle → Safe")
                             : Ai.execMode === "auto"
-                            ? Translation.tr("YOLO: auto-execute, stops on repeated failures\nClick to cycle → Full Send")
-                            : Translation.tr("Safe: approve each command/tool\nClick to cycle → YOLO")
+                            ? Translation.tr("YEET: auto-execute, stops on repeated failures\nClick to cycle → YOLO")
+                            : Translation.tr("Safe: approve each command/tool\nClick to cycle → YEET")
                     }
                 }
 
