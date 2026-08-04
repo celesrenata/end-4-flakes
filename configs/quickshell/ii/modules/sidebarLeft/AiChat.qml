@@ -749,6 +749,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 Layout.fillWidth: true
                 Layout.maximumWidth: dotCount * (dotSize + dotSpacing) - dotSpacing
                 implicitHeight: dotSize
+                Layout.alignment: Qt.AlignTop
 
                 Repeater {
                     model: mcpDotsContainer.serverKeys
