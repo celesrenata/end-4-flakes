@@ -1887,7 +1887,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     onTriggered: {
                         if (messageListView._shouldStickToBottom && !messageListView.userScrolling && !messageListView._userScrolledAway) {
                             scrollBehavior.enabled = false
-                            messageListView.positionViewAtBeginning()
+                            messageListView.contentY = 0
                             scrollBehavior.enabled = true
                         }
                     }
