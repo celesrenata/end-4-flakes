@@ -274,9 +274,30 @@ Rectangle {
                     id: retryButton
                     visible: root.messageData?.role === "assistant" && (root.messageData?.done ?? false)
                     buttonIcon: "refresh"
+
+                    property bool spinning: false
+
                     onClicked: {
+                        retryButton.spinning = true;
                         Ai.retryFromMessage(root.messageId)
                     }
+
+                    contentItem: MaterialSymbol {
+                        horizontalAlignment: Text.AlignHCenter
+                        iconSize: Appearance.font.pixelSize.larger
+                        text: "refresh"
+                        color: retryButton.enabled ? Appearance.m3colors.m3onSurface :
+                            Appearance.colors.colOnLayer1Inactive
+
+                        RotationAnimation on rotation {
+                            running: retryButton.spinning
+                            from: 0
+                            to: 360
+                            duration: 800
+                            loops: Animation.Infinite
+                        }
+                    }
+
                     StyledToolTip {
                         content: Translation.tr("Retry")
                     }

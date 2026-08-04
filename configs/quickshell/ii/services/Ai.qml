@@ -1202,15 +1202,16 @@ Singleton {
      * Retry from a specific assistant message — removes it and re-sends the request.
      */
     function retryFromMessage(messageId) {
-        const idx = root.messageIDs.indexOf(messageId);
+        const idx = root.messageIDs.indexOf(messageId) !== -1
+            ? root.messageIDs.indexOf(messageId)
+            : root.messageIDs.indexOf(Number(messageId));
         if (idx < 0) return;
-        // Remove this message and any subsequent messages (tool results, etc.)
+        // Remove this message and any subsequent messages
         const toRemove = root.messageIDs.slice(idx);
         for (const id of toRemove) {
             delete root.messageByID[id];
         }
         root.messageIDs = root.messageIDs.slice(0, idx);
-        // Re-send the request
         root._emptyResponseRetries = 0;
         root._emptyCommandRetries = 0;
         requester.makeRequest();
