@@ -56,8 +56,16 @@ Scope { // Scope
                 GlobalStates.sidebarLeftOpen = false
             }
 
-            exclusionMode: poppedOut ? ExclusionMode.Normal : ExclusionMode.Ignore
-            exclusiveZone: poppedOut ? sidebarWidth : 0
+            // Delay exclusive zone claim at startup to avoid blocking background rendering
+            property bool startupComplete: false
+            Timer {
+                interval: 100
+                running: true
+                repeat: false
+                onTriggered: sidebarRoot.startupComplete = true
+            }
+            exclusionMode: (poppedOut && startupComplete) ? ExclusionMode.Normal : ExclusionMode.Ignore
+            exclusiveZone: (poppedOut && startupComplete) ? sidebarWidth : 0
             implicitWidth: maxWidth + Appearance.sizes.elevationMargin
             WlrLayershell.namespace: "quickshell:sidebarLeft"
             WlrLayershell.keyboardFocus: poppedOut ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
