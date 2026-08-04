@@ -409,6 +409,19 @@ Item {
                         color: Appearance.colors.colOnLayer1
                         text: root.displayContent
 
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.NoButton
+                            onWheel: (event) => {
+                                if (event.angleDelta.y !== 0) {
+                                    let item = root.parent
+                                    while (item && !item.hasOwnProperty("flickableDirection")) { item = item.parent }
+                                    if (item) { item.contentY -= event.angleDelta.y; item.returnToBounds() }
+                                    event.accepted = true
+                                } else { event.accepted = false }
+                            }
+                        }
+
                         SyntaxHighlighter {
                             id: jsonHighlighter
                             textEdit: jsonTextArea
@@ -461,6 +474,19 @@ Item {
                 color: Appearance.colors.colOnLayer1
                 wrapMode: TextEdit.Wrap
                 text: root.displayContent
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.NoButton
+                    onWheel: (event) => {
+                        if (event.angleDelta.y !== 0) {
+                            let item = root.parent
+                            while (item && !item.hasOwnProperty("flickableDirection")) { item = item.parent }
+                            if (item) { item.contentY -= event.angleDelta.y; item.returnToBounds() }
+                            event.accepted = true
+                        } else { event.accepted = false }
+                    }
+                }
             }
         }
     }
