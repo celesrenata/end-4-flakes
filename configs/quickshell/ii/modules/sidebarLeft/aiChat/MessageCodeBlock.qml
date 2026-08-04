@@ -254,7 +254,6 @@ ColumnLayout {
                 Loader {
                     active: root.isCommandRequest && root.messageData.functionPending
                         && root.messageData.functionCall
-                        && root.segmentContent.trim() === (root.messageData.functionCall.args?.command ?? "").trim()
                     visible: active
                     Layout.fillWidth: true
                     Layout.margins: 6
@@ -268,7 +267,13 @@ ColumnLayout {
                                     font.pixelSize: Appearance.font.pixelSize.small
                                     color: Appearance.colors.colOnLayer2
                                 }
-                                onClicked: Ai.rejectCommand(root.messageData)
+                                onClicked: {
+                                    if (root.messageData.pendingMcpTool) {
+                                        Ai.rejectMcpTool(root.messageData);
+                                    } else {
+                                        Ai.rejectCommand(root.messageData);
+                                    }
+                                }
                             }
                             GroupButton {
                                 toggled: true
@@ -277,7 +282,13 @@ ColumnLayout {
                                     font.pixelSize: Appearance.font.pixelSize.small
                                     color: Appearance.colors.colOnPrimary
                                 }
-                                onClicked: Ai.approveCommand(root.messageData)
+                                onClicked: {
+                                    if (root.messageData.pendingMcpTool) {
+                                        Ai.approveMcpTool(root.messageData);
+                                    } else {
+                                        Ai.approveCommand(root.messageData);
+                                    }
+                                }
                             }
                         }
                     }

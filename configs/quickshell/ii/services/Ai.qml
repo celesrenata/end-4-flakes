@@ -1714,9 +1714,21 @@ Singleton {
      * Handles an MCP tool call — checks auto-approve, otherwise prompts user.
      */
     function handleMcpToolCall(name, args, message) {
-        // Always auto-execute MCP tools (approval UI has reactivity issues)
-        // The result shows in a collapsible tool block
-        executeMcpTool(name, args);
+        if (root.yoloMode || McpClient.isToolAutoApproved(name)) {
+            executeMcpTool(name, args);
+        } else {
+            // Show the tool call in the message content (like shell commands do)
+            const displayName = McpClient.toolRegistry[name]?.originalName || name;
+            const argsStr = JSON.stringify(args, null, 2);
+            const contentToAppend = `\n\n**MCP Tool Request: ${displayName}**\n\n\`\`\`command\n${displayName}(${argsStr})\n\`\`\``;
+            message.rawContent += contentToAppend;
+            message.content += contentToAppend;
+            message.functionName = name;
+            message.functionCall = { name: name, args: args };
+            message.pendingMcpTool = name;
+            message.pendingMcpArgs = args;
+            message.functionPending = true;
+        }
     }
 
     /**
