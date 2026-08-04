@@ -736,28 +736,84 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
 
+                        property bool flashActive: false
+                        property string flashColor: ""
+
                         onClicked: {
                             const currentState = McpClient.serverStates[modelData];
-                            McpClient.setServerDisabled(modelData, currentState !== "disabled");
+                            if (currentState === "disabled") {
+                                // Re-enable and connect
+                                McpClient.setServerDisabled(modelData, false);
+                            }
+                            // Trigger reconnect attempt
+                            mcpDot.flashActive = true;
+                            mcpDot.flashColor = "#FFD700"; // Yellow = connecting
+                            flashTimer.restart();
+                        }
+
+                        // Watch for state changes to update flash color
+                        Connections {
+                            target: McpClient
+                            function onServerStateChanged(serverName, state) {
+                                if (serverName !== mcpDot.modelData) return;
+                                if (!mcpDot.flashActive) return;
+                                if (state === "connected") {
+                                    mcpDot.flashColor = "#4CAF50"; // Green = success
+                                    fadeBackTimer.restart();
+                                } else if (state === "error") {
+                                    mcpDot.flashColor = "#F44336"; // Red = failed
+                                    fadeBackTimer.restart();
+                                }
+                            }
+                        }
+
+                        // Flashing animation while connecting (yellow blink)
+                        Timer {
+                            id: flashTimer
+                            interval: 5000
+                            repeat: false
+                            onTriggered: {
+                                mcpDot.flashActive = false;
+                            }
+                        }
+
+                        Timer {
+                            id: fadeBackTimer
+                            interval: 3000
+                            repeat: false
+                            onTriggered: {
+                                mcpDot.flashActive = false;
+                            }
                         }
 
                         Rectangle {
+                            id: dotRect
                             anchors.fill: parent
                             radius: width / 2
                             color: {
+                                if (mcpDot.flashActive && mcpDot.flashColor.length > 0) {
+                                    return mcpDot.flashColor;
+                                }
                                 const state = McpClient.serverStates[mcpDot.modelData];
                                 switch (state) {
                                     case "connected": return Appearance.m3colors.m3primary;
                                     case "connecting": return Appearance.m3colors.m3tertiary;
                                     case "error": return Appearance.m3colors.m3error;
                                     case "disabled": return Appearance.m3colors.m3outlineVariant;
-                                    default: return Appearance.m3colors.m3outline; // disconnected
+                                    default: return Appearance.m3colors.m3outline;
                                 }
                             }
                             opacity: McpClient.serverStates[mcpDot.modelData] === "disabled" ? 0.5 : 1.0
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: 300 } }
+
+                            SequentialAnimation {
+                                id: pulseAnimation
+                                running: mcpDot.flashActive && mcpDot.flashColor === "#FFD700"
+                                loops: Animation.Infinite
+                                NumberAnimation { target: dotRect; property: "opacity"; from: 1.0; to: 0.3; duration: 400; easing.type: Easing.InOutSine }
+                                NumberAnimation { target: dotRect; property: "opacity"; from: 0.3; to: 1.0; duration: 400; easing.type: Easing.InOutSine }
+                            }
                         }
 
                         StyledToolTip {
