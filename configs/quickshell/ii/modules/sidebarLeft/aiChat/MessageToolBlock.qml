@@ -29,7 +29,7 @@ Item {
     property int maxLines: 500
 
     property var collapseAnimation: bodyContent.implicitHeight > 40 ? Appearance.animation.elementMoveEnter : Appearance.animation.elementMoveFast
-    property bool collapsed: false
+    property bool collapsed: (root.messageData?.functionResponse ?? "").length > 0
 
     // Detect if content is valid JSON
     property bool contentIsJson: {
