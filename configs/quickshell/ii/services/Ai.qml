@@ -417,6 +417,7 @@ Singleton {
     property string currentTool: Config?.options.ai.tool ?? "search"
     property bool yoloMode: false  // Auto-execute commands without approval
     property int _emptyCommandRetries: 0
+    property int _emptyResponseRetries: 0
     property var tools: {
         "gemini": {
             "functions": [{"functionDeclarations": [
@@ -1477,6 +1478,10 @@ Singleton {
             const isEmpty = msgContent.length === 0 || visibleContent.length === 0;
             const isError = msgContent.includes('"error"') && !msgContent.includes("</think>");
 
+            if (!isEmpty && !isError) {
+                root._emptyResponseRetries = 0;
+            }
+
             if (isEmpty || isError) {
                 // Remove the broken/empty assistant message BEFORE saving
                 const msgId = requester.messageId;
@@ -1486,6 +1491,15 @@ Singleton {
                     root.messageIDs = [...root.messageIDs];
                     delete root.messageByID[msgId];
                 }
+
+                // Auto-retry once if model returned only thinking (likely a failed tool call attempt)
+                root._emptyResponseRetries = (root._emptyResponseRetries || 0) + 1;
+                if (root._emptyResponseRetries <= 2 && !isError && msgContent.length > 0) {
+                    requester.makeRequest();
+                    return;
+                }
+                root._emptyResponseRetries = 0;
+
                 // Show a useful error
                 if (msgContent.length === 0) {
                     root.addMessage(Translation.tr("No response from model. Check API key or network connection."), root.interfaceRole);
