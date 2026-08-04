@@ -373,6 +373,20 @@ Singleton {
     }
 
     /**
+     * findToolByOriginalName(name) — Reverse-lookup: find prefixed tool name by original name.
+     * Returns the prefixed name or "" if not found.
+     */
+    function findToolByOriginalName(name) {
+        const toolNames = Object.keys(root.toolRegistry);
+        for (let i = 0; i < toolNames.length; i++) {
+            if (root.toolRegistry[toolNames[i]].originalName === name) {
+                return toolNames[i];
+            }
+        }
+        return "";
+    }
+
+    /**
      * getToolDeclarations(format) — Convert tool registry to provider-specific declarations.
      *
      * @param format  One of "gemini", "openai", "mistral"
@@ -392,12 +406,25 @@ Singleton {
 
         const declarations = [];
 
+        // Check for name collisions among original names
+        const origNameCounts = {};
         for (let i = 0; i < toolNames.length; i++) {
-            const name = toolNames[i];
-            const entry = root.toolRegistry[name];
+            const entry = root.toolRegistry[toolNames[i]];
+            const orig = entry.originalName || toolNames[i];
+            origNameCounts[orig] = (origNameCounts[orig] || 0) + 1;
+        }
+
+        for (let i = 0; i < toolNames.length; i++) {
+            const prefixedName = toolNames[i];
+            const entry = root.toolRegistry[prefixedName];
+            const origName = entry.originalName || prefixedName;
+
+            // Use short name if no collision, otherwise keep prefixed
+            const displayName = (origNameCounts[origName] > 1) ? prefixedName : origName;
 
             declarations.push({
-                name: name,
+                name: displayName,
+                _prefixedName: prefixedName, // Internal: for dispatch lookup
                 description: entry.description || "",
                 parameters: entry.inputSchema || { type: "object", properties: {}, required: [] }
             });

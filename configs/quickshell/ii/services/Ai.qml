@@ -1693,6 +1693,9 @@ Singleton {
         else if (McpClient.toolRegistry[name]) {
             handleMcpToolCall(name, args, message);
         }
+        else if (McpClient.findToolByOriginalName(name)) {
+            handleMcpToolCall(McpClient.findToolByOriginalName(name), args, message);
+        }
         else {
             root.addMessage(Translation.tr("Unknown function call: %1").arg(name), "assistant");
         }
