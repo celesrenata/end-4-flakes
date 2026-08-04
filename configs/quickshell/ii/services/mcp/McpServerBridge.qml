@@ -88,6 +88,14 @@ Item {
     property var _pushChannelState: null
     property var _pushIdleTimer: null
 
+    // Legacy SSE transport state
+    property bool legacySse: false             // Whether server uses legacy SSE protocol
+    property string legacyMessageEndpoint: ""  // POST endpoint from legacy SSE handshake
+    property var _legacySseProcess: null        // Long-lived GET /sse process
+    property var _legacySseParser: null         // SSE parser for legacy stream
+    property var _legacyPendingRequests: ({})   // id → { resolve, reject, timer }
+    property bool _legacySseHeadersDone: false  // Whether HTTP headers have been consumed
+
     // SSE signals
     signal streamingContent(int requestId, string content)
     signal progressNotification(string token, real current, real total)
@@ -204,6 +212,12 @@ Item {
             return bridge._makeResolved({ disabled: true });
         }
 
+        // Detect legacy SSE transport (URLs ending in /sse or containing /sse#)
+        const cleanEndpoint = bridge.httpEndpoint.split("#")[0]; // Strip URL fragment
+        if (cleanEndpoint.endsWith("/sse")) {
+            return bridge._spawnLegacySse();
+        }
+
         bridge.state = "connecting";
         bridge.lastError = "";
         bridge.nextRequestId = 1;
@@ -309,6 +323,257 @@ Item {
         });
     }
 
+    // ──────────────────────────────────────────────
+    // Legacy SSE Transport (GET /sse → endpoint event → POST /messages)
+    // ──────────────────────────────────────────────
+
+    /**
+     * _spawnLegacySse() — Connect to a legacy SSE MCP server.
+     * 1. GET the /sse endpoint to open the event stream
+     * 2. Extract the message endpoint from the "endpoint" event
+     * 3. Keep listening for JSON-RPC responses on the stream
+     * 4. Send tools/list to discover tools
+     */
+    function _spawnLegacySse() {
+        if (bridge.disabled) {
+            return bridge._makeResolved({ disabled: true });
+        }
+
+        bridge.state = "connecting";
+        bridge.lastError = "";
+        bridge.nextRequestId = 1;
+        bridge.legacySse = true;
+        bridge.legacyMessageEndpoint = "";
+
+        const result = bridge._makePromise();
+
+        // Create SSE parser for the legacy stream
+        const parser = SseParser.createParser();
+        bridge._legacySseParser = parser;
+
+        // State for header/body parsing
+        const state = {
+            inHeaders: true,
+            contentType: "",
+            httpStatus: 0,
+            endpointReceived: false
+        };
+
+        parser.onEvent = (event) => {
+            // Handle "endpoint" event — tells us where to POST messages
+            if (event.type === "endpoint" && !state.endpointReceived) {
+                state.endpointReceived = true;
+                const endpoint = typeof event.data === "string" ? event.data : String(event.data);
+                // Build the full URL: base URL (without /sse and fragment) + endpoint path
+                const baseUrl = bridge.httpEndpoint.split("#")[0].replace(/\/sse$/, "");
+                bridge.legacyMessageEndpoint = baseUrl + endpoint;
+                console.log(`[MCP:${bridge.serverName}] Legacy SSE endpoint: ${bridge.legacyMessageEndpoint}`);
+
+                // Now send tools/list to discover tools
+                bridge.state = "connected";
+                bridge._resetIdleTimer();
+
+                const toolsPromise = bridge._sendLegacySseRequest("tools/list", {}, 10000);
+                toolsPromise.then(response => {
+                    bridge._parseToolsResponse(response);
+                    result._resolve(response);
+                });
+                toolsPromise.catch(err => {
+                    // Connected but tools failed — try initialize handshake
+                    const initPromise = bridge._sendLegacySseRequest("initialize", {
+                        protocolVersion: "2024-11-05",
+                        capabilities: {},
+                        clientInfo: { name: "ii-sidebar", version: "1.0.0" }
+                    }, bridge._initTimeout);
+                    initPromise.then(initResp => {
+                        bridge._sendLegacySseRequest("notifications/initialized", {}, 3000);
+                        const retryTools = bridge._sendLegacySseRequest("tools/list", {}, 5000);
+                        retryTools.then(resp => {
+                            bridge._parseToolsResponse(resp);
+                            result._resolve(resp);
+                        });
+                        retryTools.catch(e2 => result._resolve(initResp));
+                    });
+                    initPromise.catch(initErr => {
+                        result._reject("Legacy SSE handshake failed: " + initErr);
+                    });
+                });
+                return;
+            }
+
+            // Handle "message" events — these are JSON-RPC responses
+            if (event.type === "message" && event.data && typeof event.data === "object") {
+                const msg = event.data;
+                if (msg.id !== undefined && msg.id !== null) {
+                    // Response — correlate with pending request
+                    const entry = bridge._legacyPendingRequests[msg.id];
+                    if (entry) {
+                        delete bridge._legacyPendingRequests[msg.id];
+                        if (entry.timer) {
+                            entry.timer.running = false;
+                            entry.timer.destroy();
+                        }
+                        if (msg.error) {
+                            entry.reject(msg.error.message || JSON.stringify(msg.error));
+                        } else {
+                            entry.resolve(msg.result);
+                        }
+                    }
+                } else if (msg.method) {
+                    // Server-initiated notification
+                    bridge._handlePushChannelEvent(msg);
+                }
+            }
+        };
+
+        // Create the GET process (strip URL fragment) — no -i needed for legacy SSE
+        const sseUrl = bridge.httpEndpoint.split("#")[0];
+        const cmd = ["curl", "-N", "--connect-timeout", "10", "--max-time", "0",
+                     "-X", "GET", sseUrl,
+                     "-H", "Accept: text/event-stream"];
+
+        const proc = Qt.createQmlObject(`
+            import Quickshell;
+            import Quickshell.Io;
+            Process {
+                running: false
+                stdout: SplitParser {
+                    onRead: data => { bridge._handleLegacySseLine(data); }
+                }
+                stderr: SplitParser {
+                    onRead: data => {}
+                }
+            }
+        `, bridge, "legacySseProc");
+
+        proc.command = cmd;
+        bridge._legacySseProcess = proc;
+
+        // Handle unexpected disconnect
+        proc.exited.connect((exitCode, exitStatus) => {
+            bridge._legacySseProcess = null;
+            if (bridge.state === "connected" || bridge.state === "connecting") {
+                console.warn(`[MCP:${bridge.serverName}] Legacy SSE stream disconnected (exit: ${exitCode})`);
+                if (!state.endpointReceived) {
+                    bridge.state = "error";
+                    bridge.lastError = "Legacy SSE connection failed (exit: " + exitCode + ")";
+                    result._reject(bridge.lastError);
+                }
+                // Reject all pending legacy requests
+                const ids = Object.keys(bridge._legacyPendingRequests);
+                for (let i = 0; i < ids.length; i++) {
+                    const entry = bridge._legacyPendingRequests[ids[i]];
+                    if (entry.timer) { entry.timer.running = false; entry.timer.destroy(); }
+                    entry.reject("Legacy SSE stream disconnected");
+                }
+                bridge._legacyPendingRequests = {};
+            }
+            proc.destroy();
+        });
+
+        // Timeout for initial connection (10s to receive endpoint event)
+        const connectTimer = Qt.createQmlObject(`
+            import QtQuick;
+            Timer { interval: 10000; repeat: false; running: true }
+        `, bridge, "legacySseConnectTimer");
+
+        connectTimer.triggered.connect(() => {
+            connectTimer.destroy();
+            if (!state.endpointReceived && bridge.state === "connecting") {
+                bridge.state = "error";
+                bridge.lastError = "Legacy SSE: no endpoint event within 10s";
+                if (proc.running) { proc.signal(15); }
+                result._reject(bridge.lastError);
+            }
+        });
+
+        proc.running = true;
+        return result;
+    }
+
+    /**
+     * _handleLegacySseLine(line) — Process a line from the legacy SSE GET stream.
+     */
+    function _handleLegacySseLine(line) {
+        if (!bridge._legacySseParser) return;
+        // Feed directly to SSE parser (no -i headers to skip)
+        bridge._legacySseParser.feedLine(line);
+    }
+
+    /**
+     * _sendLegacySseRequest(method, params, customTimeout) — Send a request via legacy SSE.
+     * POSTs to the legacyMessageEndpoint and waits for response on the SSE stream.
+     */
+    function _sendLegacySseRequest(method, params, customTimeout) {
+        const result = bridge._makePromise();
+
+        if (!bridge.legacyMessageEndpoint) {
+            result._reject("Legacy SSE endpoint not established");
+            return result;
+        }
+
+        const timeoutMs = customTimeout || bridge.timeout;
+        const id = bridge.nextRequestId;
+        bridge.nextRequestId += 1;
+
+        const requestBody = JSON.stringify({
+            jsonrpc: "2.0",
+            id: id,
+            method: method,
+            params: params || {}
+        });
+
+        // Store pending request for response correlation
+        const timeoutTimer = Qt.createQmlObject(`
+            import QtQuick;
+            Timer { interval: ${timeoutMs}; repeat: false; running: true }
+        `, bridge, "legacyReqTimeout_" + id);
+
+        bridge._legacyPendingRequests[id] = {
+            resolve: result._resolve,
+            reject: result._reject,
+            timer: timeoutTimer
+        };
+
+        timeoutTimer.triggered.connect(() => {
+            if (bridge._legacyPendingRequests[id]) {
+                delete bridge._legacyPendingRequests[id];
+                timeoutTimer.destroy();
+                result._reject(`Legacy SSE request timeout (${timeoutMs}ms, method: ${method})`);
+            }
+        });
+
+        // POST to the message endpoint (fire-and-forget, response comes on SSE stream)
+        const cmd = ["curl", "-s", "--connect-timeout", "10", "--max-time", "10",
+                     "-X", "POST", bridge.legacyMessageEndpoint,
+                     "-H", "Content-Type: application/json",
+                     "-d", requestBody];
+
+        const proc = Qt.createQmlObject(`
+            import Quickshell;
+            import Quickshell.Io;
+            Process {
+                running: false
+                stdout: SplitParser { onRead: data => {} }
+                stderr: SplitParser { onRead: data => {} }
+            }
+        `, bridge, "legacyPostProc_" + id);
+
+        proc.command = cmd;
+        proc.exited.connect((exitCode, exitStatus) => {
+            proc.destroy();
+            if (exitCode !== 0 && bridge._legacyPendingRequests[id]) {
+                delete bridge._legacyPendingRequests[id];
+                if (timeoutTimer) { timeoutTimer.running = false; timeoutTimer.destroy(); }
+                result._reject(`Legacy SSE POST failed (exit: ${exitCode}, method: ${method})`);
+            }
+        });
+
+        proc.running = true;
+        bridge._resetIdleTimer();
+        return result;
+    }
+
     /**
      * _parseToolsResponse(response) — Parse tools from a tools/list response.
      * Handles both array and object (dict) formats.
@@ -412,6 +677,25 @@ Item {
      * shutdown() — Graceful SIGTERM, force-kill after 5s fallback.
      */
     function shutdown() {
+        // Close legacy SSE stream if active
+        if (bridge._legacySseProcess) {
+            bridge._legacySseProcess.signal(15);
+            bridge._legacySseProcess.destroy();
+            bridge._legacySseProcess = null;
+        }
+        bridge.legacySse = false;
+        bridge.legacyMessageEndpoint = "";
+        bridge._legacySseParser = null;
+        bridge._legacySseHeadersDone = false;
+        // Reject legacy pending requests
+        const legacyIds = Object.keys(bridge._legacyPendingRequests);
+        for (let i = 0; i < legacyIds.length; i++) {
+            const entry = bridge._legacyPendingRequests[legacyIds[i]];
+            if (entry.timer) { entry.timer.running = false; entry.timer.destroy(); }
+            entry.reject("Server shutting down");
+        }
+        bridge._legacyPendingRequests = {};
+
         // Close push channel first (SSE transport)
         if (bridge.pushChannelActive) {
             bridge._closePushChannel();
@@ -455,8 +739,13 @@ Item {
      * Returns a Promise-like object { then(cb), catch(cb) }.
      */
     function sendRequest(method, params, customTimeout) {
-        // For HTTP transport with SSE support: use streaming path with retry
+        // For HTTP transport: route based on server capabilities
         if (bridge.transport === "http" && bridge.httpEndpoint && bridge.state === "connected") {
+            // Legacy SSE transport: POST to the extracted message endpoint
+            if (bridge.legacySse && bridge.legacyMessageEndpoint) {
+                return bridge._sendLegacySseRequest(method, params, customTimeout);
+            }
+            // Streamable HTTP with SSE support: use streaming path with retry
             if (bridge.sseSupported && !bridge.nonSseMarked) {
                 // Check process slot capacity
                 if (bridge.activeProcessCount >= bridge._maxConcurrentProcesses) {
