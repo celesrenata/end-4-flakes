@@ -739,7 +739,15 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         // Flash states: "" = idle, "connecting" = yellow pulse, "success" = green, "failed" = red
                         property string flashState: ""
 
-                        onClicked: {
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                        onClicked: (mouse) => {
+                            if (mouse.button === Qt.RightButton) {
+                                McpClient.setServerDisabled(modelData, true);
+                                mcpDot.flashState = "";
+                                mcpDot.stateVersion++;
+                                return;
+                            }
                             const currentState = McpClient.serverStates[modelData];
                             console.warn("[MCP-UI] Clicked " + modelData + " state=" + currentState);
                             if (currentState === "connected") {
@@ -751,16 +759,6 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                 mcpDot.flashState = "connecting";
                                 connectTimeoutTimer.restart();
                                 McpClient.connectServer(modelData);
-                            }
-                        }
-
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-
-                        onPressed: (mouse) => {
-                            if (mouse.button === Qt.RightButton) {
-                                McpClient.setServerDisabled(modelData, true);
-                                mcpDot.flashState = "";
-                                mcpDot.stateVersion++;
                             }
                         }
 
