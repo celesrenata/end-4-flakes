@@ -236,7 +236,8 @@ ColumnLayout {
                             onWheel: (event) => {
                                 if (event.angleDelta.y !== 0) {
                                     let item = root.parent
-                                    while (item && !item.hasOwnProperty("flickableDirection")) {
+                                    while (item) {
+                                        if (item.hasOwnProperty("flickableDirection") && item.flickableDirection !== Flickable.HorizontalFlick) break;
                                         item = item.parent
                                     }
                                     if (item) {
@@ -329,7 +330,8 @@ ColumnLayout {
                     // Forward vertical scroll to parent message list
                     if (event.angleDelta.y !== 0) {
                         let item = root.parent
-                        while (item && !item.hasOwnProperty("contentY")) {
+                        while (item) {
+                            if (item.hasOwnProperty("flickableDirection") && item.flickableDirection !== Flickable.HorizontalFlick) break;
                             item = item.parent
                         }
                         if (item && item.hasOwnProperty("flickableDirection")) {

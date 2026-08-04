@@ -47,7 +47,7 @@ Scope { // Scope
             property bool poppedOut: Persistent.states.sidebar.poppedOut
             property bool extend: false
             property real userWidth: Persistent.states.sidebar?.leftWidth ?? Appearance.sizes.sidebarWidth
-            property real minWidth: Appearance.sizes.sidebarWidth + 5
+            property real minWidth: Appearance.sizes.sidebarWidth - 5
             property real maxWidth: sidebarRoot.screen ? sidebarRoot.screen.width * 0.8 : 1500
             property real sidebarWidth: Math.max(minWidth, Math.min(maxWidth, userWidth))
             property var contentParent: sidebarLeftBackground
