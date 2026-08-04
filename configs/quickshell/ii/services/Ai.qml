@@ -1575,18 +1575,16 @@ Singleton {
     }
 
     function createFunctionOutputMessage(name, output, includeOutputInChat = true) {
-        const displayName = name.replace(/^mcp_[^_]+_/, ""); // Strip mcp prefix for display
-        const content = includeOutputInChat
-            ? `<think>[Tool: ${displayName}]\n${output}\n</think>`
-            : `<think>[Tool: ${displayName}] (output hidden)</think>`;
+        const displayName = name.replace(/^mcp_[^_]+_/, "");
         return aiMessageComponent.createObject(root, {
             "role": "user",
-            "content": content,
-            "rawContent": content,
+            "content": `[Tool: ${displayName}]\n${output}`,
+            "rawContent": `[Tool: ${displayName}]\n${output}`,
             "functionName": name,
             "functionResponse": output,
             "thinking": false,
             "done": true,
+            "visibleToUser": false,
         });
     }
 
