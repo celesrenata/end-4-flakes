@@ -543,29 +543,56 @@ Item {
             }
         });
 
-        // POST to the message endpoint (fire-and-forget, response comes on SSE stream)
+        // POST to the message endpoint
+        // ToolHive proxies return the response in the POST body (hybrid mode)
+        // while pure SSE servers deliver it on the stream. Handle both.
         const cmd = ["curl", "-s", "--connect-timeout", "10", "--max-time", "10",
                      "-X", "POST", bridge.legacyMessageEndpoint,
                      "-H", "Content-Type: application/json",
                      "-d", requestBody];
+
+        // Store response buffer on bridge keyed by request ID (QML closures can't capture let vars)
+        if (!bridge._legacyPostBuffers) bridge._legacyPostBuffers = {};
+        bridge._legacyPostBuffers[id] = "";
 
         const proc = Qt.createQmlObject(`
             import Quickshell;
             import Quickshell.Io;
             Process {
                 running: false
-                stdout: SplitParser { onRead: data => {} }
+                stdout: SplitParser { onRead: data => { bridge._legacyPostBuffers[${id}] += data + "\n"; } }
                 stderr: SplitParser { onRead: data => {} }
             }
         `, bridge, "legacyPostProc_" + id);
 
         proc.command = cmd;
         proc.exited.connect((exitCode, exitStatus) => {
+            const responseData = (bridge._legacyPostBuffers && bridge._legacyPostBuffers[id]) || "";
+            if (bridge._legacyPostBuffers) delete bridge._legacyPostBuffers[id];
             proc.destroy();
+
             if (exitCode !== 0 && bridge._legacyPendingRequests[id]) {
                 delete bridge._legacyPendingRequests[id];
                 if (timeoutTimer) { timeoutTimer.running = false; timeoutTimer.destroy(); }
                 result._reject(`Legacy SSE POST failed (exit: ${exitCode}, method: ${method})`);
+                return;
+            }
+            // Check if response came in POST body (ToolHive hybrid mode)
+            if (bridge._legacyPendingRequests[id] && responseData.trim()) {
+                try {
+                    const parsed = JSON.parse(responseData.trim());
+                    if (parsed.jsonrpc === "2.0" && (parsed.id === id || parsed.id === null)) {
+                        delete bridge._legacyPendingRequests[id];
+                        if (timeoutTimer) { timeoutTimer.running = false; timeoutTimer.destroy(); }
+                        if (parsed.error) {
+                            result._reject(parsed.error.message || JSON.stringify(parsed.error));
+                        } else {
+                            result._resolve(parsed.result);
+                        }
+                    }
+                } catch (e) {
+                    // Not valid JSON — response will come on SSE stream
+                }
             }
         });
 
