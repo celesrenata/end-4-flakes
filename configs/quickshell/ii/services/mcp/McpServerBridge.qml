@@ -95,6 +95,7 @@ Item {
     property var _legacySseParser: null         // SSE parser for legacy stream
     property var _legacyPendingRequests: ({})   // id → { resolve, reject, timer }
     property bool _legacySseHeadersDone: false  // Whether HTTP headers have been consumed
+    property var _sseFlushTimer: null           // Timer to flush SSE parser on \n\n boundary issue
 
     // SSE signals
     signal streamingContent(int requestId, string content)
@@ -494,10 +495,44 @@ Item {
     /**
      * _handleLegacySseLine(line) — Process a line from the legacy SSE GET stream.
      */
+    /**
+     * _handleLegacySseLine(line) — Process a line from the legacy SSE GET stream.
+     * Works around SplitParser treating \n as separator (not terminator):
+     * after \n\n, the empty string is held until the NEXT \n arrives.
+     * We use a short timer to flush the parser if no empty line arrives promptly.
+     */
     function _handleLegacySseLine(line) {
         if (!bridge._legacySseParser) return;
-        // Feed directly to SSE parser (no -i headers to skip)
-        bridge._legacySseParser.feedLine(line);
+
+        // Cancel any pending flush timer
+        if (bridge._sseFlushTimer) {
+            bridge._sseFlushTimer.running = false;
+            bridge._sseFlushTimer.destroy();
+            bridge._sseFlushTimer = null;
+        }
+
+        // Feed the line to the SSE parser
+        const result = bridge._legacySseParser.feedLine(line);
+
+        // If this was a data: line (or any non-empty field), set a flush timer.
+        // If the empty-line terminator is stuck in SplitParser's buffer,
+        // we'll force-emit it after a short delay.
+        if (line !== "" && !line.startsWith(":")) {
+            bridge._sseFlushTimer = Qt.createQmlObject(`
+                import QtQuick;
+                Timer { interval: 50; repeat: false; running: true }
+            `, bridge, "sseFlushTimer");
+            bridge._sseFlushTimer.triggered.connect(() => {
+                if (bridge._sseFlushTimer) {
+                    bridge._sseFlushTimer.destroy();
+                    bridge._sseFlushTimer = null;
+                }
+                // Force-flush: emit incomplete event if parser has buffered data
+                if (bridge._legacySseParser) {
+                    bridge._legacySseParser.feedLine("");
+                }
+            });
+        }
     }
 
     /**
