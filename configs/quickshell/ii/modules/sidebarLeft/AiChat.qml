@@ -805,19 +805,12 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                 switch (state) {
                                     case "connected": return Appearance.m3colors.m3primary;
                                     case "connecting": return Appearance.m3colors.m3tertiary;
+                                    case "error": return Appearance.m3colors.m3outline;
                                     case "disabled": return Appearance.m3colors.m3outlineVariant;
-                                    default: return Appearance.m3colors.m3outline; // disconnected + error
+                                    default: return Appearance.m3colors.m3outline;
                                 }
                             }
-                            opacity: {
-                                if (mcpDot.flashState === "") {
-                                    const state = McpClient.serverStates[mcpDot.modelData];
-                                    if (state === "disabled") return 0.3;
-                                    if (state === "connected") return 1.0;
-                                    return 0.7; // disconnected, error
-                                }
-                                return 1.0;
-                            }
+                            opacity: McpClient.serverStates[mcpDot.modelData] === "disabled" ? 0.5 : (mcpDot.flashState !== "" ? 1.0 : 1.0)
 
                             Behavior on color { ColorAnimation { duration: 300 } }
                             Behavior on opacity { NumberAnimation { duration: 300 } }
