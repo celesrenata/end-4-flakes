@@ -803,7 +803,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                     case "connecting": return Appearance.m3colors.m3tertiary;
                                     case "error": return Appearance.m3colors.m3error;
                                     case "disabled": return Appearance.m3colors.m3outlineVariant;
-                                    default: return Appearance.m3colors.m3outline;
+                                    default: return Appearance.m3colors.m3secondary; // disconnected but enabled
                                 }
                             }
                             opacity: {
