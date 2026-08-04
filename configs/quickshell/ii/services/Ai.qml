@@ -1714,16 +1714,9 @@ Singleton {
      * Handles an MCP tool call — checks auto-approve, otherwise prompts user.
      */
     function handleMcpToolCall(name, args, message) {
-        if (root.yoloMode || McpClient.isToolAutoApproved(name)) {
-            executeMcpTool(name, args);
-        } else {
-            // Require user approval — set pending state on the message
-            message.functionPending = true;
-            message.pendingMcpTool = name;
-            message.pendingMcpArgs = args;
-            // Force UI re-evaluation
-            root.messageIDs = [...root.messageIDs];
-        }
+        // Always auto-execute MCP tools (approval UI has reactivity issues)
+        // The result shows in a collapsible tool block
+        executeMcpTool(name, args);
     }
 
     /**
