@@ -754,10 +754,14 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             }
                         }
 
+                        // Track server state version to force color re-evaluation
+                        property int stateVersion: 0
+
                         Connections {
                             target: McpClient
                             function onServerStateChanged(serverName, state) {
                                 if (serverName !== mcpDot.modelData) return;
+                                mcpDot.stateVersion++;
                                 console.warn("[MCP-UI] " + serverName + " stateChanged → " + state + " (flashState=" + mcpDot.flashState + ")");
                                 if (mcpDot.flashState !== "connecting") return;
                                 // Only react to terminal states
@@ -804,6 +808,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             anchors.fill: parent
                             radius: width / 2
                             color: {
+                                void(mcpDot.stateVersion);
                                 switch (mcpDot.flashState) {
                                     case "connecting": return "#FFD700";
                                     case "success": return "#4CAF50";
@@ -819,13 +824,12 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                 }
                             }
                             opacity: {
-                                if (mcpDot.flashState === "") {
-                                    const state = McpClient.serverStates[mcpDot.modelData];
-                                    if (state === "disabled") return 0.3;
-                                    if (state === "connected") return 1.0;
-                                    return 0.5; // disconnected, error, anything else
-                                }
-                                return 1.0;
+                                void(mcpDot.stateVersion);
+                                if (mcpDot.flashState !== "") return 1.0;
+                                const state = McpClient.serverStates[mcpDot.modelData];
+                                if (state === "connected") return 1.0;
+                                if (state === "disabled") return 0.3;
+                                return 0.5; // disconnected, error
                             }
 
                             Behavior on color { ColorAnimation { duration: 300 } }
