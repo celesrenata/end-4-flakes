@@ -803,12 +803,15 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                     case "connecting": return Appearance.m3colors.m3tertiary;
                                     case "error": return Appearance.m3colors.m3error;
                                     case "disabled": return Appearance.m3colors.m3outlineVariant;
-                                    default: return Appearance.m3colors.m3secondary; // disconnected but enabled
+                                    default: return Appearance.m3colors.m3outline; // disconnected but enabled
                                 }
                             }
                             opacity: {
                                 if (mcpDot.flashState === "") {
-                                    return McpClient.serverStates[mcpDot.modelData] === "disabled" ? 0.5 : 1.0;
+                                    const state = McpClient.serverStates[mcpDot.modelData];
+                                    if (state === "disabled") return 0.3;
+                                    if (state !== "connected" && state !== "connecting" && state !== "error") return 0.7; // disconnected
+                                    return 1.0;
                                 }
                                 return 1.0;
                             }
