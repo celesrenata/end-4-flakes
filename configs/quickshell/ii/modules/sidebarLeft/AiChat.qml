@@ -741,11 +741,10 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
                         onClicked: {
                             const currentState = McpClient.serverStates[modelData];
+                            console.warn("[MCP-UI] Clicked " + modelData + " state=" + currentState);
                             if (currentState === "connected") {
-                                // Disconnect
                                 McpClient.setServerDisabled(modelData, true);
                             } else {
-                                // Connect (re-enables if disabled)
                                 if (currentState === "disabled") {
                                     McpClient.setServerDisabled(modelData, false);
                                 }
@@ -759,21 +758,26 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             target: McpClient
                             function onServerStateChanged(serverName, state) {
                                 if (serverName !== mcpDot.modelData) return;
+                                console.warn("[MCP-UI] " + serverName + " stateChanged → " + state + " (flashState=" + mcpDot.flashState + ")");
                                 if (mcpDot.flashState !== "connecting") return;
-                                connectTimeoutTimer.stop();
+                                // Only react to terminal states
                                 if (state === "connected") {
+                                    connectTimeoutTimer.stop();
                                     mcpDot.flashState = "success";
+                                    fadeBackTimer.restart();
                                 } else if (state === "error") {
+                                    connectTimeoutTimer.stop();
                                     mcpDot.flashState = "failed";
+                                    fadeBackTimer.restart();
                                 }
-                                fadeBackTimer.restart();
+                                // Ignore "connecting", "disconnected" — keep pulsing
                             }
                         }
 
-                        // If no state change within 5s, mark as failed
+                        // If no state change within 10s, mark as failed
                         Timer {
                             id: connectTimeoutTimer
-                            interval: 5000
+                            interval: 10000
                             repeat: false
                             onTriggered: {
                                 if (mcpDot.flashState === "connecting") {
@@ -789,6 +793,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             interval: 3000
                             repeat: false
                             onTriggered: {
+                                const finalState = McpClient.serverStates[mcpDot.modelData];
+                                console.warn("[MCP-UI] " + mcpDot.modelData + " fadeBack: flashState=" + mcpDot.flashState + " → idle, serverState=" + finalState);
                                 mcpDot.flashState = "";
                             }
                         }
@@ -817,8 +823,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                 if (mcpDot.flashState === "") {
                                     const state = McpClient.serverStates[mcpDot.modelData];
                                     if (state === "disabled") return 0.3;
-                                    if (state !== "connected" && state !== "connecting" && state !== "error") return 0.7; // disconnected
-                                    return 1.0;
+                                    if (state === "connected") return 1.0;
+                                    return 0.5; // disconnected, error, anything else
                                 }
                                 return 1.0;
                             }
