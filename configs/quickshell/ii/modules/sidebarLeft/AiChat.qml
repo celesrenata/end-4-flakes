@@ -917,7 +917,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     right: parent.right
                     topMargin: 6
                     leftMargin: 8
-                    rightMargin: 8
+                    rightMargin: 14
                     bottomMargin: 6
                 }
                 spacing: 2

@@ -2287,6 +2287,8 @@ Singleton {
                 if (data.length === 0) return;
                 try {
                     compactRequester.currentStrategy.parseResponseLine(data, compactRequester.compactMessage);
+                    // Ensure rawContent tracks content for compact (strategy may only update content)
+                    compactRequester.compactMessage.rawContent = compactRequester.compactMessage.content;
                 } catch (e) {
                     // Fallback: accumulate raw data
                     compactRequester.compactMessage.rawContent += data;
@@ -2299,7 +2301,7 @@ Singleton {
             // Let strategy finalize if needed
             compactRequester.currentStrategy.onRequestFinished(compactRequester.compactMessage);
 
-            const summary = compactRequester.compactMessage.rawContent.trim();
+            const summary = (compactRequester.compactMessage.rawContent || compactRequester.compactMessage.content || "").trim();
             if (exitCode !== 0 || summary.length === 0) {
                 // Failure: preserve original messages, show error
                 root.addMessage(
