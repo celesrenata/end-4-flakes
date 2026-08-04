@@ -121,6 +121,9 @@ ColumnLayout {
         textFormat: renderMarkdown ? TextEdit.MarkdownText : TextEdit.PlainText
         text: Translation.tr("Waiting for response...")
 
+        // Disable internal vertical flicking so wheel events pass through
+        background: null
+
         onTextChanged: {
             if (!root.editing) return
             segmentContent = text
