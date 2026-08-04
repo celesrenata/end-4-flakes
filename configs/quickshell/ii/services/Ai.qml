@@ -1388,6 +1388,7 @@ Singleton {
         root.tokenCount.input = -1;
         root.tokenCount.output = -1;
         root.tokenCount.total = -1;
+        root.compacting = false;
     }
 
     // Temp file for request payloads — avoids shell ARG_MAX with large base64 images
