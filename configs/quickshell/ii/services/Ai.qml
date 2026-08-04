@@ -926,6 +926,7 @@ Singleton {
     Connections {
         target: McpClient
         function onToolsChanged() {
+            console.warn("[Ai] onToolsChanged fired, rebuilding tools");
             root._rebuildTools();
         }
     }
