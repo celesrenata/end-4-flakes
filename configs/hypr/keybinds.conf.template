@@ -344,11 +344,11 @@ binded = Ctrl+Alt, Left, Shrink width, resizeactive, -40 0 # Shrink width
 binded = Ctrl+Alt, Up, Shrink height, resizeactive, 0 -40 # Shrink height
 binded = Ctrl+Alt, Down, Grow height, resizeactive, 0 40 # Grow height
 # Master layout
-bindd = Super+Ctrl+Alt, Right, Add master column, layoutmsg, addmaster # Add master column
-bindd = Super+Ctrl+Alt, Left, Remove master column, layoutmsg, removemaster # Remove master column
-bindd = Super+Ctrl+Alt, Up, Orientation top, layoutmsg, orientationtop # Orientation top
-bindd = Super+Ctrl+Alt, Down, Orientation bottom, layoutmsg, orientationbottom # Orientation bottom
-bindd = Super+Ctrl+Alt, Return, Swap with master, layoutmsg, swapwithmaster master # Swap with master
+bindd = Super+Alt, Right, Add master column, layoutmsg, addmaster # Add master column
+bindd = Super+Alt, Left, Remove master column, layoutmsg, removemaster # Remove master column
+bindd = Super+Alt, Up, Orientation top, layoutmsg, orientationtop # Orientation top
+bindd = Super+Alt, Down, Orientation bottom, layoutmsg, orientationbottom # Orientation bottom
+bindd = Super+Alt, Return, Swap with master, layoutmsg, swapwithmaster master # Swap with master
 
 ##! Spaces
 bindd = Ctrl, 1, Workspace 1, workspace, 1 # Workspace 1
