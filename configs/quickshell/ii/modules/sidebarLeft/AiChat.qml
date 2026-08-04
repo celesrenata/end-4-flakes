@@ -554,13 +554,11 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
     Connections {
         target: Ai
         function onMessageIDsChanged() {
-            // New message added — re-engage auto-scroll
-            messageListView._userScrolledAway = false;
+            // Only re-engage auto-scroll if user isn't actively scrolling away
+            if (messageListView._userScrolledAway) return;
             messageListView._shouldStickToBottom = true;
             if (!messageListView.userScrolling) {
-                scrollBehavior.enabled = false;
-                messageListView.positionViewAtBeginning();
-                scrollBehavior.enabled = true;
+                scrollDebounce.restart();
             }
         }
     }
@@ -1875,7 +1873,6 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         positionViewAtBeginning()
                         scrollBehavior.enabled = true
                     } else if (_shouldStickToBottom && !userScrolling && !_userScrolledAway) {
-                        // Debounce: wait for content to stabilize before scrolling
                         scrollDebounce.restart()
                     }
                 }
@@ -1898,6 +1895,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 onMovementStarted: {
                     messageListView.userScrolling = true;
                     scrollAnim.stop();
+                    scrollDebounce.stop(); // Cancel any pending auto-scroll
                 }
                 onMovementEnded: {
                     messageListView.userScrolling = false;
