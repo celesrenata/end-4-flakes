@@ -1075,7 +1075,6 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                         if (!sessionRow.isActive) {
                                             Ai.switchSession(sessionDelegate.modelData.name)
                                         }
-                                        root.sessionDrawerOpen = false
                                     }
                                 }
                                 onDoubleClicked: {
