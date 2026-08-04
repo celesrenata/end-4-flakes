@@ -143,8 +143,12 @@ Item {
     }
 
     Keys.onPressed: (event) => {
-        // Close session drawer on any keypress
-        if (root.sessionDrawerOpen) root.sessionDrawerOpen = false;
+        // Close session drawer on Escape only
+        if (root.sessionDrawerOpen && event.key === Qt.Key_Escape) {
+            root.sessionDrawerOpen = false;
+            event.accepted = true;
+            return;
+        }
         // Only steal focus if no other text input currently has focus
         if (!messageInputField.activeFocus && !root.Window.activeFocusItem?.hasOwnProperty("text")) {
             messageInputField.forceActiveFocus()
@@ -1875,7 +1879,6 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 onMovementStarted: {
                     messageListView.userScrolling = true;
                     scrollAnim.stop();
-                    if (root.sessionDrawerOpen) root.sessionDrawerOpen = false;
                 }
                 onMovementEnded: {
                     messageListView.userScrolling = false;
