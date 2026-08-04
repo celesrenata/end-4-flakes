@@ -893,6 +893,42 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     }
                 }
             }
+
+            // Disable all MCP servers button
+            MouseArea {
+                width: 12
+                height: 12
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    const keys = Object.keys(McpClient.serverStates);
+                    for (let i = 0; i < keys.length; i++) {
+                        McpClient.setServerDisabled(keys[i], true);
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: width / 2
+                    color: "transparent"
+                    border.width: 1.5
+                    border.color: parent.containsMouse ? Appearance.m3colors.m3error : Appearance.m3colors.m3outline
+
+                    Rectangle {
+                        width: parent.width * 0.7
+                        height: 1.5
+                        anchors.centerIn: parent
+                        rotation: -45
+                        color: parent.border.color
+                    }
+                }
+
+                StyledToolTip {
+                    content: Translation.tr("Disable all MCP servers")
+                    extraVisibleCondition: false
+                    alternativeVisibleCondition: parent.containsMouse
+                }
+            }
         }
 
         // Session drawer — collapsible panel showing all sessions
