@@ -754,6 +754,16 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             }
                         }
 
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                        onPressed: (mouse) => {
+                            if (mouse.button === Qt.RightButton) {
+                                McpClient.setServerDisabled(modelData, true);
+                                mcpDot.flashState = "";
+                                mcpDot.stateVersion++;
+                            }
+                        }
+
                         // Track server state version to force color re-evaluation
                         property int stateVersion: 0
 
