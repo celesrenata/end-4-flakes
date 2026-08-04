@@ -11,21 +11,20 @@ import Quickshell
 Item {
     id: root
     property real padding: 4
-    implicitWidth: QsWindow?.window?.screen.width * 0.75 ?? 0
-    implicitHeight: QsWindow?.window?.screen.height * 0.7 ?? 0
+    implicitWidth: Math.min(flow.implicitWidth + Appearance.rounding.small * 2, QsWindow?.window?.screen.width * 0.75 ?? 800)
+    implicitHeight: Math.min(flow.implicitHeight + Appearance.rounding.small * 2, QsWindow?.window?.screen.height * 0.7 ?? 600)
 
     StyledFlickable {
         id: flickable
         clip: true
         anchors.fill: parent
         anchors.margins: Appearance.rounding.small
-        contentHeight: height
+        contentHeight: flow.implicitHeight
         contentWidth: flow.implicitWidth
 
         Flow {
             id: flow
-            // Cap column height to force categories into multiple columns
-            height: Math.min(flickable.height, 700)
+            height: flickable.height
             flow: Flow.TopToBottom
             spacing: 30
 
