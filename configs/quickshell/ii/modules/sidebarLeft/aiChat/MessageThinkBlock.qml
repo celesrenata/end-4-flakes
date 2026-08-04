@@ -40,7 +40,7 @@ Item {
     }
 
     Behavior on implicitHeight {
-        enabled: (root.completed ?? false) && root._animationsEnabled
+        enabled: false
         NumberAnimation {
             duration: collapseAnimation.duration
             easing.type: collapseAnimation.type
@@ -145,7 +145,7 @@ Item {
             clip: true
 
             Behavior on implicitHeight {
-                enabled: (root.completed ?? false) && root._animationsEnabled
+                enabled: false
                 NumberAnimation {
                     duration: collapseAnimation.duration
                     easing.type: collapseAnimation.type
