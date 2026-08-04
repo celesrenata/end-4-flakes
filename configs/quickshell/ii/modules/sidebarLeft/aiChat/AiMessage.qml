@@ -25,6 +25,9 @@ Rectangle {
 
     property list<var> messageBlocks: StringUtils.splitMarkdownBlocks(root.messageData?.content ?? "")
 
+    // Detect tool output messages (should render minimally, like thinking)
+    property bool isToolOutput: (root.messageData?.functionResponse ?? "").length > 0 && root.messageData?.role === "user"
+
     // MCP tool block detection: show a tool block when message has an MCP function result or is pending
     property bool showRawOutput: false
     property bool hasMcpToolBlock: (root.messageData?.functionName ?? "").startsWith("mcp_") &&
@@ -87,6 +90,7 @@ Rectangle {
         spacing: root.contentSpacing
         
         RowLayout { // Header
+            visible: !root.isToolOutput
             spacing: 15
             Layout.fillWidth: true
 
@@ -477,7 +481,7 @@ Rectangle {
             }
 
             Repeater {
-                model: root.messageBlocks.length
+                model: root.isToolOutput ? 0 : root.messageBlocks.length
                 delegate: Loader {
                     required property int index
                     property var thisBlock: root.messageBlocks[index]
