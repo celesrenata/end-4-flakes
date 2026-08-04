@@ -1920,7 +1920,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 property int lastResponseLength: 0
 
                 // Scroll-position guards (BottomToTop: contentY=0 is at bottom)
-                readonly property real scrollThreshold: 10
+                readonly property real scrollThreshold: 150
                 readonly property bool isNearBottom: contentY <= originY + scrollThreshold
                 property bool userScrolling: false
                 property bool _shouldStickToBottom: true
