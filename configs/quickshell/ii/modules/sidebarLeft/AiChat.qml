@@ -726,7 +726,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 spacing: 4
                 visible: Object.keys(McpClient.serverStates).length > 0
                 Repeater {
-                    model: Object.keys(McpClient.serverStates)
+                    model: Object.keys(McpClient.serverStates).sort()
                     delegate: MouseArea {
                         id: mcpDot
                         required property int index
