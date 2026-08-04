@@ -1875,9 +1875,21 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         positionViewAtBeginning()
                         scrollBehavior.enabled = true
                     } else if (_shouldStickToBottom && !userScrolling && !_userScrolledAway) {
-                        scrollBehavior.enabled = false
-                        positionViewAtBeginning()
-                        scrollBehavior.enabled = true
+                        // Debounce: wait for content to stabilize before scrolling
+                        scrollDebounce.restart()
+                    }
+                }
+
+                Timer {
+                    id: scrollDebounce
+                    interval: 150
+                    repeat: false
+                    onTriggered: {
+                        if (messageListView._shouldStickToBottom && !messageListView.userScrolling && !messageListView._userScrolledAway) {
+                            scrollBehavior.enabled = false
+                            messageListView.positionViewAtBeginning()
+                            scrollBehavior.enabled = true
+                        }
                     }
                 }
 
