@@ -6,6 +6,12 @@ hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "1", tr
 -- hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@60", position = "1920x0", scale = "1", mirror = "eDP-1" })
 
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+hl.gesture({ fingers = 4, direction = "pinchin", action = "fullscreen" })
+hl.gesture({ fingers = 4, direction = "pinchout", action = "fullscreen", mode = "maximize" })
+hl.gesture({ fingers = 4, direction = "left", action = function() hl.exec_cmd("~/.local/bin/gesture-toggle.sh left") end })
+hl.gesture({ fingers = 4, direction = "right", action = function() hl.exec_cmd("~/.local/bin/gesture-toggle.sh right") end })
+hl.gesture({ fingers = 4, direction = "up", action = function() hl.exec_cmd("~/.local/bin/gesture-toggle.sh up") end })
+hl.gesture({ fingers = 4, direction = "down", action = function() hl.exec_cmd("~/.local/bin/gesture-toggle.sh down") end })
 
 -- General
 hl.config({
