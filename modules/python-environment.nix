@@ -31,8 +31,7 @@ let
     
     # Set up proper library path for Python packages (64-bit only)
     export LD_LIBRARY_PATH="${lib.makeLibraryPath (with pkgs; [
-      stdenv.cc.cc.lib  # provides libstdc++.so.6
-      gcc-unwrapped.lib
+      gcc16Stdenv.cc.cc.lib  # GCC 16 libstdc++ (must match hyprland's stdenv)
       glibc
       zlib
       libffi
@@ -247,7 +246,7 @@ in
       ILLOGICAL_IMPULSE_VIRTUAL_ENV = cfg.venvPath;
       # Ensure Python packages can find system libraries (64-bit only)
       LD_LIBRARY_PATH = lib.makeLibraryPath (with pkgs; [
-        gcc-unwrapped.lib
+        gcc16Stdenv.cc.cc.lib  # GCC 16 libstdc++ (must match hyprland's stdenv to avoid GLIBCXX mismatch)
         glibc
         zlib
         libffi
