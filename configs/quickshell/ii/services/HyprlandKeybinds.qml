@@ -29,7 +29,7 @@ Singleton {
     Process {
         id: loadProcess
         running: true
-        command: ["hyprctl", "binds", "-j"]
+        command: ["env", "-u", "LD_LIBRARY_PATH", "hyprctl", "binds", "-j"]
 
         stdout: StdioCollector {
             onStreamFinished: {
