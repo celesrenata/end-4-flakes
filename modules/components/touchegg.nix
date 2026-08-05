@@ -35,7 +35,7 @@ in
             <gesture type="TAP" fingers="2" direction="UNKNOWN">
               <action type="MOUSE_CLICK">
                 <button>3</button>
-                <on>begin</on>
+                <on>end</on>
               </action>
             </gesture>
             
@@ -43,7 +43,7 @@ in
             <gesture type="TAP" fingers="3" direction="UNKNOWN">
               <action type="MOUSE_CLICK">
                 <button>2</button>
-                <on>begin</on>
+                <on>end</on>
               </action>
             </gesture>
             
@@ -53,7 +53,7 @@ in
                 <command>bash -c "$HOME/.local/bin/gesture-toggle.sh pinchin"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
-                <on>begin</on>
+                <on>end</on>
               </action>
             </gesture>
             
@@ -63,7 +63,7 @@ in
                 <command>bash -c "$HOME/.local/bin/gesture-toggle.sh pinchout"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
-                <on>begin</on>
+                <on>end</on>
               </action>
             </gesture>
             
@@ -75,7 +75,7 @@ in
                 <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.global("quickshell:overviewToggle"))'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
-                <on>begin</on>
+                <on>end</on>
               </action>
             </gesture>
             
@@ -85,7 +85,7 @@ in
                 <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.global("quickshell:overviewToggle"))'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
-                <on>begin</on>
+                <on>end</on>
               </action>
             </gesture>
             
@@ -95,7 +95,7 @@ in
                 <command>bash -c "$HOME/.local/bin/gesture-toggle.sh left"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
-                <on>begin</on>
+                <on>end</on>
               </action>
             </gesture>
             
@@ -105,7 +105,7 @@ in
                 <command>bash -c "$HOME/.local/bin/gesture-toggle.sh right"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
-                <on>begin</on>
+                <on>end</on>
               </action>
             </gesture>
             
@@ -115,7 +115,7 @@ in
                 <command>bash -c "$HOME/.local/bin/gesture-toggle.sh up"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
-                <on>begin</on>
+                <on>end</on>
               </action>
             </gesture>
             
@@ -125,7 +125,7 @@ in
                 <command>bash -c "$HOME/.local/bin/gesture-toggle.sh down"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
-                <on>begin</on>
+                <on>end</on>
               </action>
             </gesture>
           </application>
