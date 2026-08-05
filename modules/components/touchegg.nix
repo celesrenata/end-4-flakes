@@ -50,7 +50,7 @@ in
             <!-- 4-finger pinch in: Fullscreen mode 0 -->
             <gesture type="PINCH" fingers="4" direction="IN">
               <action type="RUN_COMMAND">
-                <command>env -u LD_LIBRARY_PATH hyprctl eval 'local w = hl.get_active_window(); if w.fullscreen == 2 then hl.dispatch(hl.dsp.window.fullscreen_state({internal=0, client=0})) else hl.dispatch(hl.dsp.window.fullscreen_state({internal=2, client=2})) end'</command>
+                <command>bash -c 'STATE=$HOME/.cache/gestures/fullscreen; mkdir -p $(dirname $STATE); if [ -f "$STATE" ]; then rm "$STATE"; env -u LD_LIBRARY_PATH hyprctl eval "hl.dispatch(hl.dsp.window.fullscreen_state({internal=0, client=0}))"; else touch "$STATE"; rm -f "$HOME/.cache/gestures/maximize"; env -u LD_LIBRARY_PATH hyprctl eval "hl.dispatch(hl.dsp.window.fullscreen_state({internal=2, client=2}))"; fi'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -60,7 +60,7 @@ in
             <!-- 4-finger pinch out: Fullscreen mode 1 -->
             <gesture type="PINCH" fingers="4" direction="OUT">
               <action type="RUN_COMMAND">
-                <command>env -u LD_LIBRARY_PATH hyprctl eval 'local w = hl.get_active_window(); if w.fullscreen == 1 then hl.dispatch(hl.dsp.window.fullscreen_state({internal=0, client=0})) else hl.dispatch(hl.dsp.window.fullscreen_state({internal=1, client=1})) end'</command>
+                <command>bash -c 'STATE=$HOME/.cache/gestures/maximize; mkdir -p $(dirname $STATE); if [ -f "$STATE" ]; then rm "$STATE"; env -u LD_LIBRARY_PATH hyprctl eval "hl.dispatch(hl.dsp.window.fullscreen_state({internal=0, client=0}))"; else touch "$STATE"; rm -f "$HOME/.cache/gestures/fullscreen"; env -u LD_LIBRARY_PATH hyprctl eval "hl.dispatch(hl.dsp.window.fullscreen_state({internal=1, client=1}))"; fi'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
