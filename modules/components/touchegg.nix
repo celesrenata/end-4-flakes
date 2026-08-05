@@ -50,7 +50,7 @@ in
             <!-- 4-finger pinch in: Fullscreen mode 0 -->
             <gesture type="PINCH" fingers="4" direction="IN">
               <action type="RUN_COMMAND">
-                <command>hyprctl dispatch fullscreen 0</command>
+                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.window.fullscreen(0))'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -60,7 +60,7 @@ in
             <!-- 4-finger pinch out: Fullscreen mode 1 -->
             <gesture type="PINCH" fingers="4" direction="OUT">
               <action type="RUN_COMMAND">
-                <command>hyprctl dispatch fullscreen 1</command>
+                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.window.fullscreen(1))'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -72,7 +72,7 @@ in
             <!-- 3-finger swipe up: Show overview -->
             <gesture type="SWIPE" fingers="3" direction="UP">
               <action type="RUN_COMMAND">
-                <command>hyprctl dispatch global quickshell:overviewToggle</command>
+                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.global("quickshell:overviewToggle"))'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -82,7 +82,7 @@ in
             <!-- 3-finger swipe down: Show all windows -->
             <gesture type="SWIPE" fingers="3" direction="DOWN">
               <action type="RUN_COMMAND">
-                <command>hyprctl dispatch overview</command>
+                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.global("quickshell:overviewToggle"))'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -92,7 +92,7 @@ in
             <!-- 4-finger swipe left: Move window left -->
             <gesture type="SWIPE" fingers="4" direction="LEFT">
               <action type="RUN_COMMAND">
-                <command>hyprctl dispatch movewindow l</command>
+                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.window.move({direction="left"}))'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -102,7 +102,7 @@ in
             <!-- 4-finger swipe right: Move window right -->
             <gesture type="SWIPE" fingers="4" direction="RIGHT">
               <action type="RUN_COMMAND">
-                <command>hyprctl dispatch movewindow r</command>
+                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.window.move({direction="right"}))'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -112,7 +112,7 @@ in
             <!-- 4-finger swipe up: Move window up -->
             <gesture type="SWIPE" fingers="4" direction="UP">
               <action type="RUN_COMMAND">
-                <command>hyprctl dispatch movewindow u</command>
+                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.window.move({direction="up"}))'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -122,7 +122,7 @@ in
             <!-- 4-finger swipe down: Move window down -->
             <gesture type="SWIPE" fingers="4" direction="DOWN">
               <action type="RUN_COMMAND">
-                <command>hyprctl dispatch movewindow d</command>
+                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.window.move({direction="down"}))'</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
