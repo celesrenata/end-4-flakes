@@ -142,12 +142,12 @@ in
       # Hyprland Lua configuration (0.55+ native)
       (mkIf (cfg.overrides.useLuaConfig) {
         "hypr/hyprland.lua".source = "${cfg.source}/.config/hypr/hyprland.lua";
-        "hypr/hyprland/env.lua".source = "${cfg.source}/.config/hypr/hyprland/env.lua";
-        "hypr/hyprland/general.lua".source = "${cfg.source}/.config/hypr/hyprland/general.lua";
-        "hypr/hyprland/colors.lua".source = "${cfg.source}/.config/hypr/hyprland/colors.lua";
-        "hypr/hyprland/rules.lua".source = "${cfg.source}/.config/hypr/hyprland/rules.lua";
-        "hypr/hyprland/execs.lua".source = "${cfg.source}/.config/hypr/hyprland/execs.lua";
-        "hypr/hyprland/keybinds.lua".source = "${cfg.source}/.config/hypr/hyprland/keybinds.lua";
+        "hypr/hyprland/env.lua".source = mkDefault "${cfg.source}/.config/hypr/hyprland/env.lua";
+        "hypr/hyprland/general.lua".source = mkDefault "${cfg.source}/.config/hypr/hyprland/general.lua";
+        "hypr/hyprland/colors.lua".source = mkDefault "${cfg.source}/.config/hypr/hyprland/colors.lua";
+        "hypr/hyprland/rules.lua".source = mkDefault "${cfg.source}/.config/hypr/hyprland/rules.lua";
+        "hypr/hyprland/execs.lua".source = mkDefault "${cfg.source}/.config/hypr/hyprland/execs.lua";
+        "hypr/hyprland/keybinds.lua".source = mkDefault "${cfg.source}/.config/hypr/hyprland/keybinds.lua";
       })
     ];
   };
