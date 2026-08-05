@@ -221,3 +221,16 @@ hl.bind("Ctrl + Shift + Escape", hl.dsp.exec_cmd('~/.config/hypr/hyprland/script
 -- Cursed stuff
 --- Make window not amogus large
 hl.bind("Ctrl + Super + Backslash", hl.dsp.exec_cmd("hyprctl dispatch resizeactive exact 640 480")) -- [hidden]
+
+--- Layout
+-- Resize active window
+hl.bind("Ctrl + Alt + Right", hl.dsp.window.resize({ x = 40, y = 0, relative = true }), { repeating = true, description = "Layout: Grow width" })
+hl.bind("Ctrl + Alt + Left", hl.dsp.window.resize({ x = -40, y = 0, relative = true }), { repeating = true, description = "Layout: Shrink width" })
+hl.bind("Ctrl + Alt + Up", hl.dsp.window.resize({ x = 0, y = -40, relative = true }), { repeating = true, description = "Layout: Shrink height" })
+hl.bind("Ctrl + Alt + Down", hl.dsp.window.resize({ x = 0, y = 40, relative = true }), { repeating = true, description = "Layout: Grow height" })
+-- Master layout controls
+hl.bind("Super + Alt + Right", hl.dsp.layout("addmaster"), { description = "Layout: Add master column" })
+hl.bind("Super + Alt + Left", hl.dsp.layout("removemaster"), { description = "Layout: Remove master column" })
+hl.bind("Super + Alt + Up", hl.dsp.layout("orientationtop"), { description = "Layout: Orientation top" })
+hl.bind("Super + Alt + Down", hl.dsp.layout("orientationbottom"), { description = "Layout: Orientation bottom" })
+hl.bind("Super + Alt + Return", hl.dsp.layout("swapwithmaster", "master"), { description = "Layout: Swap with master" })
