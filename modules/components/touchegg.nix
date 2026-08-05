@@ -50,7 +50,7 @@ in
             <!-- 4-finger pinch in: Fullscreen mode 0 -->
             <gesture type="PINCH" fingers="4" direction="IN">
               <action type="RUN_COMMAND">
-                <command>~/.local/bin/gesture-toggle.sh pinchin</command>
+                <command>bash -c "$HOME/.local/bin/gesture-toggle.sh pinchin"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -60,7 +60,7 @@ in
             <!-- 4-finger pinch out: Fullscreen mode 1 -->
             <gesture type="PINCH" fingers="4" direction="OUT">
               <action type="RUN_COMMAND">
-                <command>~/.local/bin/gesture-toggle.sh pinchout</command>
+                <command>bash -c "$HOME/.local/bin/gesture-toggle.sh pinchout"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -92,7 +92,7 @@ in
             <!-- 4-finger swipe left: Move window left -->
             <gesture type="SWIPE" fingers="4" direction="LEFT">
               <action type="RUN_COMMAND">
-                <command>~/.local/bin/gesture-toggle.sh left</command>
+                <command>bash -c "$HOME/.local/bin/gesture-toggle.sh left"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -102,7 +102,7 @@ in
             <!-- 4-finger swipe right: Move window right -->
             <gesture type="SWIPE" fingers="4" direction="RIGHT">
               <action type="RUN_COMMAND">
-                <command>~/.local/bin/gesture-toggle.sh right</command>
+                <command>bash -c "$HOME/.local/bin/gesture-toggle.sh right"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -112,7 +112,7 @@ in
             <!-- 4-finger swipe up: Move window up -->
             <gesture type="SWIPE" fingers="4" direction="UP">
               <action type="RUN_COMMAND">
-                <command>~/.local/bin/gesture-toggle.sh up</command>
+                <command>bash -c "$HOME/.local/bin/gesture-toggle.sh up"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -122,7 +122,7 @@ in
             <!-- 4-finger swipe down: Move window down -->
             <gesture type="SWIPE" fingers="4" direction="DOWN">
               <action type="RUN_COMMAND">
-                <command>~/.local/bin/gesture-toggle.sh down</command>
+                <command>bash -c "$HOME/.local/bin/gesture-toggle.sh down"</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
