@@ -50,7 +50,7 @@ in
             <!-- 4-finger pinch in: Fullscreen mode 0 -->
             <gesture type="PINCH" fingers="4" direction="IN">
               <action type="RUN_COMMAND">
-                <command>/home/celes/.local/bin/gesture-toggle.sh pinchin</command>
+                <command>~/.local/bin/gesture-toggle.sh pinchin</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -60,7 +60,7 @@ in
             <!-- 4-finger pinch out: Fullscreen mode 1 -->
             <gesture type="PINCH" fingers="4" direction="OUT">
               <action type="RUN_COMMAND">
-                <command>/home/celes/.local/bin/gesture-toggle.sh pinchout</command>
+                <command>~/.local/bin/gesture-toggle.sh pinchout</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
