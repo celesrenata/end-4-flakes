@@ -17,7 +17,7 @@ in
         <touchégg>
           <settings>
             <property name="animation_delay">150</property>
-            <property name="action_execute_threshold">80</property>
+            <property name="action_execute_threshold">20</property>
             <property name="color">auto</property>
             <property name="borderColor">auto</property>
           </settings>
