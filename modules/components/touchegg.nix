@@ -202,14 +202,8 @@ in
       text = cfg.config;
     };
     
-    # Also create system config that touchegg service can read
-    # Note: This requires the touchegg service to be enabled at system level
-    home.activation.toucheggSystemConfig = lib.hm.dag.entryAfter ["writeBoundary"] ''
-      echo "📄 Creating system-wide touchegg configuration..."
-      $DRY_RUN_CMD sudo mkdir -p /etc/touchegg
-      $DRY_RUN_CMD sudo cp ${config.xdg.configHome}/touchegg/touchegg.conf /etc/touchegg/touchegg.conf
-      echo "✅ System touchegg config updated"
-    '';
+    # System-level touchegg config should be deployed via NixOS module (services.touchegg)
+    # not via home-manager activation with sudo
     
     # Create touchegg client service (required for gesture execution)
     systemd.user.services.touchegg-client = {
