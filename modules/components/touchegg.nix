@@ -92,7 +92,7 @@ in
             <!-- 4-finger swipe left: Move window left -->
             <gesture type="SWIPE" fingers="4" direction="LEFT">
               <action type="RUN_COMMAND">
-                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.window.move({direction="left"}))'</command>
+                <command>~/.local/bin/gesture-toggle.sh left</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -102,7 +102,7 @@ in
             <!-- 4-finger swipe right: Move window right -->
             <gesture type="SWIPE" fingers="4" direction="RIGHT">
               <action type="RUN_COMMAND">
-                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.window.move({direction="right"}))'</command>
+                <command>~/.local/bin/gesture-toggle.sh right</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -112,7 +112,7 @@ in
             <!-- 4-finger swipe up: Move window up -->
             <gesture type="SWIPE" fingers="4" direction="UP">
               <action type="RUN_COMMAND">
-                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.window.move({direction="up"}))'</command>
+                <command>~/.local/bin/gesture-toggle.sh up</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
@@ -122,7 +122,7 @@ in
             <!-- 4-finger swipe down: Move window down -->
             <gesture type="SWIPE" fingers="4" direction="DOWN">
               <action type="RUN_COMMAND">
-                <command>env -u LD_LIBRARY_PATH hyprctl eval 'hl.dispatch(hl.dsp.window.move({direction="down"}))'</command>
+                <command>~/.local/bin/gesture-toggle.sh down</command>
                 <repeat>false</repeat>
                 <animation>NONE</animation>
                 <on>begin</on>
