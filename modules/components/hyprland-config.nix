@@ -86,7 +86,7 @@ in
     };
   };
   
-  config = mkIf (config.programs.dots-hyprland.enable && config.programs.dots-hyprland.overrides.hyprlandConf == null) {
+  config = mkIf (config.programs.dots-hyprland.enable && config.programs.dots-hyprland.overrides.hyprlandConf == null && !(config.programs.dots-hyprland.overrides.useLuaConfig or false)) {
     # Only generate if no manual override is set
     xdg.configFile."hypr/general.conf".text = ''
       # General Hyprland configuration for dots-hyprland (NixOS-managed)

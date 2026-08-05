@@ -8,6 +8,16 @@ let
 in
 {
   options.programs.dots-hyprland.overrides = {
+    useLuaConfig = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Use Hyprland 0.55+ native Lua configuration instead of hyprlang .conf files.
+        When true, deploys hyprland.lua and hyprland/*.lua from configs/hypr/
+        and suppresses hyprland.conf generation entirely.
+      '';
+    };
+
     # Complete file overrides - when set, completely replaces any generated config
     hyprlandConf = mkOption {
       type = types.nullOr types.lines;
@@ -91,8 +101,8 @@ in
 
     # File overrides take absolute priority
     xdg.configFile = mkMerge [
-      # Hyprland complete override
-      (mkIf (cfg.overrides.hyprlandConf != null) {
+      # Hyprland complete override (hyprlang — disabled when using Lua config)
+      (mkIf (cfg.overrides.hyprlandConf != null && !(cfg.overrides.useLuaConfig or false)) {
         "hypr/hyprland.conf" = {
           text = cfg.overrides.hyprlandConf;
           force = true;
@@ -127,6 +137,17 @@ in
           source = cfg.overrides.quickshellDirectory;
           recursive = true;
         };
+      })
+
+      # Hyprland Lua configuration (0.55+ native)
+      (mkIf (cfg.overrides.useLuaConfig) {
+        "hypr/hyprland.lua".source = "${cfg.source}/.config/hypr/hyprland.lua";
+        "hypr/hyprland/env.lua".source = "${cfg.source}/.config/hypr/hyprland/env.lua";
+        "hypr/hyprland/general.lua".source = "${cfg.source}/.config/hypr/hyprland/general.lua";
+        "hypr/hyprland/colors.lua".source = "${cfg.source}/.config/hypr/hyprland/colors.lua";
+        "hypr/hyprland/rules.lua".source = "${cfg.source}/.config/hypr/hyprland/rules.lua";
+        "hypr/hyprland/execs.lua".source = "${cfg.source}/.config/hypr/hyprland/execs.lua";
+        "hypr/hyprland/keybinds.lua".source = "${cfg.source}/.config/hypr/hyprland/keybinds.lua";
       })
     ];
   };
