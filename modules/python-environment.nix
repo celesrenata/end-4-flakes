@@ -63,8 +63,10 @@ let
     # Set wayland protocol path for pywayland
     export PKG_CONFIG_PATH="${pkgs.wayland.dev}/lib/pkgconfig:${pkgs.wayland-protocols}/share/pkgconfig:${pkgs.wayland-scanner.dev}/lib/pkgconfig"
     export WAYLAND_PROTOCOLS_DIR="${pkgs.wayland-scanner}/share/wayland"
-    export C_INCLUDE_PATH="${pkgs.wayland.dev}/include:$C_INCLUDE_PATH"
-    export LIBRARY_PATH="${pkgs.wayland}/lib:$LIBRARY_PATH"
+    export C_INCLUDE_PATH="${pkgs.libffi.dev}/include:${pkgs.zlib.dev}/include:${pkgs.libjpeg.dev}/include:${pkgs.wayland.dev}/include:$C_INCLUDE_PATH"
+    export LIBRARY_PATH="${pkgs.libffi}/lib:${pkgs.zlib}/lib:${pkgs.libjpeg.out}/lib:${pkgs.wayland}/lib:$LIBRARY_PATH"
+    export CFLAGS="-I${pkgs.zlib.dev}/include -I${pkgs.libjpeg.dev}/include -I${pkgs.libffi.dev}/include"
+    export LDFLAGS="-L${pkgs.zlib}/lib -L${pkgs.libjpeg.out}/lib -L${pkgs.libffi}/lib"
     export PATH="${pkgs.wayland-scanner}/bin:$PATH"
     
     # Upgrade pip first
