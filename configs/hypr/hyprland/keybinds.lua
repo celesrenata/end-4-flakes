@@ -96,8 +96,8 @@ hl.bind("Super + Shift + Alt + Q", hl.dsp.exec_cmd("hyprctl kill")) -- Forcefull
 
 -- Window split ratio
 --/-- binde = Super, ;/',, -- Adjust split ratio
-hl.bind("Super + Semicolon", hl.dsp.layout("splitratio", -0.1), { repeating = true }) -- [hidden]
-hl.bind("Super + Apostrophe", hl.dsp.layout("splitratio", 0.1), { repeating = true }) -- [hidden]
+hl.bind("Super + Semicolon", hl.dsp.layout("splitratio -0.1"), { repeating = true }) -- [hidden]
+hl.bind("Super + Apostrophe", hl.dsp.layout("splitratio +0.1"), { repeating = true }) -- [hidden]
 -- Positioning mode
 hl.bind("Super + Alt + Space", hl.dsp.window.float({ action = "toggle" })) -- Float/Tile
 hl.bind("Super + D", hl.dsp.window.fullscreen(1)) -- Maximize
@@ -233,4 +233,4 @@ hl.bind("Super + Alt + Right", hl.dsp.layout("addmaster"), { description = "Layo
 hl.bind("Super + Alt + Left", hl.dsp.layout("removemaster"), { description = "Layout: Remove master column" })
 hl.bind("Super + Alt + Up", hl.dsp.layout("orientationtop"), { description = "Layout: Orientation top" })
 hl.bind("Super + Alt + Down", hl.dsp.layout("orientationbottom"), { description = "Layout: Orientation bottom" })
-hl.bind("Super + Alt + Return", hl.dsp.layout("swapwithmaster", "master"), { description = "Layout: Swap with master" })
+hl.bind("Super + Alt + Return", hl.dsp.layout("swapwithmaster master"), { description = "Layout: Swap with master" })
