@@ -29,10 +29,14 @@ let
       echo "✅ Virtual environment already exists at $VENV_PATH"
     fi
     
-    # Set up proper library path for Python packages (64-bit only)
+    # Set up proper library path for Python packages (64-bit only).
+    # NOTE: glibc is deliberately NOT listed here. Putting glibc on
+    # LD_LIBRARY_PATH forces every binary to load this exact glibc, which
+    # breaks with "GLIBC_x.y not found" / "stack smashing detected" the moment
+    # this pinned glibc drifts from the glibc the running binaries were linked
+    # against. Each binary must resolve its own libc via the normal loader.
     export LD_LIBRARY_PATH="${lib.makeLibraryPath (with pkgs; [
       gcc16Stdenv.cc.cc.lib  # GCC 16 libstdc++ (must match hyprland's stdenv)
-      glibc
       zlib
       libffi
       openssl
@@ -246,23 +250,19 @@ in
     # Set critical environment variable and library paths
     home.sessionVariables = {
       ILLOGICAL_IMPULSE_VIRTUAL_ENV = cfg.venvPath;
-      # Ensure Python packages can find system libraries (64-bit only)
-      LD_LIBRARY_PATH = lib.makeLibraryPath (with pkgs; [
-        gcc16Stdenv.cc.cc.lib  # GCC 16 libstdc++ (must match hyprland's stdenv to avoid GLIBCXX mismatch)
-        glibc
-        zlib
-        libffi
-        openssl
-        bzip2
-        xz.out
-        ncurses
-        readline
-        sqlite
-      ]);
+      # NOTE: LD_LIBRARY_PATH is intentionally NOT set globally here.
+      # A global LD_LIBRARY_PATH that contains glibc (or any core lib) forces
+      # EVERY binary in the login/Hyprland session to load this exact glibc.
+      # When the pinned glibc drifts from the glibc the session's coreutils /
+      # starship / Hyprland were linked against, they abort with
+      # "GLIBC_x.y not found" / "*** stack smashing detected ***". The libs the
+      # quickshell venv needs are now provided service-scoped on the quickshell
+      # unit (see quickshell-service.nix) and at venv build time (above),
+      # never globally.
       # Additional environment variables for Python
       PYTHONPATH = "";  # Clear to avoid conflicts
       PYTHONDONTWRITEBYTECODE = "1";  # Prevent .pyc files
-      
+
       # QML import paths for quickshell
       QML2_IMPORT_PATH = lib.concatStringsSep ":" (with pkgs; [
         "${kdePackages.qt5compat}/lib/qt-6/qml"

@@ -212,6 +212,23 @@ in
         # Environment variables - include full user environment
         PassEnvironment = [ "HYPRLAND_INSTANCE_SIGNATURE" "WAYLAND_DISPLAY" ];
         Environment = [
+          # Service-scoped library path for the quickshell Python venv modules
+          # (materialyoucolor, numpy, PIL) and native Qt deps. This is set HERE,
+          # on the quickshell unit only, NOT as a global home.sessionVariable:
+          # a global LD_LIBRARY_PATH poisons every binary in the session. glibc
+          # is deliberately excluded so each binary keeps resolving its own libc
+          # via the normal loader.
+          "LD_LIBRARY_PATH=${lib.makeLibraryPath (with pkgs; [
+            gcc16Stdenv.cc.cc.lib  # GCC 16 libstdc++ (must match hyprland's stdenv to avoid GLIBCXX mismatch)
+            zlib
+            libffi
+            openssl
+            bzip2
+            xz.out
+            ncurses
+            readline
+            sqlite
+          ])}"
           "QT_SCALE_FACTOR=${toString cfg.scaling}"
           "QT_QUICK_CONTROLS_STYLE=Basic"
           "QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000"
