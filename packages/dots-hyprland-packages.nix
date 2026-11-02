@@ -79,7 +79,7 @@ let
     hypridle
     hyprcursor
     # hyprland  # Removed - use system hyprland instead
-    hyprland-qtutils
+    hyprland-guiutils
     # hyprland-qt-support -> might be in hyprland-qtutils
     hyprlang
     hyprlock

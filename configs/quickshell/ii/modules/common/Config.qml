@@ -82,7 +82,15 @@ Singleton {
                         "requires_key": true
                     }
                 ]
-                property list<var> customProviders: []
+                property list<var> customProviders: [
+                    {
+                        "apiKey": "local",
+                        "baseUrl": "https://omniroute.celestium.life/v1",
+                        "icon": "ai-openai-symbolic",
+                        "id": "custom-1790475585274",
+                        "name": "OmniRoute"
+                    }
+                ]
             }
 
             property JsonObject appearance: JsonObject {

@@ -263,6 +263,15 @@ in
                   property string systemPrompt: "## Style\n- Use casual tone, don't be formal! Make sure you answer precisely without hallucination and prefer bullet points over walls of text. You can have a friendly greeting at the beginning of the conversation, but don't repeat the user's question\n\n## Context (ignore when irrelevant)\n- You are a helpful and inspiring sidebar assistant on a NixOS Linux system\n- Desktop environment: Hyprland + dots-hyprland\n- Current date & time: {DATETIME}\n- Focused app: {WINDOWCLASS}\n\n## Presentation\n- Use Markdown features in your response"
                   property string tool: "functions"
                   property list<var> extraModels: []
+                  property list<var> customProviders: [
+                      {
+                          "apiKey": "local",
+                          "baseUrl": "https://omniroute.celestium.life/v1",
+                          "icon": "ai-openai-symbolic",
+                          "id": "custom-1790475585274",
+                          "name": "OmniRoute"
+                      }
+                  ]
               }
               
               property JsonObject appearance: JsonObject {
