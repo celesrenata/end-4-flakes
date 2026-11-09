@@ -5,6 +5,275 @@ with lib;
 
 let
   cfg = config.programs.dots-hyprland.quickshell;
+  topCfg = config.programs.dots-hyprland;
+  boolToString = b: if b then "true" else "false";
+
+  # NixOS-managed Config.qml generated from the options above.
+  generatedConfigQml = ''
+    pragma Singleton
+    pragma ComponentBehavior: Bound
+    import QtQuick
+    import Quickshell
+    import Quickshell.Io
+
+    Singleton {
+        id: root
+        property string filePath: Directories.shellConfigPath
+        property alias options: configOptionsJsonAdapter
+        property bool ready: true  // Always ready for NixOS-generated config
+
+        function setNestedValue(nestedKey, value) {
+            // NixOS-managed config - values are set at build time
+            console.log("NixOS-managed configuration - ignoring runtime changes");
+        }
+
+        JsonAdapter {
+            id: configOptionsJsonAdapter
+
+            property JsonObject policies: JsonObject {
+                property int ai: 1
+                property int weeb: 1
+            }
+
+            property JsonObject ai: JsonObject {
+                property string systemPrompt: "## Style\n- Use casual tone, don't be formal! Make sure you answer precisely without hallucination and prefer bullet points over walls of text. You can have a friendly greeting at the beginning of the conversation, but don't repeat the user's question\n\n## Context (ignore when irrelevant)\n- You are a helpful and inspiring sidebar assistant on a NixOS Linux system\n- Desktop environment: Hyprland + dots-hyprland\n- Current date & time: {DATETIME}\n- Focused app: {WINDOWCLASS}\n\n## Presentation\n- Use Markdown features in your response"
+                property string tool: "functions"
+                property list<var> extraModels: []
+                property list<var> customProviders: [
+                    {
+                        "apiKey": "local",
+                        "baseUrl": "https://omniroute.celestium.life/v1",
+                        "icon": "ai-openai-symbolic",
+                        "id": "custom-1790475585274",
+                        "name": "OmniRoute"
+                    }
+                ]
+            }
+
+            property JsonObject appearance: JsonObject {
+                property bool extraBackgroundTint: ${boolToString cfg.appearance.extraBackgroundTint}
+                property int fakeScreenRounding: ${toString cfg.appearance.fakeScreenRounding}
+                property bool transparency: ${boolToString cfg.appearance.transparency}
+                property string antiFlashbang: "${cfg.appearance.antiFlashbang}"
+                property JsonObject wallpaperTheming: JsonObject {
+                    property bool enableAppsAndShell: true
+                    property bool enableQtApps: true
+                    property bool enableTerminal: true
+                }
+                property JsonObject palette: JsonObject {
+                    property string type: "auto"
+                }
+            }
+
+            property JsonObject audio: JsonObject {
+                property JsonObject protection: JsonObject {
+                    property bool enable: true
+                    property real maxAllowedIncrease: 10
+                    property real maxAllowed: 90
+                }
+            }
+
+            property JsonObject apps: JsonObject {
+                property string bluetooth: "${cfg.apps.bluetooth}"
+                property string network: "${cfg.apps.network}"
+                property string networkEthernet: "kcmshell6 kcm_networkmanagement"
+                property string taskManager: "${cfg.apps.taskManager}"
+                property string terminal: "${cfg.apps.terminal}"
+            }
+
+            property JsonObject background: JsonObject {
+                property bool fixedClockPosition: false
+                property real clockX: -500
+                property real clockY: -500
+                property string wallpaperPath: ""
+                property string thumbnailPath: ""
+                property JsonObject parallax: JsonObject {
+                    property bool enableWorkspace: true
+                    property real workspaceZoom: 1.07
+                    property bool enableSidebar: true
+                }
+            }
+
+            property JsonObject bar: JsonObject {
+                property bool bottom: ${boolToString cfg.bar.bottom}
+                property int cornerStyle: ${toString cfg.bar.cornerStyle}
+                property bool borderless: ${boolToString cfg.bar.borderless}
+                property string topLeftIcon: "${cfg.bar.topLeftIcon}"
+                property bool showBackground: ${boolToString cfg.bar.showBackground}
+                property bool verbose: ${boolToString cfg.bar.verbose}
+                property JsonObject resources: JsonObject {
+                    property bool alwaysShowSwap: true
+                    property bool alwaysShowCpu: false
+                }
+                property list<string> screenList: []
+                property JsonObject utilButtons: JsonObject {
+                    property bool showScreenSnip: ${boolToString cfg.bar.utilButtons.showScreenSnip}
+                    property bool showColorPicker: ${boolToString cfg.bar.utilButtons.showColorPicker}
+                    property bool showMicToggle: ${boolToString cfg.bar.utilButtons.showMicToggle}
+                    property bool showKeyboardToggle: ${boolToString cfg.bar.utilButtons.showKeyboardToggle}
+                    property bool showDarkModeToggle: ${boolToString cfg.bar.utilButtons.showDarkModeToggle}
+                    property bool showPerformanceProfileToggle: ${boolToString cfg.bar.utilButtons.showPerformanceProfileToggle}
+                }
+                property JsonObject tray: JsonObject {
+                    property bool monochromeIcons: true
+                }
+                property JsonObject workspaces: JsonObject {
+                    property string variant: "${cfg.bar.workspaces.variant}"
+                    property bool monochromeIcons: ${boolToString cfg.bar.workspaces.monochromeIcons}
+                    property int shown: ${toString cfg.bar.workspaces.shown}
+                    property bool showAppIcons: ${boolToString cfg.bar.workspaces.showAppIcons}
+                    property bool alwaysShowNumbers: ${boolToString cfg.bar.workspaces.alwaysShowNumbers}
+                    property int showNumberDelay: ${toString cfg.bar.workspaces.showNumberDelay}
+                }
+                property JsonObject weather: JsonObject {
+                    property bool enable: false
+                    property bool enableGPS: true
+                    property string city: ""
+                    property bool useUSCS: false
+                    property int fetchInterval: 10
+                }
+            }
+
+            property JsonObject battery: JsonObject {
+                property int low: ${toString cfg.battery.low}
+                property int critical: ${toString cfg.battery.critical}
+                property bool automaticSuspend: ${boolToString cfg.battery.automaticSuspend}
+                property int suspend: ${toString cfg.battery.suspend}
+            }
+
+            property JsonObject dock: JsonObject {
+                property bool enable: false
+                property bool monochromeIcons: true
+                property real height: 60
+                property real hoverRegionHeight: 2
+                property bool pinnedOnStartup: false
+                property bool hoverToReveal: true
+                property list<string> pinnedApps: ["org.kde.dolphin", "kitty"]
+                property list<string> ignoredAppRegexes: []
+            }
+
+            property JsonObject language: JsonObject {
+                property JsonObject translator: JsonObject {
+                    property string engine: "auto"
+                    property string targetLanguage: "auto"
+                    property string sourceLanguage: "auto"
+                }
+            }
+
+            property JsonObject light: JsonObject {
+                property JsonObject night: JsonObject {
+                    property bool automatic: true
+                    property string from: "19:00"
+                    property string to: "06:30"
+                    property int colorTemperature: 4500
+                }
+            }
+
+            property JsonObject networking: JsonObject {
+                property string userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+            }
+
+            property JsonObject notifications: JsonObject {
+                property string forceMonitor: "${if cfg.notifications.forceMonitor != null then cfg.notifications.forceMonitor else ""}"
+            }
+
+            property JsonObject osd: JsonObject {
+                property int timeout: 1000
+            }
+
+            property JsonObject osk: JsonObject {
+                property string layout: "qwerty_full"
+                property bool pinnedOnStartup: false
+            }
+
+            property JsonObject overview: JsonObject {
+                property bool enable: true
+                property real scale: 0.18
+                property real rows: 2
+                property real columns: 5
+            }
+
+            property JsonObject resources: JsonObject {
+                property int updateInterval: 3000
+            }
+
+            property JsonObject search: JsonObject {
+                property int nonAppResultDelay: 30
+                property string engineBaseUrl: "https://www.google.com/search?q="
+                property list<string> excludedSites: ["quora.com"]
+                property bool sloppy: false
+                property JsonObject prefix: JsonObject {
+                    property string action: "/"
+                    property string ai: "?"
+                    property string clipboard: ";"
+                    property string emojis: ":"
+                }
+                property int aiDebounceMs: 600
+            }
+
+            property JsonObject sidebar: JsonObject {
+                property bool keepRightSidebarLoaded: true
+                property JsonObject translator: JsonObject {
+                    property int delay: 300
+                }
+                property JsonObject booru: JsonObject {
+                    property bool allowNsfw: false
+                    property string defaultProvider: "yandere"
+                    property int limit: 20
+                    property JsonObject zerochan: JsonObject {
+                        property string username: "[unset]"
+                    }
+                }
+            }
+
+            property JsonObject time: JsonObject {
+                property string format: "${cfg.time.format}"
+                property string dateFormat: "${cfg.time.dateFormat}"
+            }
+
+            property JsonObject windows: JsonObject {
+                property bool showTitlebar: true
+                property bool centerTitle: true
+            }
+
+            property JsonObject hacks: JsonObject {
+                property int arbitraryRaceConditionDelay: 20
+            }
+
+            property JsonObject screenshotTool: JsonObject {
+                property bool showContentRegions: true
+            }
+        }
+    }
+  '';
+
+  # Merge the read-only Quickshell source tree with the generated Config.qml so
+  # the whole tree can be deployed as a SINGLE recursive xdg.configFile entry.
+  #
+  # Why: deploying the source tree with `recursive = true` AND separately
+  # installing `.../modules/common/Config.qml` as its own file entry makes
+  # home-manager symlink the parent `quickshell` directory into the Nix store,
+  # then try to write Config.qml inside that store symlink. `realpath` then
+  # resolves the target outside $HOME and the home-manager-files build fails with
+  # "Error installing file '...Config.qml' outside $HOME". Overlaying the file
+  # into one derivation avoids the two-entry conflict entirely.
+  mergedQuickshellTree = pkgs.runCommand "dots-hyprland-quickshell-config" { } ''
+    # `source` layout varies by consumer: the DP-3-filtered overlay output and
+    # the raw dots-hyprland-source input expose `.config/quickshell`, while the
+    # examples/tests/flake self-configs pass `source = ./configs` directly, which
+    # exposes `quickshell`. Resolve whichever exists.
+    if [ -d "${topCfg.source}/.config/quickshell" ]; then
+      srcQs="${topCfg.source}/.config/quickshell"
+    elif [ -d "${topCfg.source}/quickshell" ]; then
+      srcQs="${topCfg.source}/quickshell"
+    else
+      echo "ERROR: could not find quickshell dir under ${topCfg.source} (tried .config/quickshell and quickshell)" >&2
+      exit 1
+    fi
+    cp -r --no-preserve=mode,ownership "$srcQs" "$out"
+    install -Dm444 "${pkgs.writeText "Config.qml" generatedConfigQml}" \
+      "$out/ii/modules/common/Config.qml"
+  '';
 in
 {
   options.programs.dots-hyprland.quickshell = {
@@ -229,246 +498,19 @@ in
     };
   };
   
-  config = mkIf (config.programs.dots-hyprland.enable && 
+  config = mkIf (config.programs.dots-hyprland.enable &&
                  config.programs.dots-hyprland.overrides.quickshellConfig == null &&
                  !(config.programs.dots-hyprland.configuration.enable or false)) {
-    # Only generate if no manual override is set AND configuration copying is disabled
-    xdg.configFile."quickshell/ii/modules/common/Config.qml".text = ''
-      pragma Singleton
-      pragma ComponentBehavior: Bound
-      import QtQuick
-      import Quickshell
-      import Quickshell.Io
-
-      Singleton {
-          id: root
-          property string filePath: Directories.shellConfigPath
-          property alias options: configOptionsJsonAdapter
-          property bool ready: true  // Always ready for NixOS-generated config
-
-          function setNestedValue(nestedKey, value) {
-              // NixOS-managed config - values are set at build time
-              console.log("NixOS-managed configuration - ignoring runtime changes");
-          }
-
-          JsonAdapter {
-              id: configOptionsJsonAdapter
-              
-              property JsonObject policies: JsonObject {
-                  property int ai: 1
-                  property int weeb: 1
-              }
-
-              property JsonObject ai: JsonObject {
-                  property string systemPrompt: "## Style\n- Use casual tone, don't be formal! Make sure you answer precisely without hallucination and prefer bullet points over walls of text. You can have a friendly greeting at the beginning of the conversation, but don't repeat the user's question\n\n## Context (ignore when irrelevant)\n- You are a helpful and inspiring sidebar assistant on a NixOS Linux system\n- Desktop environment: Hyprland + dots-hyprland\n- Current date & time: {DATETIME}\n- Focused app: {WINDOWCLASS}\n\n## Presentation\n- Use Markdown features in your response"
-                  property string tool: "functions"
-                  property list<var> extraModels: []
-                  property list<var> customProviders: [
-                      {
-                          "apiKey": "local",
-                          "baseUrl": "https://omniroute.celestium.life/v1",
-                          "icon": "ai-openai-symbolic",
-                          "id": "custom-1790475585274",
-                          "name": "OmniRoute"
-                      }
-                  ]
-              }
-              
-              property JsonObject appearance: JsonObject {
-                  property bool extraBackgroundTint: ${boolToString cfg.appearance.extraBackgroundTint}
-                  property int fakeScreenRounding: ${toString cfg.appearance.fakeScreenRounding}
-                  property bool transparency: ${boolToString cfg.appearance.transparency}
-                  property string antiFlashbang: "${cfg.appearance.antiFlashbang}"
-                  property JsonObject wallpaperTheming: JsonObject {
-                      property bool enableAppsAndShell: true
-                      property bool enableQtApps: true
-                      property bool enableTerminal: true
-                  }
-                  property JsonObject palette: JsonObject {
-                      property string type: "auto"
-                  }
-              }
-
-              property JsonObject audio: JsonObject {
-                  property JsonObject protection: JsonObject {
-                      property bool enable: true
-                      property real maxAllowedIncrease: 10
-                      property real maxAllowed: 90
-                  }
-              }
-              
-              property JsonObject apps: JsonObject {
-                  property string bluetooth: "${cfg.apps.bluetooth}"
-                  property string network: "${cfg.apps.network}"
-                  property string networkEthernet: "kcmshell6 kcm_networkmanagement"
-                  property string taskManager: "${cfg.apps.taskManager}"
-                  property string terminal: "${cfg.apps.terminal}"
-              }
-
-              property JsonObject background: JsonObject {
-                  property bool fixedClockPosition: false
-                  property real clockX: -500
-                  property real clockY: -500
-                  property string wallpaperPath: ""
-                  property string thumbnailPath: ""
-                  property JsonObject parallax: JsonObject {
-                      property bool enableWorkspace: true
-                      property real workspaceZoom: 1.07
-                      property bool enableSidebar: true
-                  }
-              }
-              
-              property JsonObject bar: JsonObject {
-                  property bool bottom: ${boolToString cfg.bar.bottom}
-                  property int cornerStyle: ${toString cfg.bar.cornerStyle}
-                  property bool borderless: ${boolToString cfg.bar.borderless}
-                  property string topLeftIcon: "${cfg.bar.topLeftIcon}"
-                  property bool showBackground: ${boolToString cfg.bar.showBackground}
-                  property bool verbose: ${boolToString cfg.bar.verbose}
-                  property JsonObject resources: JsonObject {
-                      property bool alwaysShowSwap: true
-                      property bool alwaysShowCpu: false
-                  }
-                  property list<string> screenList: []
-                  property JsonObject utilButtons: JsonObject {
-                      property bool showScreenSnip: ${boolToString cfg.bar.utilButtons.showScreenSnip}
-                      property bool showColorPicker: ${boolToString cfg.bar.utilButtons.showColorPicker}
-                      property bool showMicToggle: ${boolToString cfg.bar.utilButtons.showMicToggle}
-                      property bool showKeyboardToggle: ${boolToString cfg.bar.utilButtons.showKeyboardToggle}
-                      property bool showDarkModeToggle: ${boolToString cfg.bar.utilButtons.showDarkModeToggle}
-                      property bool showPerformanceProfileToggle: ${boolToString cfg.bar.utilButtons.showPerformanceProfileToggle}
-                  }
-                  property JsonObject tray: JsonObject {
-                      property bool monochromeIcons: true
-                  }
-                  property JsonObject workspaces: JsonObject {
-                      property string variant: "${cfg.bar.workspaces.variant}"
-                      property bool monochromeIcons: ${boolToString cfg.bar.workspaces.monochromeIcons}
-                      property int shown: ${toString cfg.bar.workspaces.shown}
-                      property bool showAppIcons: ${boolToString cfg.bar.workspaces.showAppIcons}
-                      property bool alwaysShowNumbers: ${boolToString cfg.bar.workspaces.alwaysShowNumbers}
-                      property int showNumberDelay: ${toString cfg.bar.workspaces.showNumberDelay}
-                  }
-                  property JsonObject weather: JsonObject {
-                      property bool enable: false
-                      property bool enableGPS: true
-                      property string city: ""
-                      property bool useUSCS: false
-                      property int fetchInterval: 10
-                  }
-              }
-              
-              property JsonObject battery: JsonObject {
-                  property int low: ${toString cfg.battery.low}
-                  property int critical: ${toString cfg.battery.critical}
-                  property bool automaticSuspend: ${boolToString cfg.battery.automaticSuspend}
-                  property int suspend: ${toString cfg.battery.suspend}
-              }
-
-              property JsonObject dock: JsonObject {
-                  property bool enable: false
-                  property bool monochromeIcons: true
-                  property real height: 60
-                  property real hoverRegionHeight: 2
-                  property bool pinnedOnStartup: false
-                  property bool hoverToReveal: true
-                  property list<string> pinnedApps: ["org.kde.dolphin", "kitty"]
-                  property list<string> ignoredAppRegexes: []
-              }
-
-              property JsonObject language: JsonObject {
-                  property JsonObject translator: JsonObject {
-                      property string engine: "auto"
-                      property string targetLanguage: "auto"
-                      property string sourceLanguage: "auto"
-                  }
-              }
-
-              property JsonObject light: JsonObject {
-                  property JsonObject night: JsonObject {
-                      property bool automatic: true
-                      property string from: "19:00"
-                      property string to: "06:30"
-                      property int colorTemperature: 4500
-                  }
-              }
-
-              property JsonObject networking: JsonObject {
-                  property string userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-              }
-
-              property JsonObject notifications: JsonObject {
-                  property string forceMonitor: "${if cfg.notifications.forceMonitor != null then cfg.notifications.forceMonitor else ""}"
-              }
-
-              property JsonObject osd: JsonObject {
-                  property int timeout: 1000
-              }
-
-              property JsonObject osk: JsonObject {
-                  property string layout: "qwerty_full"
-                  property bool pinnedOnStartup: false
-              }
-
-              property JsonObject overview: JsonObject {
-                  property bool enable: true
-                  property real scale: 0.18
-                  property real rows: 2
-                  property real columns: 5
-              }
-
-              property JsonObject resources: JsonObject {
-                  property int updateInterval: 3000
-              }
-
-              property JsonObject search: JsonObject {
-                  property int nonAppResultDelay: 30
-                  property string engineBaseUrl: "https://www.google.com/search?q="
-                  property list<string> excludedSites: ["quora.com"]
-                  property bool sloppy: false
-                  property JsonObject prefix: JsonObject {
-                      property string action: "/"
-                      property string ai: "?"
-                      property string clipboard: ";"
-                      property string emojis: ":"
-                  }
-                  property int aiDebounceMs: 600
-              }
-
-              property JsonObject sidebar: JsonObject {
-                  property bool keepRightSidebarLoaded: true
-                  property JsonObject translator: JsonObject {
-                      property int delay: 300
-                  }
-                  property JsonObject booru: JsonObject {
-                      property bool allowNsfw: false
-                      property string defaultProvider: "yandere"
-                      property int limit: 20
-                      property JsonObject zerochan: JsonObject {
-                          property string username: "[unset]"
-                      }
-                  }
-              }
-              
-              property JsonObject time: JsonObject {
-                  property string format: "${cfg.time.format}"
-                  property string dateFormat: "${cfg.time.dateFormat}"
-              }
-
-              property JsonObject windows: JsonObject {
-                  property bool showTitlebar: true
-                  property bool centerTitle: true
-              }
-
-              property JsonObject hacks: JsonObject {
-                  property int arbitraryRaceConditionDelay: 20
-              }
-
-              property JsonObject screenshotTool: JsonObject {
-                  property bool showContentRegions: true
-              }
-          }
-      }
-    '';
+    # Deploy the merged Quickshell tree (source + NixOS-generated Config.qml) as a
+    # single recursive entry. This replaces the old pattern of a recursive source
+    # directory plus a separate Config.qml file entry, which made home-manager
+    # symlink the parent directory into the store and fail with
+    # "Error installing file '...Config.qml' outside $HOME".
+    # Only applies to hybrid/declarative modes; writable mode stages separately.
+    xdg.configFile."quickshell" = mkIf (topCfg.mode == "hybrid" || topCfg.mode == "declarative") {
+      source = mergedQuickshellTree;
+      recursive = true;
+      force = true;
+    };
   };
 }

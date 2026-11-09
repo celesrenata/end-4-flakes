@@ -41,3 +41,4 @@ __pycache__/
 dots-hyprland/
 dots-hyprland-wiki/
 dots-hyprland-test.qcow2
+tmp/

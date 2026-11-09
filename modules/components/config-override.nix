@@ -109,9 +109,27 @@ in
         };
       })
 
-      # Quickshell complete override  
-      (mkIf (cfg.overrides.quickshellConfig != null) {
-        "quickshell/ii/modules/common/Config.qml".text = cfg.overrides.quickshellConfig;
+      # Quickshell complete override — deploy the source tree with the override
+      # Config.qml merged in, as a single recursive entry (avoids the
+      # "outside $HOME" files build failure from a dir symlink + file entry).
+      (mkIf (cfg.overrides.quickshellConfig != null && cfg.overrides.quickshellDirectory == null) {
+        "quickshell" = {
+          source = pkgs.runCommand "dots-hyprland-quickshell-override" { } ''
+            if [ -d "${cfg.source}/.config/quickshell" ]; then
+              srcQs="${cfg.source}/.config/quickshell"
+            elif [ -d "${cfg.source}/quickshell" ]; then
+              srcQs="${cfg.source}/quickshell"
+            else
+              echo "ERROR: could not find quickshell dir under ${cfg.source}" >&2
+              exit 1
+            fi
+            cp -r --no-preserve=mode,ownership "$srcQs" "$out"
+            install -Dm444 "${pkgs.writeText "Config.qml" cfg.overrides.quickshellConfig}" \
+              "$out/ii/modules/common/Config.qml"
+          '';
+          recursive = true;
+          force = true;
+        };
       })
 
       # Terminal complete override

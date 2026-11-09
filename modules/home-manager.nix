@@ -118,13 +118,11 @@ in
       copyHyprlandConfig = mkDefault (cfg.mode == "declarative");  # Only copy in pure declarative mode
     };
 
-    # Quickshell QML source — nix-managed symlink, atomic updates on rebuild.
-    # QML code is read-only; runtime config writes to ~/.config/illogical-impulse/.
-    xdg.configFile."quickshell" = mkIf (cfg.mode == "hybrid" || cfg.mode == "declarative") {
-      source = "${cfg.source}/.config/quickshell";
-      recursive = true;
-      force = true;
-    };
+    # Quickshell QML source is deployed by components/quickshell-config.nix as a
+    # single recursive xdg.configFile."quickshell" entry whose tree already has
+    # the NixOS-generated Config.qml merged in. (A separate recursive source here
+    # plus the generated Config.qml file caused the "outside $HOME" files build
+    # failure.)
     
     # Enable writable mode
     programs.dots-hyprland.writable-mode = mkIf (cfg.mode == "writable") {
