@@ -30,7 +30,7 @@
         });
         
         # Patch kde-material-you-colors for non-Plasma systems
-        kde-material-you-colors = (prev.python3Packages.kde-material-you-colors.overrideAttrs (old: {
+        kde-material-you-colors = (prev.kde-material-you-colors.overrideAttrs (old: {
           pname = "kde-material-you-colors-patched";
           dontCheckPythonMetadata = true;
           nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ prev.makeWrapper ];
